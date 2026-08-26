@@ -87,6 +87,10 @@ passport.use(new FacebookStrategy(
     clientSecret: process.env.FACEBOOK_APP_SECRET || 'missing_facebook_app_secret',
     callbackURL: `${API_BASE_URL}/api/auth/facebook/callback`,
     profileFields: ['id', 'emails', 'name', 'photos'],
+    // passport-facebook defaults to the long-deprecated Graph API v3.2 dialog
+    // when this isn't set, which Facebook's current backend rejects the
+    // 'email' scope against ("Invalid Scopes: email").
+    graphAPIVersion: 'v19.0',
   },
   async (_accessToken, _refreshToken, profile, done) => {
     try {
