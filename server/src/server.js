@@ -101,6 +101,8 @@ if (fs.existsSync(clientDistPath)) {
     res.sendFile(path.join(clientDistPath, 'index.html'));
   });
   console.log('[SERVER] Client build trouvé — servi en statique depuis', clientDistPath);
+} else {
+  console.warn('[SERVER] Aucun build client trouvé à', clientDistPath, '— la racine ne servira que l\'API. Vérifiez que "npm run build" a bien tourné avant "npm start".');
 }
 
 app.use((error, _req, res, _next) => {
