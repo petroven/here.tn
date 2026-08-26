@@ -5,6 +5,8 @@ import helmet from 'helmet';
 import dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
 import './models/index.js';
 import { syncDatabase } from './config/database.js';
 import { initIo } from './realtime/io.js';
@@ -83,6 +85,23 @@ app.use('/api', retourRoutes);
 app.use('/api', paymentRoutes);
 app.use('/api', walletRoutes);
 app.use('/api', oauthRoutes);
+
+// Sert le build client (client/dist) quand il existe, pour un déploiement en
+// un seul service (ex: Railway/Render) — API + site sur la même URL, pas de
+// second service ni de CORS entre deux domaines à gérer. En dev, le client
+// tourne sur son propre serveur Vite (port 5174) et ce dossier n'existe pas
+// encore, donc ce bloc est un no-op silencieux.
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const clientDistPath = path.resolve(__dirname, '../../client/dist');
+if (fs.existsSync(clientDistPath)) {
+  app.use(express.static(clientDistPath));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) return next();
+    res.sendFile(path.join(clientDistPath, 'index.html'));
+  });
+  console.log('[SERVER] Client build trouvé — servi en statique depuis', clientDistPath);
+}
 
 app.use((error, _req, res, _next) => {
   console.error('[SERVER] Error:', error);
