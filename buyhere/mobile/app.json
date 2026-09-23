@@ -1,0 +1,66 @@
+{
+  "expo": {
+    "name": "BuyHere",
+    "slug": "buyhere",
+    "scheme": "buyhere",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "tn.buyhere.app",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "BuyHere utilise vos photos pour votre photo de profil."
+      }
+    },
+    "android": {
+      "package": "tn.buyhere.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#FF6B00",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-image",
+      [
+        "expo-localization",
+        {
+          "supportsRTL": true
+        }
+      ],
+      "expo-web-browser",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 160,
+          "backgroundColor": "#FF6B00",
+          "dark": {
+            "backgroundColor": "#0F1115"
+          }
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#FF6B00"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "BuyHere utilise vos photos pour votre photo de profil."
+        }
+      ]
+    ]
+  }
+}
