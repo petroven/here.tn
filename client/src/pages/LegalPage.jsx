@@ -56,10 +56,10 @@ export default function LegalPage({ type = 'cgu', language = 'fr', onBack }) {
     <main dir={language === 'ar' ? 'rtl' : 'ltr'} className="min-h-screen bg-[#F8FAFC] px-4 py-10 sm:px-6">
       <article className="mx-auto max-w-4xl rounded-2xl border border-slate-200 bg-white p-6 shadow-soft sm:p-10">
         <button onClick={onBack} className="mb-8 rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-600 hover:bg-slate-50">{language === 'ar' ? 'رجوع' : 'Retour'}</button>
-        <span className="text-sm font-bold text-[#6366F1]">here.tn</span>
-        <h1 className="mt-2 text-3xl font-black text-[#0F172A]">{copy.title}</h1>
+        <span className="text-sm font-bold text-[#C4532C]">BuyHere</span>
+        <h1 className="mt-2 text-3xl font-black text-[#1E1B18]">{copy.title}</h1>
         <p className="mt-4 text-sm leading-7 text-[#475569]">{copy.intro}</p>
-        <div className="mt-8 space-y-6">{copy.sections.map(([title, text]) => <section key={title} className="border-t border-slate-100 pt-5"><h2 className="text-lg font-extrabold text-[#0F172A]">{title}</h2><p className="mt-2 text-sm leading-7 text-[#475569]">{text}</p></section>)}</div>
+        <div className="mt-8 space-y-6">{copy.sections.map(([title, text]) => <section key={title} className="border-t border-slate-100 pt-5"><h2 className="text-lg font-extrabold text-[#1E1B18]">{title}</h2><p className="mt-2 text-sm leading-7 text-[#475569]">{text}</p></section>)}</div>
       </article>
     </main>
   );

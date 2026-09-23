@@ -54,6 +54,9 @@ export default function ProductCard({ product, isFavorite, onToggleFavorite, onO
         </div>
 
         <div className="space-y-1.5 p-3.5">
+          {product.boutique?.nom && (
+            <p className="truncate text-[11px] font-semibold text-slate-400">{product.boutique.nom}</p>
+          )}
           <h3 className="truncate text-sm font-bold text-slate-900">{product.nom}</h3>
 
           <div className="flex items-center gap-1 text-xs">
@@ -63,7 +66,7 @@ export default function ProductCard({ product, isFavorite, onToggleFavorite, onO
           </div>
 
           <div className="flex items-center gap-2">
-            <strong className="text-base font-black text-[#7C3AED]">{Number(product.prix).toFixed(3)} TND</strong>
+            <strong className="text-base font-black text-[#C4532C]">{Number(product.prix).toFixed(3)} TND</strong>
             {hasPromo && (
               <span className="text-xs text-slate-400 line-through">{Number(product.prixAvant).toFixed(3)}</span>
             )}

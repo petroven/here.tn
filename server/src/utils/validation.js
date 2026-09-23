@@ -73,6 +73,22 @@ export const newPasswordSchema = Joi.object({
   password: Joi.string().min(6).max(128).required(),
 });
 
+// Espace client (/compte) — mise à jour du profil : email et rôle exclus
+// volontairement (pas de changement d'email en libre-service dans ce lot).
+export const updateProfileSchema = Joi.object({
+  nom: Joi.string().min(2).max(100).optional(),
+  prenom: Joi.string().min(2).max(100).optional(),
+  telephone: Joi.string().pattern(/^(\+216)?[2-9][0-9]{7}$/).allow('', null).optional(),
+  adresse: Joi.string().max(255).allow('', null).optional(),
+  gouvernoratId: Joi.number().integer().allow(null).optional(),
+  delegationId: Joi.number().integer().allow(null).optional(),
+});
+
+export const changePasswordSchema = Joi.object({
+  currentPassword: Joi.string().required(),
+  newPassword: Joi.string().min(6).max(128).required(),
+});
+
 export function validate(schema) {
   return (req, res, next) => {
     const { error, value } = schema.validate(req.body, { abortEarly: false, stripUnknown: true });

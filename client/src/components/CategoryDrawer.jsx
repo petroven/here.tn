@@ -1,30 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { API_URL } from '../config/api.js';
-import {
-  X, Heart, Ticket, ChevronRight, Store, HelpCircle,
-  Sparkles, Shirt, Watch, Home as HomeIcon, Smartphone,
-  Laptop, ShoppingBasket, Dumbbell, Tv, Baby, Car, Gamepad2, Tag,
-} from 'lucide-react';
-
-const ICON_BY_KEYWORD = [
-  [/beaut|sant|parapharm/i, Sparkles],
-  [/mode|v[êe]tement|chaussure/i, Shirt],
-  [/accessoire.*mode|bijou/i, Watch],
-  [/maison|d[ée]co|bricolage/i, HomeIcon],
-  [/t[ée]l[ée]phon|mobile|objets connect/i, Smartphone],
-  [/informatique|ordinateur/i, Laptop],
-  [/supermarch|alimentation|terroir|artisanat/i, ShoppingBasket],
-  [/sport|loisir|voyage/i, Dumbbell],
-  [/image|son|[ée]lectrom[ée]nager|tv|hi-tech/i, Tv],
-  [/b[ée]b[ée]|enfant|jouet/i, Baby],
-  [/auto|moto/i, Car],
-  [/jeux vid[ée]o|console|gaming/i, Gamepad2],
-];
-
-function iconForCategory(nom = '') {
-  const match = ICON_BY_KEYWORD.find(([pattern]) => pattern.test(nom));
-  return match ? match[1] : Tag;
-}
+import { X, Heart, Ticket, ChevronRight, Store, HelpCircle } from 'lucide-react';
+import { iconForCategory } from '../utils/categoryIcons.js';
+import Logo from './ui/Logo.jsx';
 
 export default function CategoryDrawer({
   open,
@@ -74,11 +52,11 @@ export default function CategoryDrawer({
 
       {/* Panel */}
       <div
-        className={`absolute top-0 ${side === 'left' ? 'left-0' : 'right-0'} h-full w-[85%] max-w-sm overflow-y-auto bg-white shadow-2xl animate-fadeIn`}
+        className={`absolute top-0 ${side === 'left' ? 'left-0' : 'right-0'} h-full w-[85%] max-w-sm overflow-y-auto bg-white shadow-soft animate-fadeIn`}
         dir={isAr ? 'rtl' : 'ltr'}
       >
         <div className="flex items-center justify-between border-b border-slate-100 p-4">
-          <span className="text-sm font-black text-slate-900">here.tn</span>
+          <Logo variant="compact" className="h-8 w-auto" />
           <button onClick={onClose} aria-label={tr('Fermer', 'إغلاق')} className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100">
             <X size={20} />
           </button>

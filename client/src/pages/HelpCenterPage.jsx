@@ -8,7 +8,7 @@ const CATEGORIES = [
   {
     key: 'achats',
     icon: ShoppingBag,
-    title: { fr: 'Acheter sur here.tn', ar: 'الشراء عبر here.tn' },
+    title: { fr: 'Acheter sur BuyHere', ar: 'الشراء عبر BuyHere' },
     items: [
       {
         q: { fr: 'Comment passer une commande ?', ar: 'كيف أقوم بطلب؟' },
@@ -264,7 +264,7 @@ export default function HelpCenterPage({ language = 'fr', onBack }) {
                     key={cat.key}
                     onClick={() => setActiveCategory(cat.key)}
                     className={`flex shrink-0 items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-left text-xs font-bold transition ${
-                      active ? 'bg-[#F5F3FF] text-[#7C3AED]' : 'text-slate-500 hover:bg-slate-100'
+                      active ? 'bg-[#F8E4DE] text-[#C4532C]' : 'text-slate-500 hover:bg-slate-100'
                     }`}
                   >
                     <Icon size={16} /> {cat.title[language]}
@@ -286,7 +286,7 @@ export default function HelpCenterPage({ language = 'fr', onBack }) {
               return (
                 <div key={cat.key} className="card-premium p-5 sm:p-6">
                   <div className="mb-1 flex items-center gap-2.5">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#F5F3FF] text-[#7C3AED]"><Icon size={17} /></span>
+                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#F8E4DE] text-[#C4532C]"><Icon size={17} /></span>
                     <h2 className="text-base font-extrabold text-slate-900">{cat.title[language]}</h2>
                   </div>
                   <div className="mt-2">

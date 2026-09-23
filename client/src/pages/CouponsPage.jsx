@@ -45,7 +45,7 @@ export default function CouponsPage({ language = 'fr', onBack }) {
           {[...Array(3)].map((_, i) => <div key={i} className="h-20 animate-pulse rounded-2xl bg-slate-100" />)}
         </div>
       ) : coupons.length === 0 ? (
-        <div className="rounded-3xl border border-slate-200 bg-white p-12 text-center shadow-soft">
+        <div className="rounded-lg border border-slate-200 bg-white p-12 text-center shadow-soft">
           <p className="text-slate-500">{tr('Aucun bon disponible pour le moment.', 'لا توجد قسائم متاحة حاليًا.')}</p>
         </div>
       ) : (

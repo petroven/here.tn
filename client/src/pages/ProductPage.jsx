@@ -1,17 +1,29 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft, Heart, MessageSquare, PackageCheck, ShieldCheck, Star, Store,
-  Truck, ShoppingCart, Zap, ChevronLeft, ChevronRight, RotateCcw,
+  Truck, ShoppingCart, Zap, ChevronLeft, ChevronRight, RotateCcw, Minus, Plus, Check,
 } from 'lucide-react';
 import ProductCard from '../components/ProductCard';
+import Avatar from '../components/ui/Avatar';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
-function Avatar({ nom, prenom }) {
-  const initials = `${prenom?.[0] || ''}${nom?.[0] || ''}`.toUpperCase() || '?';
-  return (
-    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-200 to-blue-200 text-xs font-black text-[#7C3AED]">
-      {initials}
-    </span>
-  );
+const SWATCH_COLORS = {
+  noir: '#1E1B18', black: '#1E1B18',
+  blanc: '#FFFFFF', white: '#FFFFFF',
+  gris: '#8C8378', grey: '#8C8378', gray: '#8C8378',
+  bleu: '#3B5B8C', blue: '#3B5B8C',
+  rouge: '#B3402C', red: '#B3402C',
+  vert: '#4C7A5A', green: '#4C7A5A',
+  jaune: '#D6A93A', yellow: '#D6A93A',
+  rose: '#D693A8', pink: '#D693A8',
+  beige: '#E4D8C6',
+  marron: '#6E4A2E', brown: '#6E4A2E',
+  orange: '#C4532C',
+  violet: '#7A5C9E', purple: '#7A5C9E',
+};
+
+function colorSwatch(nom = '') {
+  return SWATCH_COLORS[nom.trim().toLowerCase()] || '#C4532C';
 }
 
 export default function ProductPage({ productId, language = 'fr', onBack, onOpenStore, onOpenProduct, onAddToCart, onStartChat }) {
@@ -19,7 +31,6 @@ export default function ProductPage({ productId, language = 'fr', onBack, onOpen
   const tr = (fr, ar) => (isAr ? ar : fr);
 
   const [product, setProduct] = useState(null);
-  const [variant, setVariant] = useState(null);
   const [imageIndex, setImageIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [gouvernorats, setGouvernorats] = useState([]);
@@ -28,9 +39,17 @@ export default function ProductPage({ productId, language = 'fr', onBack, onOpen
   const [activeTab, setActiveTab] = useState('description');
   const [similar, setSimilar] = useState([]);
   const [isFavorite, setIsFavorite] = useState(false);
+  const [qty, setQty] = useState(1);
+  const [selectedCouleur, setSelectedCouleur] = useState(null);
+  const [selectedTaille, setSelectedTaille] = useState(null);
 
   const tabsRef = useRef({});
   const [underline, setUnderline] = useState({ left: 0, width: 0 });
+
+  useDocumentTitle(
+    product ? `${product.nom} — BuyHere` : undefined,
+    product?.description ? product.description.slice(0, 160) : undefined,
+  );
 
   useEffect(() => {
     setLoading(true);
@@ -39,13 +58,16 @@ export default function ProductPage({ productId, language = 'fr', onBack, onOpen
       .then((data) => {
         if (data.success) {
           setProduct(data.data);
-          setVariant(data.data.variantes?.[0] || null);
+          const firstVariant = data.data.variantes?.[0] || null;
+          setSelectedCouleur(firstVariant?.couleur || null);
+          setSelectedTaille(firstVariant?.taille || firstVariant?.pointure || null);
         }
       })
       .catch(() => setProduct(null))
       .finally(() => setLoading(false));
     setActiveTab('description');
     setImageIndex(0);
+    setQty(1);
   }, [productId]);
 
   useEffect(() => {
@@ -78,6 +100,32 @@ export default function ProductPage({ productId, language = 'fr', onBack, onOpen
   const estimatedDelay = (nom) => (isTunis(nom) ? '24-48h' : '48-72h');
 
   const images = useMemo(() => [product?.image, ...(product?.images || [])].filter(Boolean), [product]);
+
+  // Deux axes indépendants (couleur / taille-pointure) dérivés de la liste
+  // brute de variantes — un produit peut n'en avoir qu'un des deux, ou
+  // aucun. La variante active est celle qui correspond aux deux sélections
+  // (ou juste l'axe présent), pas un état séparé à synchroniser à la main.
+  const variantAxes = useMemo(() => {
+    const variantes = product?.variantes || [];
+    return {
+      couleurs: [...new Set(variantes.map((v) => v.couleur).filter(Boolean))],
+      tailles: [...new Set(variantes.map((v) => v.taille || v.pointure).filter(Boolean))],
+    };
+  }, [product]);
+
+  const variant = useMemo(() => {
+    const variantes = product?.variantes || [];
+    if (variantes.length === 0) return null;
+    const hasCouleur = variantAxes.couleurs.length > 0;
+    const hasTaille = variantAxes.tailles.length > 0;
+    if (!hasCouleur && !hasTaille) return variantes[0];
+    return variantes.find((v) => {
+      const couleurOk = !hasCouleur || v.couleur === selectedCouleur;
+      const tailleOk = !hasTaille || (v.taille || v.pointure) === selectedTaille;
+      return couleurOk && tailleOk;
+    }) || null;
+  }, [product, variantAxes, selectedCouleur, selectedTaille]);
+
   const price = Number(product?.prix || 0) + Number(variant?.prixSupplement || 0);
   const rating = Number(product?.note || 0);
   const reviews = product?.Avis || [];
@@ -91,10 +139,16 @@ export default function ProductPage({ productId, language = 'fr', onBack, onOpen
     return Number.isFinite(override) ? Math.max(0, Math.min(base, override)) : base;
   }, [product]);
 
-  if (loading) return <div className="min-h-screen animate-pulse bg-slate-50 p-8"><div className="mx-auto h-96 max-w-6xl rounded-3xl bg-slate-200" /></div>;
+  if (loading) return <div className="min-h-screen animate-pulse bg-slate-50 p-8"><div className="mx-auto h-96 max-w-6xl rounded-lg bg-slate-200" /></div>;
   if (!product) return <div className="p-10 text-center text-slate-600">{tr('Produit introuvable.', 'المنتج غير موجود.')}</div>;
 
-  const addToCart = () => onAddToCart({ id: product.id, nom: product.nom, prix: price, boutiqueId: product.boutiqueId, boutiqueNom: product.boutique?.nom || tr('Boutique locale', 'متجر محلي'), image: product.image, stock: variant ? variant.stock : product.stock, varianteId: variant?.id || null, selectedVariantName: variant ? [variant.taille, variant.couleur, variant.pointure].filter(Boolean).join(' / ') : null });
+  const addToCart = () => {
+    // handleAddToCart (App.jsx) ajoute 1 unité par appel et plafonne déjà au
+    // stock — pas de changement à cette logique, on l'appelle qty fois.
+    for (let i = 0; i < qty; i++) {
+      onAddToCart({ id: product.id, nom: product.nom, prix: price, boutiqueId: product.boutiqueId, boutiqueNom: product.boutique?.nom || tr('Boutique locale', 'متجر محلي'), image: product.image, stock: variant ? variant.stock : product.stock, varianteId: variant?.id || null, selectedVariantName: variant ? [variant.taille, variant.couleur, variant.pointure].filter(Boolean).join(' / ') : null });
+    }
+  };
 
   const tabs = [
     { key: 'description', label: tr('Description', 'الوصف') },
@@ -109,11 +163,24 @@ export default function ProductPage({ productId, language = 'fr', onBack, onOpen
           <ArrowLeft size={16} className="rtl:rotate-180" /> {tr('Retour aux produits', 'رجوع إلى المنتجات')}
         </button>
 
-        <section className="grid gap-7 rounded-3xl border border-slate-200 bg-white p-5 shadow-soft lg:grid-cols-[1fr_1fr] lg:p-8">
-          {/* Gallery */}
-          <div className="space-y-3">
+        <section className="grid gap-7 rounded-lg border border-slate-200 bg-white p-5 shadow-soft lg:grid-cols-[1fr_1fr] lg:p-8">
+          {/* Gallery — vignettes en bande verticale à gauche de la photo principale */}
+          <div className="flex gap-3">
+            {images.length > 1 && (
+              <div className="flex shrink-0 flex-col gap-2 overflow-y-auto">
+                {images.map((image, index) => (
+                  <button
+                    key={image}
+                    onClick={() => setImageIndex(index)}
+                    className={`h-16 w-16 shrink-0 overflow-hidden rounded-xl border-2 transition-colors ${index === imageIndex ? 'border-[#C4532C]' : 'border-transparent hover:border-slate-200'}`}
+                  >
+                    <img src={image} alt="" className="h-full w-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            )}
             <div
-              className="relative h-[360px] cursor-zoom-in overflow-hidden rounded-3xl bg-slate-100 sm:h-[450px]"
+              className="relative h-[360px] w-full cursor-zoom-in overflow-hidden rounded-lg bg-slate-100 sm:h-[450px]"
               onMouseEnter={() => setZoomed(true)}
               onMouseLeave={() => setZoomed(false)}
             >
@@ -132,33 +199,11 @@ export default function ProductPage({ productId, language = 'fr', onBack, onOpen
                 <div className="flex h-full items-center justify-center text-slate-300"><PackageCheck size={56} /></div>
               )}
             </div>
-            {images.length > 1 && (
-              <div className="flex gap-2 overflow-x-auto">
-                {images.map((image, index) => (
-                  <button
-                    key={image}
-                    onClick={() => setImageIndex(index)}
-                    className={`h-16 w-16 shrink-0 overflow-hidden rounded-xl border-2 transition-colors ${index === imageIndex ? 'border-[#7C3AED]' : 'border-transparent hover:border-slate-200'}`}
-                  >
-                    <img src={image} alt="" className="h-full w-full object-cover" />
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
 
           {/* Info */}
           <div className="flex flex-col gap-5">
-            <div className="flex items-center justify-between gap-3">
-              <button onClick={() => onOpenStore(product.boutique?.id)} className="flex items-center gap-2.5 rounded-2xl bg-slate-50 px-3 py-2 text-left transition hover:bg-slate-100">
-                <span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-violet-100 to-blue-100 text-xs font-black text-[#7C3AED]">
-                  {product.boutique?.logo ? <img src={product.boutique.logo} alt="" className="h-full w-full object-cover" /> : (product.boutique?.nom || 'B').slice(0, 1)}
-                </span>
-                <span>
-                  <span className="block text-xs font-bold text-slate-800">{product.boutique?.nom || tr('Boutique locale', 'متجر محلي')}</span>
-                  <span className="text-[10px] font-semibold text-[#7C3AED]">{tr('Voir la boutique', 'زيارة المتجر')} →</span>
-                </span>
-              </button>
+            <div className="flex items-center justify-end">
               <button
                 onClick={() => setIsFavorite((v) => !v)}
                 aria-label={tr('Ajouter aux favoris', 'أضف إلى المفضلة')}
@@ -190,26 +235,74 @@ export default function ProductPage({ productId, language = 'fr', onBack, onOpen
               </p>
             </div>
 
-            {product.variantes?.length > 0 && (
+            {variantAxes.couleurs.length > 0 && (
               <div>
-                <label className="mb-2 block text-sm font-bold text-slate-800">{tr('Choisir une variante', 'اختر الخيار')}</label>
-                <div className="flex flex-wrap gap-2">
-                  {product.variantes.map((item) => {
-                    const label = [item.taille, item.couleur, item.pointure].filter(Boolean).join(' / ') || `Option ${item.id}`;
-                    const active = variant?.id === item.id;
+                <label className="mb-2 block text-sm font-bold text-slate-800">
+                  {tr('Couleur', 'اللون')}{selectedCouleur ? ` — ${selectedCouleur}` : ''}
+                </label>
+                <div className="flex flex-wrap gap-2.5">
+                  {variantAxes.couleurs.map((couleur) => {
+                    const active = selectedCouleur === couleur;
                     return (
                       <button
-                        key={item.id}
-                        onClick={() => setVariant(item)}
-                        className={`rounded-full px-4 py-2 text-xs font-bold transition-all duration-200 ${active ? 'gradient-brand text-white shadow-md' : 'border border-slate-200 text-slate-700 hover:border-[#7C3AED]'}`}
+                        key={couleur}
+                        onClick={() => setSelectedCouleur(couleur)}
+                        aria-label={couleur}
+                        title={couleur}
+                        className={`relative flex h-9 w-9 items-center justify-center rounded-full border-2 transition-all ${active ? 'border-[#C4532C]' : 'border-transparent hover:border-slate-300'}`}
                       >
-                        {label}
+                        <span
+                          className="h-7 w-7 rounded-full ring-1 ring-inset ring-black/10"
+                          style={{ backgroundColor: colorSwatch(couleur) }}
+                        />
+                        {active && <Check size={13} className="absolute text-white mix-blend-difference" />}
                       </button>
                     );
                   })}
                 </div>
               </div>
             )}
+
+            {variantAxes.tailles.length > 0 && (
+              <div>
+                <label className="mb-2 block text-sm font-bold text-slate-800">{tr('Taille', 'المقاس')}</label>
+                <div className="flex flex-wrap gap-2">
+                  {variantAxes.tailles.map((taille) => {
+                    const active = selectedTaille === taille;
+                    return (
+                      <button
+                        key={taille}
+                        onClick={() => setSelectedTaille(taille)}
+                        className={`min-w-[2.75rem] rounded-xl px-3.5 py-2 text-xs font-bold transition-all duration-200 ${active ? 'gradient-brand text-white shadow-md' : 'border border-slate-200 text-slate-700 hover:border-[#C4532C]'}`}
+                      >
+                        {taille}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            <div>
+              <label className="mb-2 block text-sm font-bold text-slate-800">{tr('Quantité', 'الكمية')}</label>
+              <div className="inline-flex items-center rounded-xl border border-slate-200">
+                <button
+                  onClick={() => setQty((q) => Math.max(1, q - 1))}
+                  disabled={qty <= 1}
+                  className="flex h-10 w-10 items-center justify-center text-slate-600 transition hover:text-[#C4532C] disabled:opacity-30"
+                >
+                  <Minus size={15} />
+                </button>
+                <span className="w-10 text-center text-sm font-bold text-slate-900">{qty}</span>
+                <button
+                  onClick={() => setQty((q) => Math.min(q + 1, variant ? variant.stock : product.stock))}
+                  disabled={qty >= (variant ? variant.stock : product.stock)}
+                  className="flex h-10 w-10 items-center justify-center text-slate-600 transition hover:text-[#C4532C] disabled:opacity-30"
+                >
+                  <Plus size={15} />
+                </button>
+              </div>
+            </div>
 
             <div className="flex flex-col gap-2.5 sm:flex-row">
               <button
@@ -229,22 +322,30 @@ export default function ProductPage({ productId, language = 'fr', onBack, onOpen
             </div>
 
             {product.boutique?.vendeurId && onStartChat && (
-              <button onClick={() => onStartChat(product.boutique.vendeurId, `Produit: ${product.nom}`)} className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50">
+              <button
+                onClick={() => onStartChat(
+                  product.boutique.vendeurId,
+                  `${tr('Produit', 'المنتج')}: ${product.nom}`,
+                  tr(`Bonjour, j'ai une question concernant le produit : ${product.nom}.`, `مرحبًا، لدي سؤال بخصوص المنتج: ${product.nom}.`),
+                )}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+              >
                 <MessageSquare size={16} /> {tr('Contacter le vendeur', 'تواصل مع البائع')}
               </button>
             )}
           </div>
         </section>
 
+        <div className="grid gap-6 lg:grid-cols-[2fr_1fr] lg:items-start">
         {/* Tabs */}
-        <section className="rounded-3xl border border-slate-200 bg-white shadow-soft">
+        <section className="rounded-lg border border-slate-200 bg-white shadow-soft">
           <div className="relative flex gap-6 border-b border-slate-100 px-6">
             {tabs.map((tab) => (
               <button
                 key={tab.key}
                 ref={(el) => { tabsRef.current[tab.key] = el; }}
                 onClick={() => setActiveTab(tab.key)}
-                className={`py-4 text-sm font-bold transition-colors ${activeTab === tab.key ? 'text-[#7C3AED]' : 'text-slate-400 hover:text-slate-600'}`}
+                className={`py-4 text-sm font-bold transition-colors ${activeTab === tab.key ? 'text-[#C4532C]' : 'text-slate-400 hover:text-slate-600'}`}
               >
                 {tab.label}
               </button>
@@ -274,7 +375,11 @@ export default function ProductPage({ productId, language = 'fr', onBack, onOpen
                           <span className="inline-flex shrink-0 items-center gap-1 text-xs font-bold text-amber-600"><Star size={13} className="fill-amber-400 text-amber-400" /> {review.note}/5</span>
                         </div>
                         <p className="mt-1.5 text-sm text-slate-600">{review.commentaire || tr('Avis sans commentaire.', 'بدون تعليق.')}</p>
-                        <p className="mt-2 text-[11px] text-emerald-700">{tr('Avis vérifié', 'تقييم موثق')} · {new Date(review.createdAt || Date.now()).toLocaleDateString(isAr ? 'ar-TN' : 'fr-TN')}</p>
+                        <p className="mt-2 flex items-center gap-1.5 text-[11px] text-slate-400">
+                          {review.verifie && <span className="font-bold text-emerald-700">{tr('✓ Achat vérifié', '✓ عملية شراء موثقة')}</span>}
+                          {review.verifie && '·'}
+                          {new Date(review.createdAt || Date.now()).toLocaleDateString(isAr ? 'ar-TN' : 'fr-TN')}
+                        </p>
                       </div>
                     </article>
                   ))}
@@ -286,7 +391,7 @@ export default function ProductPage({ productId, language = 'fr', onBack, onOpen
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="rounded-2xl border border-slate-200 p-4">
                   <div className="flex items-start gap-3">
-                    <Truck className="shrink-0 text-[#7C3AED]" size={20} />
+                    <Truck className="shrink-0 text-[#C4532C]" size={20} />
                     <div className="w-full">
                       <h3 className="text-sm font-extrabold">{tr('Livraison en Tunisie', 'التوصيل في تونس')}</h3>
                       {minFee !== null && (
@@ -303,7 +408,7 @@ export default function ProductPage({ productId, language = 'fr', onBack, onOpen
                         {gouvernorats.map((g) => <option key={g.id} value={g.id}>{isAr ? g.nomAr : g.nom}</option>)}
                       </select>
                       {selectedFee !== null && selectedFee !== undefined && (
-                        <p className="mt-2 rounded-lg bg-[#F5F3FF] px-2.5 py-1.5 text-xs font-bold text-[#7C3AED]">
+                        <p className="mt-2 rounded-lg bg-[#F8E4DE] px-2.5 py-1.5 text-xs font-bold text-[#C4532C]">
                           {Number(selectedFee).toFixed(3)} TND · {tr('livraison estimée sous', 'التوصيل خلال')} {estimatedDelay(gouvernorats.find((g) => String(g.id) === String(selectedGouvernoratId))?.nom)}
                         </p>
                       )}
@@ -323,6 +428,29 @@ export default function ProductPage({ productId, language = 'fr', onBack, onOpen
             )}
           </div>
         </section>
+
+        {/* La boutique */}
+        <aside className="space-y-3 rounded-lg border border-slate-200 bg-white p-5 shadow-soft">
+          <div className="flex items-center gap-3">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#F8E4DE] text-sm font-black text-[#C4532C]">
+              {product.boutique?.logo ? <img src={product.boutique.logo} alt="" className="h-full w-full object-cover" /> : (product.boutique?.nom || 'B').slice(0, 1)}
+            </span>
+            <div className="min-w-0">
+              <h3 className="truncate text-sm font-extrabold text-slate-900">{product.boutique?.nom || tr('Boutique locale', 'متجر محلي')}</h3>
+              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700"><ShieldCheck size={12} /> {tr('Boutique vérifiée', 'متجر موثّق')}</span>
+            </div>
+          </div>
+          {product.boutique?.description && (
+            <p className="line-clamp-3 text-xs leading-6 text-slate-600">{product.boutique.description}</p>
+          )}
+          <button
+            onClick={() => onOpenStore(product.boutique?.id)}
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 py-2.5 text-xs font-bold text-slate-700 transition hover:border-[#C4532C] hover:text-[#C4532C]"
+          >
+            <Store size={14} /> {tr('Visiter la boutique', 'زيارة المتجر')}
+          </button>
+        </aside>
+        </div>
 
         {/* Similar products */}
         {similar.length > 0 && (

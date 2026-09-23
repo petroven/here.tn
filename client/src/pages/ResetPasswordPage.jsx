@@ -84,9 +84,9 @@ export default function ResetPasswordPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 font-sans">
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-soft max-w-md w-full p-8">
+      <div className="bg-white rounded-lg border border-slate-200 shadow-soft max-w-md w-full p-8">
         <div className="flex justify-center mb-6">
-          <div className="w-12 h-12 bg-[#EEF2FF] text-[#6366F1] rounded-2xl flex items-center justify-center">
+          <div className="w-12 h-12 bg-[#F8E4DE] text-[#C4532C] rounded-2xl flex items-center justify-center">
             <KeyRound size={24} />
           </div>
         </div>
@@ -123,7 +123,7 @@ export default function ResetPasswordPage() {
                 placeholder="••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full border border-slate-200 p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm bg-slate-50/50"
+                className="w-full border border-slate-200 p-3 rounded-xl focus:ring-2 focus:ring-terre-500 focus:border-transparent text-sm bg-slate-50/50"
                 required
               />
             </div>
@@ -135,7 +135,7 @@ export default function ResetPasswordPage() {
                 placeholder="••••••"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full border border-slate-200 p-3 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm bg-slate-50/50"
+                className="w-full border border-slate-200 p-3 rounded-xl focus:ring-2 focus:ring-terre-500 focus:border-transparent text-sm bg-slate-50/50"
                 required
               />
             </div>
@@ -143,7 +143,7 @@ export default function ResetPasswordPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-[#6366F1] hover:bg-[#4F46E5] text-white font-bold py-3 px-4 rounded-xl transition disabled:opacity-50 text-sm mt-2"
+              className="w-full bg-[#C4532C] hover:bg-[#994122] text-white font-bold py-3 px-4 rounded-xl transition disabled:opacity-50 text-sm mt-2"
             >
               {loading ? 'Enregistrement...' : 'Enregistrer le mot de passe'}
             </button>
@@ -180,7 +180,7 @@ export default function ResetPasswordPage() {
                 placeholder="Votre adresse email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full pl-12 pr-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-slate-50/50"
+                className="w-full pl-12 pr-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-terre-500 focus:border-transparent bg-slate-50/50"
                 required
               />
             </div>
@@ -188,7 +188,7 @@ export default function ResetPasswordPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-[#6366F1] hover:bg-[#4F46E5] text-white font-bold py-3 px-4 rounded-xl transition disabled:opacity-50 text-sm mt-2"
+              className="w-full bg-[#C4532C] hover:bg-[#994122] text-white font-bold py-3 px-4 rounded-xl transition disabled:opacity-50 text-sm mt-2"
             >
               {loading ? 'Envoi en cours...' : 'Envoyer les instructions'}
             </button>

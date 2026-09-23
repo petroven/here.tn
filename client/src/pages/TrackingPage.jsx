@@ -50,9 +50,9 @@ export default function TrackingPage({ language = 'fr' }) {
 
   return (
     <div className="mx-auto max-w-3xl p-4 pb-24 sm:p-6 md:pb-6 font-sans">
-      <div className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-soft">
+      <div className="rounded-lg border border-slate-200 bg-white p-6 sm:p-8 shadow-soft">
         <div className="mb-6 flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#EEF2FF] text-[#6366F1]">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#F8E4DE] text-[#C4532C]">
             <Truck size={24} />
           </div>
           <div>
@@ -69,13 +69,13 @@ export default function TrackingPage({ language = 'fr' }) {
               placeholder={tr('Ex: MPTN-LS7X8W-9Z2B', 'مثال: MPTN-LS7X8W-9Z2B')}
               value={trackingId}
               onChange={(e) => setTrackingId(e.target.value)}
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 py-3.5 pl-12 pr-4 text-sm outline-none transition focus:border-transparent focus:ring-2 focus:ring-indigo-500 rtl:pl-4 rtl:pr-12"
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 py-3.5 pl-12 pr-4 text-sm outline-none transition focus:border-transparent focus:ring-2 focus:ring-terre-500 rtl:pl-4 rtl:pr-12"
             />
           </div>
           <button
             type="submit"
             disabled={loading}
-            className="rounded-2xl bg-[#6366F1] px-6 py-3.5 text-sm font-bold text-white transition hover:bg-[#4F46E5] disabled:opacity-50"
+            className="rounded-2xl bg-[#C4532C] px-6 py-3.5 text-sm font-bold text-white transition hover:bg-[#994122] disabled:opacity-50"
           >
             {loading ? tr('Recherche...', 'جارٍ البحث...') : tr('Rechercher', 'بحث')}
           </button>
@@ -102,7 +102,7 @@ export default function TrackingPage({ language = 'fr' }) {
               </div>
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{tr('Statut actuel', 'الحالة الحالية')}</p>
-                <p className="mt-1 text-sm font-bold uppercase text-[#6366F1]">
+                <p className="mt-1 text-sm font-bold uppercase text-[#C4532C]">
                   {result.statut === 'retourne' ? tr('Retourné au vendeur', 'أُعيد إلى البائع') : steps[currentStepIndex]?.label}
                 </p>
               </div>
@@ -131,7 +131,7 @@ export default function TrackingPage({ language = 'fr' }) {
                       <span
                         className={`absolute -left-12 top-0.5 flex h-8 w-8 items-center justify-center rounded-full border-2 transition rtl:-left-auto rtl:-right-12 ${
                           isDone
-                            ? 'border-[#6366F1] bg-[#6366F1] text-white shadow-lg shadow-indigo-100'
+                            ? 'border-[#C4532C] bg-[#C4532C] text-white shadow-lg shadow-terre-100'
                             : 'border-slate-200 bg-white text-slate-400'
                         }`}
                       >
@@ -142,7 +142,7 @@ export default function TrackingPage({ language = 'fr' }) {
                         <h3 className={`text-sm font-bold ${isDone ? 'text-slate-800' : 'text-slate-400'}`}>
                           {step.label}
                           {isCurrent && (
-                            <span className="ml-2 rounded-full bg-[#EEF2FF] px-2 py-0.5 text-[10px] font-bold uppercase text-[#4F46E5] rtl:ml-0 rtl:mr-2">
+                            <span className="ml-2 rounded-full bg-[#F8E4DE] px-2 py-0.5 text-[10px] font-bold uppercase text-[#994122] rtl:ml-0 rtl:mr-2">
                               {tr('En cours', 'جارٍ')}
                             </span>
                           )}

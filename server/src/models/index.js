@@ -72,6 +72,19 @@ export const Boutique = sequelize.define('Boutique', {
   // ce délai. Un admin ne doit pas pouvoir valider une boutique qui ne l'a
   // pas acceptée.
   accepteConditionsRetour: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+  // KYC vendeur — distinct du statut d'activation (statut='validee' ci-dessus
+  // ne dit que "l'admin autorise cette boutique à vendre"). Le badge "boutique
+  // vérifiée" exige en plus kycStatut='valide' : preuve d'identité (CIN) et
+  // de compte bancaire (RIB) réellement vérifiées par un admin. Documents
+  // stockés en local (server/uploads), jamais chez un tiers.
+  kycStatut: { type: DataTypes.ENUM('non_soumis', 'en_attente', 'valide', 'rejete'), allowNull: false, defaultValue: 'non_soumis' },
+  kycCin: { type: DataTypes.STRING, allowNull: true },
+  kycRib: { type: DataTypes.STRING, allowNull: true },
+  kycDocumentCin: { type: DataTypes.STRING, allowNull: true },
+  kycDocumentRib: { type: DataTypes.STRING, allowNull: true },
+  kycCommentaireAdmin: { type: DataTypes.TEXT, allowNull: true },
+  kycDateSoumission: { type: DataTypes.DATE, allowNull: true },
+  kycDateTraitement: { type: DataTypes.DATE, allowNull: true },
 });
 
 export const Categorie = sequelize.define('Categorie', {
@@ -92,6 +105,11 @@ export const Produit = sequelize.define('Produit', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   nom: { type: DataTypes.STRING, allowNull: false },
   description: { type: DataTypes.TEXT, allowNull: false },
+  // Référence/SKU vendeur — optionnelle, mais utilisée par l'import en masse
+  // (server/src/utils/productImport.js) pour associer chaque produit du
+  // fichier Excel/CSV aux photos du dossier images/<reference>/ du ZIP.
+  reference: { type: DataTypes.STRING, allowNull: true, unique: true },
+  marque: { type: DataTypes.STRING, allowNull: true },
   prix: { type: DataTypes.FLOAT, allowNull: false },
   prixAvant: { type: DataTypes.FLOAT, allowNull: true },
   stock: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
@@ -134,6 +152,13 @@ export const Commande = sequelize.define('Commande', {
   confirmationExpiresAt: { type: DataTypes.DATE, allowNull: true },
   confirmationDate: { type: DataTypes.DATE, allowNull: true },
   walletUtilise: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 0 },
+  // Checkout invité (clientId reste null dans ce cas) — coordonnées saisies
+  // directement dans le formulaire, conservées sur la commande elle-même
+  // puisqu'il n'existe aucun Utilisateur à qui les rattacher.
+  guestNom: { type: DataTypes.STRING, allowNull: true },
+  guestPrenom: { type: DataTypes.STRING, allowNull: true },
+  guestEmail: { type: DataTypes.STRING, allowNull: true },
+  guestTelephone: { type: DataTypes.STRING, allowNull: true },
 });
 
 export const LigneCommande = sequelize.define('LigneCommande', {
@@ -322,10 +347,12 @@ Wishlist.belongsTo(Produit, { foreignKey: 'produitId', as: 'produit' });
 Gouvernorat.hasMany(Delegation, { foreignKey: 'gouvernoratId', as: 'delegations' });
 Delegation.belongsTo(Gouvernorat, { foreignKey: 'gouvernoratId' });
 Gouvernorat.hasMany(Utilisateur, { foreignKey: 'gouvernoratId' });
+Utilisateur.belongsTo(Gouvernorat, { foreignKey: 'gouvernoratId' });
 Gouvernorat.hasMany(Boutique, { foreignKey: 'gouvernoratId' });
 Boutique.belongsTo(Gouvernorat, { foreignKey: 'gouvernoratId' });
 Gouvernorat.hasMany(Commande, { foreignKey: 'gouvernoratId' });
 Delegation.hasMany(Utilisateur, { foreignKey: 'delegationId' });
+Utilisateur.belongsTo(Delegation, { foreignKey: 'delegationId' });
 Delegation.hasMany(Boutique, { foreignKey: 'delegationId' });
 Boutique.belongsTo(Delegation, { foreignKey: 'delegationId' });
 Delegation.hasMany(Commande, { foreignKey: 'delegationId' });

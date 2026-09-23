@@ -225,6 +225,35 @@ router.patch('/admin/boutiques/:id/statut', adminMiddleware, async (req, res) =>
   return res.json({ success: true, data: boutique });
 });
 
+// Vérification KYC — distincte de l'activation ci-dessus. Un rejet renvoie
+// systématiquement le vendeur à 'en_attente' de sa prochaine soumission (pas
+// de statut "rejeté" bloquant définitivement : il peut renvoyer des documents
+// corrigés via /vendor/kyc, qui repasse lui-même à 'en_attente').
+router.patch('/admin/boutiques/:id/kyc', adminMiddleware, async (req, res) => {
+  const { id } = req.params;
+  const { kycStatut, kycCommentaireAdmin } = req.body;
+
+  if (!['valide', 'rejete'].includes(kycStatut)) {
+    return res.status(400).json({ success: false, message: 'Statut KYC invalide.' });
+  }
+
+  const boutique = await Boutique.findByPk(id);
+  if (!boutique) {
+    return res.status(404).json({ success: false, message: 'Boutique introuvable.' });
+  }
+  if (boutique.kycStatut === 'non_soumis') {
+    return res.status(400).json({ success: false, message: 'Aucun document KYC soumis par ce vendeur.' });
+  }
+
+  await boutique.update({
+    kycStatut,
+    kycCommentaireAdmin: kycCommentaireAdmin || null,
+    kycDateTraitement: new Date(),
+  });
+
+  return res.json({ success: true, data: boutique });
+});
+
 router.patch('/admin/avis/:id', adminMiddleware, async (req, res) => {
   const { id } = req.params;
   const { valide } = req.body;
@@ -238,6 +267,25 @@ router.patch('/admin/avis/:id', adminMiddleware, async (req, res) => {
   await avis.save();
 
   return res.json({ success: true, data: avis });
+});
+
+// Liste complète des avis pour modération — la seule vue existante
+// jusqu'ici était embarquée dans la fiche produit (déjà filtrée sur
+// valide=true), donc rien ne permettait à un admin de voir/traiter les avis
+// invalidés ou tout juste créés.
+router.get('/admin/avis', adminMiddleware, async (req, res) => {
+  try {
+    const avis = await Avis.findAll({
+      include: [
+        { model: Utilisateur, as: 'auteur', attributes: ['id', 'nom', 'prenom', 'email'] },
+        { model: Produit, as: 'produit', attributes: ['id', 'nom'] },
+      ],
+      order: [['createdAt', 'DESC']],
+    });
+    return res.json({ success: true, data: avis });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
 });
 
 // Admin dashboard stats

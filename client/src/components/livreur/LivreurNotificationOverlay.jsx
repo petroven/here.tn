@@ -62,7 +62,7 @@ export default function LivreurNotificationOverlay({ notification, onAccepter, o
 
   return (
     <div className="fixed inset-0 bg-slate-900/80 flex items-center justify-center z-[70] p-4">
-      <div className="bg-white rounded-3xl w-full max-w-sm p-6 space-y-4 text-center relative">
+      <div className="bg-white rounded-lg w-full max-w-sm p-6 space-y-4 text-center relative">
         <div className="mx-auto w-16 h-16 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center animate-pulse">
           <Bike size={30} />
         </div>

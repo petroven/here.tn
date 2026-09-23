@@ -29,7 +29,7 @@ function StepIndicator({ activeIndex, isAr }) {
               >
                 {done ? <Check size={15} /> : index + 1}
               </div>
-              <span className={`hidden text-[11px] font-bold sm:block ${active ? 'text-[#7C3AED]' : done ? 'text-emerald-600' : 'text-slate-400'}`}>
+              <span className={`hidden text-[11px] font-bold sm:block ${active ? 'text-[#C4532C]' : done ? 'text-emerald-600' : 'text-slate-400'}`}>
                 {isAr ? step.labelAr : step.labelFr}
               </span>
             </div>
@@ -43,10 +43,11 @@ function StepIndicator({ activeIndex, isAr }) {
   );
 }
 
-export default function CheckoutPage({ cartItems = [], onOrderPlaced, onBack, onUpdateQuantity, onRemoveItem, onRequireLogin, language = 'fr' }) {
+export default function CheckoutPage({ cartItems = [], onOrderPlaced, onClearCart, onBack, onUpdateQuantity, onRemoveItem, onRequireLogin, language = 'fr' }) {
   const isAr = language === 'ar';
   const tr = (fr, ar) => (isAr ? ar : fr);
 
+  const [step, setStep] = useState('panier'); // 'panier' | 'livraison' — voir StepIndicator
   const [gouvernorats, setGouvernorats] = useState([]);
   const [delegations, setDelegations] = useState([]);
   const [loadingGeo, setLoadingGeo] = useState(false);
@@ -55,7 +56,7 @@ export default function CheckoutPage({ cartItems = [], onOrderPlaced, onBack, on
   const [virementRefInput, setVirementRefInput] = useState('');
   const [virementResult, setVirementResult] = useState(null); // instructions returned after order creation
 
-  const [form, setForm] = useState({ nom: '', prenom: '', adresse: '', gouvernoratId: '', delegationId: '', telephone: '' });
+  const [form, setForm] = useState({ nom: '', prenom: '', email: '', adresse: '', gouvernoratId: '', delegationId: '', telephone: '' });
   const [shippingFee, setShippingFee] = useState(0);
 
   const [couponCode, setCouponCode] = useState('');
@@ -65,6 +66,7 @@ export default function CheckoutPage({ cartItems = [], onOrderPlaced, onBack, on
 
   const [status, setStatus] = useState({ type: '', message: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [guestConfirmation, setGuestConfirmation] = useState(null); // { numeroCommande, trackingId, total }
 
   // Inline card payment (Konnect/Flouci) — never redirects off-site
   const [pendingPayment, setPendingPayment] = useState(null); // { paymentRef, amount, provider }
@@ -176,23 +178,36 @@ export default function CheckoutPage({ cartItems = [], onOrderPlaced, onBack, on
     if (next) setWalletAmountInput(String(Math.min(walletSolde, plafondWalletProduits).toFixed(3)));
   };
 
+  const finalizeOrderSuccess = (summary) => {
+    if (token) {
+      if (onOrderPlaced) onOrderPlaced();
+    } else {
+      // Un invité n'a pas de compte pour consulter "Mes commandes" (page
+      // authentifiée) — la confirmation et la proposition de compte
+      // s'affichent donc directement ici plutôt que d'y rediriger.
+      if (onClearCart) onClearCart();
+      setGuestConfirmation(summary);
+    }
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
-    if (!token) {
-      setStatus({
-        type: 'login-required',
-        message: tr('Vous devez être connecté à votre compte here.tn pour valider la commande — ce n\'est pas un problème de réseau.', 'يجب تسجيل الدخول إلى حسابك في here.tn لتأكيد الطلب — لا علاقة للأمر بمشكلة في الشبكة.'),
-      });
-      return;
-    }
     if (!cartItems.length) { setStatus({ type: 'error', message: tr('Votre panier est vide.', 'سلتك فارغة.') }); return; }
     if (!form.gouvernoratId || !form.delegationId || !form.adresse) { setStatus({ type: 'error', message: tr('Veuillez renseigner toutes les informations de livraison.', 'يرجى إدخال جميع معلومات التوصيل.') }); return; }
+    if (!token && (!form.nom || !form.prenom || !form.email)) {
+      setStatus({ type: 'error', message: tr('Nom, prénom et email sont requis pour commander sans compte.', 'الاسم واللقب والبريد الإلكتروني مطلوبون للطلب بدون حساب.') });
+      return;
+    }
 
     setIsSubmitting(true);
     setStatus({ type: '', message: '' });
     try {
       const payload = {
-        clientId: Number(userId),
+        clientId: token ? Number(userId) : undefined,
+        guestNom: token ? undefined : form.nom,
+        guestPrenom: token ? undefined : form.prenom,
+        guestEmail: token ? undefined : form.email,
+        guestTelephone: token ? undefined : form.telephone,
         lignes: cartItems.map((item) => ({ produitId: item.id, varianteId: item.varianteId || null, quantite: item.quantity })),
         adresseLivraison: `${form.adresse}, ${form.telephone}`,
         gouvernoratId: Number(form.gouvernoratId),
@@ -204,7 +219,10 @@ export default function CheckoutPage({ cartItems = [], onOrderPlaced, onBack, on
       };
       const response = await fetch(`${API_URL}/commandes`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify(payload),
       });
       const data = await response.json();
@@ -227,7 +245,11 @@ export default function CheckoutPage({ cartItems = [], onOrderPlaced, onBack, on
         setTimeout(() => { window.location.href = redirect.paymentUrl; }, 800);
       } else {
         setStatus({ type: 'success', message: tr('Commande créée avec succès!', 'تم إنشاء الطلب بنجاح!') });
-        setTimeout(() => { if (onOrderPlaced) onOrderPlaced(); }, 2000);
+        setTimeout(() => finalizeOrderSuccess({
+          numeroCommande: data.data.commande?.numeroCommande,
+          trackingId: data.data.trackingId,
+          total: finalTotal,
+        }), 2000);
       }
     } catch (error) {
       setStatus({ type: 'error', message: error.message || tr('La commande n’a pas pu être validée.', 'تعذر تأكيد الطلب.') });
@@ -297,6 +319,47 @@ export default function CheckoutPage({ cartItems = [], onOrderPlaced, onBack, on
     }
   };
 
+  if (guestConfirmation) {
+    return (
+      <div className="mx-auto flex min-h-[70vh] max-w-lg flex-col items-center justify-center p-6 text-center font-sans">
+        <span className="mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+          <CheckCircle size={32} />
+        </span>
+        <h1 className="text-xl font-black text-slate-900">{tr('Commande confirmée !', 'تم تأكيد الطلب!')}</h1>
+        <p className="mt-2 text-sm text-slate-500">
+          {tr('Merci pour votre commande. Un email de confirmation a été envoyé.', 'شكرًا لطلبكم. تم إرسال بريد إلكتروني للتأكيد.')}
+        </p>
+        <div className="mt-5 w-full space-y-2 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm">
+          {guestConfirmation.numeroCommande && (
+            <div className="flex items-center justify-between">
+              <span className="text-slate-500">{tr('N° Commande', 'رقم الطلب')}</span>
+              <span className="font-bold text-slate-800">{guestConfirmation.numeroCommande}</span>
+            </div>
+          )}
+          {guestConfirmation.trackingId && (
+            <div className="flex items-center justify-between">
+              <span className="text-slate-500">{tr('Code de suivi', 'رمز التتبع')}</span>
+              <span className="font-mono text-xs font-bold text-slate-800">{guestConfirmation.trackingId}</span>
+            </div>
+          )}
+        </div>
+        <p className="mt-5 text-xs font-semibold text-slate-500">
+          {tr('Créez un compte pour suivre toutes vos commandes et gagner du cashback.', 'أنشئوا حسابًا لمتابعة جميع طلباتكم وكسب رصيد استرداد.')}
+        </p>
+        <div className="mt-3 flex w-full gap-3">
+          {onRequireLogin && (
+            <button onClick={onRequireLogin} className="btn-primary-premium flex-1 py-3 text-sm">
+              {tr('Créer un compte', 'إنشاء حساب')}
+            </button>
+          )}
+          <button onClick={onBack} className="btn-secondary-premium flex-1 py-3 text-sm">
+            {tr('Continuer mes achats', 'متابعة التسوق')}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (cartItems.length === 0) {
     return (
       <div className="mx-auto flex min-h-[70vh] max-w-lg flex-col items-center justify-center p-6 text-center font-sans">
@@ -312,27 +375,33 @@ export default function CheckoutPage({ cartItems = [], onOrderPlaced, onBack, on
 
   return (
     <div dir={isAr ? 'rtl' : 'ltr'} className="mx-auto max-w-5xl space-y-5 p-4 pb-24 sm:p-6 md:pb-6 font-sans">
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-soft">
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-slate-200 bg-white p-6 shadow-soft">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 sm:text-3xl">{tr('Finaliser ma commande', 'إتمام الطلب')}</h1>
-          <p className="mt-1 text-xs text-slate-500">{tr('Vérifiez votre panier puis renseignez la livraison', 'راجع سلتك ثم أدخل معلومات التوصيل')}</p>
+          <h1 className="text-2xl font-black text-slate-900 sm:text-3xl">
+            {step === 'panier' ? tr('Votre panier', 'سلتكم') : tr('Livraison & paiement', 'التوصيل والدفع')}
+          </h1>
+          <p className="mt-1 text-xs text-slate-500">
+            {step === 'panier'
+              ? tr('Vérifiez vos articles avant de continuer', 'راجعوا مقالاتكم قبل المتابعة')
+              : tr('Renseignez votre adresse et choisissez un mode de paiement', 'أدخلوا عنوانكم واختاروا طريقة الدفع')}
+          </p>
         </div>
         <button onClick={onBack} className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-600 transition hover:bg-slate-50">
           {tr('Retour au catalogue', 'العودة إلى الكتالوج')}
         </button>
       </div>
 
-      <div className="flex justify-center rounded-3xl border border-slate-200 bg-white px-4 py-5 shadow-soft">
-        <StepIndicator activeIndex={1} isAr={isAr} />
+      <div className="flex justify-center rounded-lg border border-slate-200 bg-white px-4 py-5 shadow-soft">
+        <StepIndicator activeIndex={step === 'panier' ? 0 : 1} isAr={isAr} />
       </div>
 
       <form onSubmit={handleSubmit} className="grid gap-5 lg:grid-cols-[1.3fr_0.7fr]">
         <div className="space-y-6">
 
-          {/* Cart items review */}
-          <section className="space-y-3 rounded-3xl border border-slate-200 bg-white p-6 shadow-soft">
+          {/* Cart items review — étape "panier" */}
+          <section className={`space-y-3 rounded-lg border border-slate-200 bg-white p-6 shadow-soft ${step !== 'panier' ? 'hidden' : ''}`}>
             <h2 className="mb-1 flex items-center gap-2 text-base font-bold text-slate-800">
-              <ShoppingBag size={18} className="text-[#7C3AED]" /> {tr('Mon panier', 'سلتي')} ({cartItems.length})
+              <ShoppingBag size={18} className="text-[#C4532C]" /> {tr('Mon panier', 'سلتي')} ({cartItems.length})
             </h2>
             {cartItems.map((item) => (
               <div key={`${item.boutiqueId}-${item.id}-${item.varianteId || 'base'}`} className="flex items-center gap-3 rounded-2xl border border-slate-100 p-3">
@@ -342,7 +411,7 @@ export default function CheckoutPage({ cartItems = [], onOrderPlaced, onBack, on
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-bold text-slate-800">{item.nom}</p>
                   {item.selectedVariantName && <p className="text-[11px] text-slate-400">{item.selectedVariantName}</p>}
-                  <p className="mt-0.5 text-sm font-black text-[#7C3AED]">{item.prix.toFixed(3)} TND</p>
+                  <p className="mt-0.5 text-sm font-black text-[#C4532C]">{item.prix.toFixed(3)} TND</p>
                 </div>
 
                 {onUpdateQuantity && (
@@ -351,7 +420,7 @@ export default function CheckoutPage({ cartItems = [], onOrderPlaced, onBack, on
                       type="button"
                       onClick={() => onUpdateQuantity(item.id, item.varianteId, item.quantity - 1)}
                       disabled={item.quantity <= 1}
-                      className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 text-slate-500 transition hover:border-[#7C3AED] hover:text-[#7C3AED] disabled:opacity-30"
+                      className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 text-slate-500 transition hover:border-[#C4532C] hover:text-[#C4532C] disabled:opacity-30"
                     >
                       <Minus size={12} />
                     </button>
@@ -360,7 +429,7 @@ export default function CheckoutPage({ cartItems = [], onOrderPlaced, onBack, on
                       type="button"
                       onClick={() => onUpdateQuantity(item.id, item.varianteId, item.quantity + 1)}
                       disabled={item.quantity >= item.stock}
-                      className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 text-slate-500 transition hover:border-[#7C3AED] hover:text-[#7C3AED] disabled:opacity-30"
+                      className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 text-slate-500 transition hover:border-[#C4532C] hover:text-[#C4532C] disabled:opacity-30"
                     >
                       <Plus size={12} />
                     </button>
@@ -374,17 +443,42 @@ export default function CheckoutPage({ cartItems = [], onOrderPlaced, onBack, on
                 )}
               </div>
             ))}
+            <button
+              type="button"
+              onClick={() => setStep('livraison')}
+              className="btn-primary-premium w-full py-3 text-sm"
+            >
+              {tr('Continuer vers la livraison', 'المتابعة إلى التوصيل')}
+            </button>
           </section>
 
-          {/* Address */}
-          <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-soft">
+          {/* Address — étape "livraison" */}
+          <section className={`rounded-lg border border-slate-200 bg-white p-6 shadow-soft ${step !== 'livraison' ? 'hidden' : ''}`}>
+            <button
+              type="button"
+              onClick={() => setStep('panier')}
+              className="mb-4 inline-flex items-center gap-1.5 text-xs font-bold text-slate-400 transition hover:text-slate-600"
+            >
+              <ArrowLeft size={13} className="rtl:rotate-180" /> {tr('Retour au panier', 'العودة إلى السلة')}
+            </button>
             <h2 className="mb-4 flex items-center gap-2 text-base font-bold text-slate-800">
-              <MapPin size={18} className="text-[#7C3AED]" />
+              <MapPin size={18} className="text-[#C4532C]" />
               {tr('Adresse de livraison (Tunisie)', 'عنوان التوصيل (تونس)')}
             </h2>
             <div className="grid gap-3 md:grid-cols-2">
               <Input value={form.prenom} onChange={updateField('prenom')} placeholder={tr('Prénom', 'الاسم الأول')} required />
               <Input value={form.nom} onChange={updateField('nom')} placeholder={tr('Nom', 'اللقب')} required />
+
+              {!token && (
+                <Input
+                  containerClassName="md:col-span-2"
+                  type="email"
+                  value={form.email}
+                  onChange={updateField('email')}
+                  placeholder={tr('Adresse email (pour le suivi de votre commande)', 'البريد الإلكتروني (لتتبع طلبكم)')}
+                  required
+                />
+              )}
 
               <select value={form.gouvernoratId} onChange={updateField('gouvernoratId')} className="input-premium p-3 text-sm outline-none" required>
                 <option value="">{tr('Sélectionner Gouvernorat', 'اختر الولاية')}</option>
@@ -401,17 +495,26 @@ export default function CheckoutPage({ cartItems = [], onOrderPlaced, onBack, on
             </div>
           </section>
 
-          {/* Payment */}
-          <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-soft">
+          {/* Payment — étape "livraison" */}
+          <section className={`rounded-lg border border-slate-200 bg-white p-6 shadow-soft ${step !== 'livraison' ? 'hidden' : ''}`}>
             <h2 className="mb-4 flex items-center gap-2 text-base font-bold text-slate-800">
-              <CreditCard size={18} className="text-[#7C3AED]" />
+              <CreditCard size={18} className="text-[#C4532C]" />
               {tr('Méthode de paiement', 'طريقة الدفع')}
             </h2>
             <div className="grid gap-3 sm:grid-cols-3">
               {[
                 { key: 'cod', icon: Truck, title: tr('COD / Livraison', 'الدفع عند الاستلام'), desc: tr('Paiement en espèces à la livraison.', 'الدفع نقدًا عند الاستلام.') },
-                { key: 'konnect', icon: CreditCard, title: 'Konnect', desc: tr('Cartes CIB & E-Dinar (Sandbox).', 'بطاقات بنكية (تجريبي).') },
-                { key: 'flouci', icon: CreditCard, title: 'Flouci', desc: tr('Portefeuille ou carte (Sandbox).', 'محفظة أو بطاقة (تجريبي).') },
+                // Le paiement en ligne (sandbox) nécessite de confirmer la
+                // transaction via /paiements/confirm, une route qui vérifie
+                // la propriété de la commande par compte connecté — non
+                // proposé en checkout invité pour ne pas rouvrir cette
+                // vérification de sécurité à des commandes sans compte.
+                ...(token
+                  ? [
+                    { key: 'konnect', icon: CreditCard, title: 'Konnect', desc: tr('Cartes CIB & E-Dinar (Sandbox).', 'بطاقات بنكية (تجريبي).') },
+                    { key: 'flouci', icon: CreditCard, title: 'Flouci', desc: tr('Portefeuille ou carte (Sandbox).', 'محفظة أو بطاقة (تجريبي).') },
+                  ]
+                  : []),
                 ...(virementConfig?.virementDisponible
                   ? [{ key: 'virement', icon: Landmark, title: tr('Virement bancaire', 'تحويل بنكي'), desc: tr('Validation manuelle après réception.', 'تحقق يدوي بعد الاستلام.') }]
                   : []),
@@ -423,10 +526,10 @@ export default function CheckoutPage({ cartItems = [], onOrderPlaced, onBack, on
                     key={option.key}
                     type="button"
                     onClick={() => setSelectedPayment(option.key)}
-                    className={`flex flex-col items-start gap-1 rounded-2xl border p-4 text-left transition-all duration-200 ${active ? 'border-[#7C3AED] bg-[#F5F3FF] shadow-sm' : 'border-slate-200 bg-white hover:bg-slate-50'}`}
+                    className={`flex flex-col items-start gap-1 rounded-2xl border p-4 text-left transition-all duration-200 ${active ? 'border-[#C4532C] bg-[#F8E4DE] shadow-sm' : 'border-slate-200 bg-white hover:bg-slate-50'}`}
                   >
                     <div className="flex w-full items-center justify-between">
-                      <Icon size={18} className={active ? 'text-[#7C3AED]' : 'text-slate-400'} />
+                      <Icon size={18} className={active ? 'text-[#C4532C]' : 'text-slate-400'} />
                       {active && <span className="flex h-4 w-4 items-center justify-center rounded-full gradient-brand text-white"><Check size={10} /></span>}
                     </div>
                     <span className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
@@ -442,8 +545,13 @@ export default function CheckoutPage({ cartItems = [], onOrderPlaced, onBack, on
                 );
               })}
             </div>
+            {!token && (
+              <p className="mt-3 text-[11px] font-semibold text-slate-400">
+                {tr('Le paiement en ligne (sandbox) est réservé aux comptes connectés.', 'الدفع الإلكتروني (تجريبي) متاح فقط للحسابات المسجلة.')}
+              </p>
+            )}
             {selectedPayment === 'virement' && (
-              <div className="mt-4 rounded-2xl border border-[#E0E7FF] bg-[#F5F3FF] p-4">
+              <div className="mt-4 rounded-2xl border border-[#E0E7FF] bg-[#F8E4DE] p-4">
                 <p className="text-xs font-semibold text-slate-600">
                   {tr(
                     "Les coordonnées bancaires de la plateforme s'afficheront après validation de la commande. Votre commande restera \"en attente\" jusqu'à ce que notre équipe confirme la réception du virement.",
@@ -463,7 +571,7 @@ export default function CheckoutPage({ cartItems = [], onOrderPlaced, onBack, on
         </div>
 
         {/* Sticky Summary */}
-        <aside className="space-y-5 self-start rounded-3xl border border-slate-200 bg-slate-50 p-6 shadow-soft lg:sticky lg:top-6">
+        <aside className="space-y-5 self-start rounded-lg border border-slate-200 bg-slate-50 p-6 shadow-soft lg:sticky lg:top-6">
           <h2 className="text-base font-bold text-slate-800">{tr('Résumé de commande', 'ملخص الطلب')}</h2>
 
           <div className="border-b border-slate-200 pb-4">
@@ -532,9 +640,15 @@ export default function CheckoutPage({ cartItems = [], onOrderPlaced, onBack, on
             </div>
           </div>
 
-          <button type="submit" disabled={isSubmitting || cartItems.length === 0} className="btn-primary-premium w-full py-3.5 text-xs">
-            {isSubmitting ? tr('Validation...', 'جارٍ التأكيد...') : tr('Passer commande', 'تأكيد الطلب')}
-          </button>
+          {step === 'panier' ? (
+            <button type="button" onClick={() => setStep('livraison')} className="btn-primary-premium w-full py-3.5 text-xs">
+              {tr('Continuer vers la livraison', 'المتابعة إلى التوصيل')}
+            </button>
+          ) : (
+            <button type="submit" disabled={isSubmitting || cartItems.length === 0} className="btn-primary-premium w-full py-3.5 text-xs">
+              {isSubmitting ? tr('Validation...', 'جارٍ التأكيد...') : tr('Passer commande', 'تأكيد الطلب')}
+            </button>
+          )}
 
           {status.type === 'login-required' && (
             <div className="flex flex-col gap-2.5 rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-xs text-amber-800">
@@ -629,7 +743,7 @@ export default function CheckoutPage({ cartItems = [], onOrderPlaced, onBack, on
             </div>
 
             <div className="flex items-center gap-3">
-              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#F5F3FF] text-[#7C3AED]">
+              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#F8E4DE] text-[#C4532C]">
                 <CreditCard size={20} />
               </span>
               <div>
@@ -707,7 +821,7 @@ export default function CheckoutPage({ cartItems = [], onOrderPlaced, onBack, on
         {virementResult && (
           <div className="space-y-4">
             <div className="flex items-center gap-3">
-              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#F5F3FF] text-[#7C3AED]">
+              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#F8E4DE] text-[#C4532C]">
                 <Landmark size={20} />
               </span>
               <div>
@@ -731,7 +845,7 @@ export default function CheckoutPage({ cartItems = [], onOrderPlaced, onBack, on
               </div>
               <div className="flex items-center justify-between border-t border-slate-200 pt-2">
                 <span className="text-slate-500">{tr('Montant à virer', 'المبلغ الواجب تحويله')}</span>
-                <span className="font-black text-[#7C3AED]">{virementResult.montant.toFixed(3)} TND</span>
+                <span className="font-black text-[#C4532C]">{virementResult.montant.toFixed(3)} TND</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-slate-500">{tr('Référence à indiquer', 'المرجع الواجب ذكره')}</span>
@@ -749,7 +863,12 @@ export default function CheckoutPage({ cartItems = [], onOrderPlaced, onBack, on
 
             <button
               type="button"
-              onClick={() => { setVirementResult(null); setStatus({ type: 'success', message: tr('Commande enregistrée, en attente de validation du virement.', 'تم تسجيل الطلب، في انتظار التحقق من التحويل.') }); setTimeout(() => { if (onOrderPlaced) onOrderPlaced(); }, 1500); }}
+              onClick={() => {
+                const summary = { numeroCommande: virementResult.reference, total: virementResult.montant };
+                setVirementResult(null);
+                setStatus({ type: 'success', message: tr('Commande enregistrée, en attente de validation du virement.', 'تم تسجيل الطلب، في انتظار التحقق من التحويل.') });
+                setTimeout(() => finalizeOrderSuccess(summary), 1500);
+              }}
               className="btn-primary-premium w-full py-3.5 text-sm"
             >
               {tr("J'ai compris, terminer", 'فهمت، إنهاء')}

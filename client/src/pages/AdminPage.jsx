@@ -38,12 +38,12 @@ export default function AdminPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-6">
-      <div className="rounded-3xl bg-white p-6 shadow-soft">
+      <div className="rounded-lg bg-white p-6 shadow-soft">
         <h1 className="text-3xl font-bold">Back-office administrateur</h1>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <section className="rounded-3xl bg-white p-6 shadow-soft">
+        <section className="rounded-lg bg-white p-6 shadow-soft">
           <h2 className="mb-4 text-xl font-semibold">Boutiques</h2>
           {loading ? (
             <p className="text-sm text-slate-500">Chargement des boutiques...</p>
@@ -62,7 +62,7 @@ export default function AdminPage() {
           )}
         </section>
 
-        <section className="rounded-3xl bg-white p-6 shadow-soft">
+        <section className="rounded-lg bg-white p-6 shadow-soft">
           <h2 className="mb-4 text-xl font-semibold">Modération des avis</h2>
           <div className="space-y-3">
             {defaultAvis.map((item) => (

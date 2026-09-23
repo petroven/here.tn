@@ -47,7 +47,7 @@ export default function FavoritesPage({ language = 'fr', onBack, onOpenProduct, 
       </div>
 
       {!token ? (
-        <div className="rounded-3xl border border-slate-200 bg-white p-12 text-center shadow-soft">
+        <div className="rounded-lg border border-slate-200 bg-white p-12 text-center shadow-soft">
           <p className="text-slate-500">{tr('Connectez-vous pour voir vos favoris.', 'سجّل الدخول لعرض مفضلتك.')}</p>
         </div>
       ) : loading ? (
@@ -55,7 +55,7 @@ export default function FavoritesPage({ language = 'fr', onBack, onOpenProduct, 
           {[...Array(4)].map((_, i) => <div key={i} className="h-64 animate-pulse rounded-2xl bg-slate-100" />)}
         </div>
       ) : items.length === 0 ? (
-        <div className="rounded-3xl border border-slate-200 bg-white p-12 text-center shadow-soft">
+        <div className="rounded-lg border border-slate-200 bg-white p-12 text-center shadow-soft">
           <p className="text-slate-500">{tr("Vous n'avez aucun favori pour le moment.", 'ليس لديك أي منتج مفضل بعد.')}</p>
         </div>
       ) : (
@@ -74,14 +74,14 @@ export default function FavoritesPage({ language = 'fr', onBack, onOpenProduct, 
                   </div>
                   <div className="space-y-1 p-3">
                     <h3 className="truncate text-sm font-extrabold text-slate-900">{produit.nom}</h3>
-                    <strong className="text-base text-[#6366F1]">{Number(produit.prix).toFixed(3)} TND</strong>
+                    <strong className="text-base text-[#C4532C]">{Number(produit.prix).toFixed(3)} TND</strong>
                   </div>
                 </button>
                 <div className="flex gap-2 p-3 pt-0">
                   <button
                     onClick={() => onAddToCart({ id: produit.id, nom: produit.nom, prix: produit.prix, boutiqueId: produit.boutiqueId, image: produit.image, stock: produit.stock, varianteId: null })}
                     disabled={produit.stock < 1}
-                    className="flex-1 rounded-xl bg-[#6366F1] px-3 py-2 text-xs font-bold text-white hover:bg-[#4F46E5] disabled:opacity-40"
+                    className="flex-1 rounded-xl bg-[#C4532C] px-3 py-2 text-xs font-bold text-white hover:bg-[#994122] disabled:opacity-40"
                   >
                     <ShoppingBag size={13} className="inline -mt-0.5 mr-1 rtl:ml-1 rtl:mr-0" />
                     {tr('Ajouter', 'إضافة')}

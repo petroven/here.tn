@@ -54,7 +54,7 @@ export default function PaymentReturnPage({ onDone }) {
   }, []);
 
   const content = {
-    checking: { icon: <Loader2 size={40} className="animate-spin text-[#7C3AED]" />, title: 'Vérification du paiement...', desc: 'Merci de patienter, nous confirmons votre transaction.' },
+    checking: { icon: <Loader2 size={40} className="animate-spin text-[#C4532C]" />, title: 'Vérification du paiement...', desc: 'Merci de patienter, nous confirmons votre transaction.' },
     paid: { icon: <CheckCircle2 size={40} className="text-emerald-500" />, title: 'Paiement confirmé !', desc: 'Votre commande a été payée avec succès.' },
     pending: { icon: <Clock size={40} className="text-amber-500" />, title: 'Paiement en cours de traitement', desc: 'Nous n\'avons pas encore reçu la confirmation finale — vous recevrez un email dès que ce sera fait.' },
     failed: { icon: <XCircle size={40} className="text-rose-500" />, title: 'Paiement échoué', desc: 'La transaction n\'a pas abouti. Vous pouvez réessayer depuis votre panier.' },
@@ -63,8 +63,8 @@ export default function PaymentReturnPage({ onDone }) {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50 p-6 font-sans">
-      <div className="w-full max-w-sm rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-soft">
-        <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-violet-100 via-indigo-100 to-blue-100">
+      <div className="w-full max-w-sm rounded-lg border border-slate-200 bg-white p-8 text-center shadow-soft">
+        <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-[#F8E4DE]">
           {content.icon}
         </div>
         <h1 className="text-lg font-black text-slate-900">{content.title}</h1>

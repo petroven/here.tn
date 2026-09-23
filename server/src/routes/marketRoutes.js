@@ -1,5 +1,5 @@
 import express from 'express';
-import { authMiddleware, requireRole } from '../middleware/auth.js';
+import { authMiddleware, requireRole, optionalAuthMiddleware } from '../middleware/auth.js';
 import {
   getProduits,
   getProduitById,
@@ -33,6 +33,7 @@ import {
   getAvisByProduit,
   createAvis,
   createAvisClient,
+  getMesAvis,
   getReputationClient,
 } from '../controllers/avisController.js';
 import { Categorie } from '../models/index.js';
@@ -91,6 +92,7 @@ router.get('/wishlist/check', authMiddleware, checkWishlist);
 
 // --- REVIEWS ROUTES (AUTHENTICATED) ---
 router.post('/avis', authMiddleware, createAvis);
+router.get('/avis/mes-avis', authMiddleware, getMesAvis);
 router.post('/avis/client', authMiddleware, requireRole('vendeur', 'admin_boutique', 'administrateur', 'super_admin'), createAvisClient);
 router.get('/clients/:clientId/reputation', authMiddleware, requireRole('vendeur', 'admin_boutique', 'administrateur', 'super_admin'), getReputationClient);
 
@@ -99,7 +101,10 @@ router.post('/coupons/valider', authMiddleware, validerCouponEndpoint);
 router.get('/coupons/actifs', getCouponsActifs);
 
 // --- ORDER & PAYMENT ROUTES (AUTHENTICATED) ---
-router.post('/commandes', authMiddleware, requireRole('client'), createCommande);
+// Checkout invité : le rôle 'client' n'est vérifié qu'à l'intérieur du
+// contrôleur, uniquement si un token est bien présent (un visiteur sans
+// compte n'a par définition aucun rôle à valider).
+router.post('/commandes', optionalAuthMiddleware, createCommande);
 router.post('/paiements/confirm', authMiddleware, confirmPayment);
 router.get('/commandes/mes-commandes', authMiddleware, getMesCommandes);
 router.put('/commandes/:id/annuler', authMiddleware, annulerCommandeParClient);

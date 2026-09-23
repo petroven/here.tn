@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
-import { Utilisateur, PasswordResetToken } from '../models/index.js';
+import { Utilisateur, PasswordResetToken, Gouvernorat, Delegation } from '../models/index.js';
 import { generateToken } from '../middleware/auth.js';
 import { sendEmail, emailResetPassword } from '../utils/email.js';
 
@@ -93,6 +93,78 @@ export async function resetPassword(req, res) {
     await resetToken.update({ used: true });
 
     return res.json({ success: true, message: 'Mot de passe réinitialisé avec succès.' });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+// Espace client (/compte) — profil de l'utilisateur connecté. Le client-side
+// ne garde en mémoire que {id, role} après connexion (voir App.jsx), donc la
+// page de compte doit recharger le détail elle-même à chaque visite.
+export async function getMe(req, res) {
+  try {
+    const user = await Utilisateur.findByPk(req.user.id, {
+      attributes: { exclude: ['password'] },
+      include: [
+        { model: Gouvernorat, attributes: ['id', 'nom', 'nomAr'] },
+        { model: Delegation, attributes: ['id', 'nom'] },
+      ],
+    });
+    if (!user) return res.status(404).json({ success: false, message: 'Utilisateur introuvable.' });
+    return res.json({ success: true, data: user });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+export async function updateMe(req, res) {
+  try {
+    const { nom, prenom, telephone, adresse, gouvernoratId, delegationId } = req.body;
+    const user = await Utilisateur.findByPk(req.user.id);
+    if (!user) return res.status(404).json({ success: false, message: 'Utilisateur introuvable.' });
+
+    await user.update({
+      ...(nom !== undefined && { nom }),
+      ...(prenom !== undefined && { prenom }),
+      ...(telephone !== undefined && { telephone: telephone || null }),
+      ...(adresse !== undefined && { adresse: adresse || null }),
+      ...(gouvernoratId !== undefined && { gouvernoratId: gouvernoratId || null }),
+      ...(delegationId !== undefined && { delegationId: delegationId || null }),
+    });
+
+    const refreshed = await Utilisateur.findByPk(user.id, {
+      attributes: { exclude: ['password'] },
+      include: [
+        { model: Gouvernorat, attributes: ['id', 'nom', 'nomAr'] },
+        { model: Delegation, attributes: ['id', 'nom'] },
+      ],
+    });
+    return res.json({ success: true, data: refreshed, message: 'Profil mis à jour avec succès.' });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+export async function changePassword(req, res) {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const user = await Utilisateur.findByPk(req.user.id);
+    if (!user) return res.status(404).json({ success: false, message: 'Utilisateur introuvable.' });
+
+    if (user.provider && user.provider !== 'local') {
+      return res.status(409).json({
+        success: false,
+        message: `Ce compte est lié à ${user.provider === 'google' ? 'Google' : 'Facebook'} : le mot de passe se gère depuis ce fournisseur.`,
+      });
+    }
+
+    const valid = await bcrypt.compare(currentPassword, user.password);
+    if (!valid) return res.status(401).json({ success: false, message: 'Mot de passe actuel incorrect.' });
+
+    const hash = await bcrypt.hash(newPassword, 10);
+    await user.update({ password: hash });
+
+    return res.json({ success: true, message: 'Mot de passe modifié avec succès.' });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }

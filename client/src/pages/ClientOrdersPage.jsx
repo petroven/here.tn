@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ShoppingBag, FileDown, MessageSquare, RefreshCw, Star, AlertCircle, CheckCircle, Wallet, ChevronDown, ChevronUp, XCircle } from 'lucide-react';
+import { ShoppingBag, FileDown, MessageSquare, RefreshCw, Star, AlertCircle, CheckCircle, Wallet, ChevronDown, ChevronUp, XCircle, BadgeCheck } from 'lucide-react';
 import { API_URL } from '../config/api.js';
 
 const STATUT_LABELS = {
@@ -18,6 +18,7 @@ export default function ClientOrdersPage({ onStartChat, language = 'fr' }) {
 
   const [commandes, setCommandes] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [mesAvis, setMesAvis] = useState([]); // [{produitId, commandeId}] déjà publiés
   const [wallet, setWallet] = useState({ solde: 0, transactions: [] });
   const [showWalletHistory, setShowWalletHistory] = useState(false);
 
@@ -38,8 +39,23 @@ export default function ClientOrdersPage({ onStartChat, language = 'fr' }) {
     if (token) {
       fetchMyOrders();
       fetchWallet();
+      fetchMesAvis();
     }
   }, [token]);
+
+  const fetchMesAvis = async () => {
+    try {
+      const response = await fetch(`${API_URL}/avis/mes-avis`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (data.success) setMesAvis(data.data);
+    } catch (err) {
+      console.error('Error fetching my avis:', err);
+    }
+  };
+
+  const hasReview = (produitId, commandeId) => mesAvis.some((a) => a.produitId === produitId && a.commandeId === commandeId);
 
   const fetchWallet = async () => {
     try {
@@ -178,6 +194,7 @@ export default function ClientOrdersPage({ onStartChat, language = 'fr' }) {
       }
 
       setReviewStatus({ type: 'success', message: tr('Avis enregistré! Merci pour votre contribution.', 'تم تسجيل تقييمك! شكرًا لمساهمتك.') });
+      setMesAvis((current) => [...current, { produitId: reviewForm.produitId, commandeId: reviewForm.commandeId }]);
       setTimeout(() => {
         setShowReviewModal(false);
       }, 2000);
@@ -193,7 +210,7 @@ export default function ClientOrdersPage({ onStartChat, language = 'fr' }) {
   return (
     <div className="mx-auto max-w-5xl p-4 pb-24 sm:p-6 md:pb-6 font-sans">
       <div className="mb-6 flex items-center gap-3">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#EEF2FF] text-[#6366F1]">
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#F8E4DE] text-[#C4532C]">
           <ShoppingBag size={24} />
         </div>
         <div>
@@ -202,7 +219,7 @@ export default function ClientOrdersPage({ onStartChat, language = 'fr' }) {
         </div>
       </div>
 
-      <div className="mb-6 rounded-3xl border border-slate-200 bg-white p-5 shadow-soft">
+      <div className="mb-6 rounded-lg border border-slate-200 bg-white p-5 shadow-soft">
         <button
           onClick={() => setShowWalletHistory((v) => !v)}
           className="flex w-full items-center justify-between"
@@ -245,9 +262,9 @@ export default function ClientOrdersPage({ onStartChat, language = 'fr' }) {
       </div>
 
       {commandes.length === 0 ? (
-        <div className="rounded-3xl border border-slate-200 bg-white p-12 text-center shadow-soft">
+        <div className="rounded-lg border border-slate-200 bg-white p-12 text-center shadow-soft">
           <p className="mb-4 text-slate-500">{tr("Vous n'avez pas encore passé de commande.", 'لم تقم بأي طلب بعد.')}</p>
-          <a href="/" className="inline-block rounded-2xl bg-[#6366F1] px-6 py-3 text-sm font-bold text-white">
+          <a href="/" className="inline-block rounded-2xl bg-[#C4532C] px-6 py-3 text-sm font-bold text-white">
             {tr('Découvrir le catalogue', 'اكتشف الكتالوج')}
           </a>
         </div>
@@ -260,7 +277,7 @@ export default function ClientOrdersPage({ onStartChat, language = 'fr' }) {
               && (!order.livraison || order.livraison.statut === 'en_preparation');
 
             return (
-              <div key={order.id} className="overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-soft">
+              <div key={order.id} className="overflow-hidden rounded-lg border border-slate-200 bg-white p-6 shadow-soft">
                 {/* Order Top Bar */}
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4">
                   <div>
@@ -281,7 +298,7 @@ export default function ClientOrdersPage({ onStartChat, language = 'fr' }) {
                       </span>
                     )}
                     {order.livraison && (
-                      <span className="rounded-full border border-teal-100 bg-teal-50 px-3 py-1 text-xs font-bold text-teal-700">
+                      <span className="rounded-full border border-terre-100 bg-terre-50 px-3 py-1 text-xs font-bold text-terre-700">
                         {tr('Code Suivi', 'رمز التتبع')}: {order.livraison.trackingId}
                       </span>
                     )}
@@ -304,7 +321,7 @@ export default function ClientOrdersPage({ onStartChat, language = 'fr' }) {
                     {order.boutique?.vendeurId && onStartChat && (
                       <button
                         onClick={() => onStartChat(order.boutique.vendeurId, `${tr('Commande', 'الطلب')} ${order.numeroCommande}`)}
-                        className="flex items-center gap-1.5 rounded-xl border border-teal-200 px-3 py-1.5 text-xs font-bold text-teal-700 transition hover:bg-teal-50 hover:text-teal-800"
+                        className="flex items-center gap-1.5 rounded-xl border border-terre-200 px-3 py-1.5 text-xs font-bold text-terre-700 transition hover:bg-terre-50 hover:text-terre-800"
                       >
                         <MessageSquare size={14} />
                         {tr('Vendeur', 'البائع')}
@@ -348,13 +365,20 @@ export default function ClientOrdersPage({ onStartChat, language = 'fr' }) {
                             <p className="mt-0.5 text-[10px] text-slate-400">{ligne.prixUnitaire.toFixed(3)} TND / {tr('u', 'وحدة')}</p>
                           </div>
                           {isDelivered && (
-                            <button
-                              onClick={() => handleOpenReview(ligne.produitId, order.id)}
-                              className="flex items-center gap-1 rounded-lg border border-teal-100 bg-teal-50 px-2.5 py-1.5 text-[10px] font-bold text-teal-700 transition hover:bg-teal-100"
-                            >
-                              <Star size={10} className="fill-current text-teal-600" />
-                              {tr('Laisser un avis', 'أضف تقييمًا')}
-                            </button>
+                            hasReview(ligne.produitId, order.id) ? (
+                              <span className="flex items-center gap-1 rounded-lg border border-emerald-100 bg-emerald-50 px-2.5 py-1.5 text-[10px] font-bold text-emerald-700">
+                                <BadgeCheck size={11} />
+                                {tr('Avis publié', 'تم نشر التقييم')} ✓
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => handleOpenReview(ligne.produitId, order.id)}
+                                className="flex items-center gap-1 rounded-lg border border-terre-100 bg-terre-50 px-2.5 py-1.5 text-[10px] font-bold text-terre-700 transition hover:bg-terre-100"
+                              >
+                                <Star size={10} className="fill-current text-terre-600" />
+                                {tr('Laisser un avis', 'أضف تقييمًا')}
+                              </button>
+                            )
                           )}
                         </div>
                       </div>
@@ -368,7 +392,7 @@ export default function ClientOrdersPage({ onStartChat, language = 'fr' }) {
                     <p>{tr('Mode paiement', 'طريقة الدفع')} : <span className="font-semibold uppercase text-slate-700">{order.paiement?.methode}</span></p>
                     <p>{tr('Frais livraison', 'مصاريف التوصيل')} : <span className="font-semibold text-slate-700">{(order.fraisLivraison || 0).toFixed(3)} TND</span></p>
                     {order.remiseCoupon > 0 && (
-                      <p className="text-[#6366F1]">{tr('Réduction coupon', 'خصم الكوبون')} : -{order.remiseCoupon.toFixed(3)} TND</p>
+                      <p className="text-[#C4532C]">{tr('Réduction coupon', 'خصم الكوبون')} : -{order.remiseCoupon.toFixed(3)} TND</p>
                     )}
                     {order.walletUtilise > 0 && (
                       <p className="text-amber-700">{tr('Solde utilisé', 'الرصيد المستخدم')} : -{order.walletUtilise.toFixed(3)} TND</p>
@@ -378,7 +402,7 @@ export default function ClientOrdersPage({ onStartChat, language = 'fr' }) {
                   <div className="flex items-center gap-4 text-right">
                     <div>
                       <p className="text-[10px] text-slate-400">{tr('Total payé', 'المجموع المدفوع')}</p>
-                      <p className="text-base font-black text-[#6366F1]">{order.total.toFixed(3)} TND</p>
+                      <p className="text-base font-black text-[#C4532C]">{order.total.toFixed(3)} TND</p>
                     </div>
 
                     {isDelivered && (
@@ -401,7 +425,7 @@ export default function ClientOrdersPage({ onStartChat, language = 'fr' }) {
       {/* RMA / Return Request Modal */}
       {showRmaModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-          <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
+          <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-lg border border-slate-200 bg-white p-6 shadow-soft">
             <h2 className="mb-2 text-xl font-black text-slate-900">{tr('Demander un retour (RMA)', 'طلب إرجاع')}</h2>
             <p className="mb-6 text-xs text-slate-500">
               {tr('Votre réclamation sera transmise au vendeur pour validation, dans la fenêtre de retour propre à ce produit. Remboursement crédité rapidement sur votre solde here.tn.', 'سيتم إرسال طلبك إلى البائع للمراجعة، ضمن مهلة الإرجاع الخاصة بهذا المنتج. سيُضاف المبلغ المسترد بسرعة إلى رصيدكم على here.tn.')}
@@ -424,7 +448,7 @@ export default function ClientOrdersPage({ onStartChat, language = 'fr' }) {
                 <select
                   value={rmaForm.motifCategorie}
                   onChange={(e) => setRmaForm({ ...rmaForm, motifCategorie: e.target.value })}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50/50 p-3 text-xs outline-none focus:border-transparent focus:ring-2 focus:ring-indigo-500"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50/50 p-3 text-xs outline-none focus:border-transparent focus:ring-2 focus:ring-terre-500"
                 >
                   <option value="defaut">{tr('Produit défectueux', 'منتج معيب')}</option>
                   <option value="non_conforme">{tr('Non conforme à la description', 'غير مطابق للوصف')}</option>
@@ -443,7 +467,7 @@ export default function ClientOrdersPage({ onStartChat, language = 'fr' }) {
                   placeholder={tr('Décrivez précisément la raison du retour (ex: mauvaise taille, article endommagé, non conforme...)', 'صف سبب الإرجاع بدقة (مثال: مقاس خاطئ، منتج تالف...)')}
                   value={rmaForm.motif}
                   onChange={(e) => setRmaForm({ ...rmaForm, motif: e.target.value })}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50/50 p-3 text-xs outline-none focus:border-transparent focus:ring-2 focus:ring-indigo-500"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50/50 p-3 text-xs outline-none focus:border-transparent focus:ring-2 focus:ring-terre-500"
                   rows="4"
                   required
                 />
@@ -456,7 +480,7 @@ export default function ClientOrdersPage({ onStartChat, language = 'fr' }) {
                   accept="image/*"
                   multiple
                   onChange={(e) => setRmaPhotos(Array.from(e.target.files || []).slice(0, 5))}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50/50 p-3 text-xs outline-none file:mr-3 file:rounded-lg file:border-0 file:bg-[#EEF2FF] file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-[#6366F1]"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50/50 p-3 text-xs outline-none file:mr-3 file:rounded-lg file:border-0 file:bg-[#F8E4DE] file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-[#C4532C]"
                   required
                 />
                 {rmaPhotos.length > 0 && (
@@ -467,7 +491,7 @@ export default function ClientOrdersPage({ onStartChat, language = 'fr' }) {
               <div className="flex gap-3 pt-2">
                 <button
                   type="submit"
-                  className="flex-1 rounded-xl bg-[#6366F1] py-3 text-xs font-bold text-white shadow-lg shadow-indigo-100 transition hover:bg-[#4F46E5]"
+                  className="flex-1 rounded-xl bg-[#C4532C] py-3 text-xs font-bold text-white shadow-lg shadow-terre-100 transition hover:bg-[#994122]"
                 >
                   {tr('Envoyer la demande', 'إرسال الطلب')}
                 </button>
@@ -487,7 +511,7 @@ export default function ClientOrdersPage({ onStartChat, language = 'fr' }) {
       {/* Leave Review Modal */}
       {showReviewModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-          <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
+          <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-lg border border-slate-200 bg-white p-6 shadow-soft">
             <h2 className="mb-2 text-xl font-black text-slate-900">{tr('Donner votre avis', 'أضف تقييمك')}</h2>
             <p className="mb-6 text-xs text-slate-500">
               {tr('Votre avis aide les autres membres de la communauté tunisienne à acheter en toute confiance.', 'تقييمك يساعد بقية الأعضاء على الشراء بثقة أكبر.')}
@@ -527,7 +551,7 @@ export default function ClientOrdersPage({ onStartChat, language = 'fr' }) {
                   placeholder={tr('Décrivez votre expérience avec ce produit...', 'صف تجربتك مع هذا المنتج...')}
                   value={reviewForm.commentaire}
                   onChange={(e) => setReviewForm({ ...reviewForm, commentaire: e.target.value })}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50/50 p-3 text-xs outline-none focus:border-transparent focus:ring-2 focus:ring-indigo-500"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50/50 p-3 text-xs outline-none focus:border-transparent focus:ring-2 focus:ring-terre-500"
                   rows="3"
                 />
               </div>
@@ -535,7 +559,7 @@ export default function ClientOrdersPage({ onStartChat, language = 'fr' }) {
               <div className="flex gap-3 pt-2">
                 <button
                   type="submit"
-                  className="flex-1 rounded-xl bg-teal-700 py-3 text-xs font-bold text-white shadow-lg shadow-teal-100 transition hover:bg-teal-800"
+                  className="flex-1 rounded-xl bg-terre-700 py-3 text-xs font-bold text-white shadow-lg shadow-terre-100 transition hover:bg-terre-800"
                 >
                   {tr("Publier l'avis", 'نشر التقييم')}
                 </button>

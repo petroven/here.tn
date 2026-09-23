@@ -1,12 +1,30 @@
 import express from 'express';
+import multer from 'multer';
+import path from 'path';
+import { randomUUID } from 'crypto';
+import { Op } from 'sequelize';
 import { Boutique, Commande, Commission, Retrait, LigneCommande, Produit, Variante, Utilisateur, MouvementStock, Categorie } from '../models/index.js';
 import { authMiddleware, requireRole } from '../middleware/auth.js';
 import { validerPrixAvant, enregistrerChangementPrix } from '../utils/promoGuard.js';
 import { emailBienvenueVendeur } from '../utils/email.js';
 import { calculerFinancesBoutique } from '../utils/finance.js';
 import { clampDelaiRetourOverride } from '../utils/returnPolicy.js';
+import { uploadImage } from '../utils/upload.js';
+import {
+  buildImportTemplateWorkbook,
+  parseSpreadsheetBuffer,
+  readZipArchive,
+  materializeImages,
+  buildImportPreview,
+} from '../utils/productImport.js';
+import { createImport, getImport, discardImport } from '../utils/importStore.js';
 
 const router = express.Router();
+const uploadKyc = multer({ dest: 'uploads/temp/' });
+// Fichier d'import gardé en mémoire (jamais écrit tel quel sur disque) — voir
+// utils/productImport.js pour l'extraction ZIP sans risque de traversée de
+// chemin. 150 Mo couvre un catalogue de ~100 produits avec plusieurs photos.
+const uploadImportFile = multer({ storage: multer.memoryStorage(), limits: { fileSize: 150 * 1024 * 1024 } });
 const boutiqueAdminMiddleware = requireRole('vendeur', 'admin_boutique', 'administrateur', 'super_admin');
 const canManageVendor = (req, vendeurId) => ['administrateur', 'super_admin'].includes(req.user.role) || Number(req.user.id) === Number(vendeurId);
 
@@ -195,6 +213,54 @@ router.put('/vendor/boutique/:vendeurId', authMiddleware, boutiqueAdminMiddlewar
   }
 });
 
+// Soumission KYC — CIN + RIB, chacun avec un justificatif scanné. Stocké en
+// disque local (server/uploads), jamais chez un prestataire tiers. Repasse
+// systématiquement à 'en_attente', y compris après un rejet, pour qu'un
+// admin revoie une nouvelle soumission corrigée.
+router.post(
+  '/vendor/kyc/:vendeurId',
+  authMiddleware,
+  boutiqueAdminMiddleware,
+  uploadKyc.fields([{ name: 'documentCin', maxCount: 1 }, { name: 'documentRib', maxCount: 1 }]),
+  async (req, res) => {
+    try {
+      const { vendeurId } = req.params;
+      if (!canManageVendor(req, vendeurId)) return res.status(403).json({ success: false, message: 'Accès à cette boutique refusé.' });
+      const { kycCin, kycRib } = req.body;
+
+      const boutique = await Boutique.findOne({ where: { vendeurId } });
+      if (!boutique) return res.status(404).json({ success: false, message: 'Boutique non trouvée.' });
+
+      if (!kycCin || !kycRib) {
+        return res.status(400).json({ success: false, message: 'Numéro CIN et RIB requis.' });
+      }
+      const fichierCin = req.files?.documentCin?.[0];
+      const fichierRib = req.files?.documentRib?.[0];
+      if (!fichierCin && !boutique.kycDocumentCin) {
+        return res.status(400).json({ success: false, message: 'Justificatif CIN requis.' });
+      }
+      if (!fichierRib && !boutique.kycDocumentRib) {
+        return res.status(400).json({ success: false, message: 'Justificatif RIB (RIB bancaire scanné) requis.' });
+      }
+
+      await boutique.update({
+        kycCin,
+        kycRib,
+        kycDocumentCin: fichierCin ? await uploadImage(fichierCin, 'heretn/kyc') : boutique.kycDocumentCin,
+        kycDocumentRib: fichierRib ? await uploadImage(fichierRib, 'heretn/kyc') : boutique.kycDocumentRib,
+        kycStatut: 'en_attente',
+        kycCommentaireAdmin: null,
+        kycDateSoumission: new Date(),
+        kycDateTraitement: null,
+      });
+
+      res.json({ success: true, data: boutique, message: 'Documents envoyés — en attente de vérification par un administrateur.' });
+    } catch (error) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  },
+);
+
 // Get all products for vendor
 router.get('/vendor/products/:vendeurId', authMiddleware, boutiqueAdminMiddleware, async (req, res) => {
   try {
@@ -218,12 +284,172 @@ router.get('/vendor/products/:vendeurId', authMiddleware, boutiqueAdminMiddlewar
   }
 });
 
+// Import en masse — modèle Excel à télécharger, colonnes voir
+// utils/productImport.js#buildImportTemplateWorkbook.
+router.get('/vendor/products/import/template', authMiddleware, boutiqueAdminMiddleware, async (req, res) => {
+  try {
+    const workbook = buildImportTemplateWorkbook();
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="modele-import-produits.xlsx"');
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Étape 1 de l'import en masse : le vendeur dépose un .xlsx/.csv (sans
+// photos) ou un .zip (produits.xlsx + images/<reference>/*.jpg) — on parse,
+// on valide chaque ligne et on renvoie une prévisualisation sans rien créer
+// en base. Les photos du ZIP sont déjà matérialisées en fichiers temporaires
+// (voir importStore) pour que l'étape de confirmation n'ait plus qu'à les
+// envoyer vers Cloudinary/stockage local.
+router.post(
+  '/vendor/products/:vendeurId/import/preview',
+  authMiddleware,
+  boutiqueAdminMiddleware,
+  uploadImportFile.single('fichier'),
+  async (req, res) => {
+    try {
+      const { vendeurId } = req.params;
+      if (!canManageVendor(req, vendeurId)) return res.status(403).json({ success: false, message: 'Accès à cette boutique refusé.' });
+      const boutique = await Boutique.findOne({ where: { vendeurId } });
+      if (!boutique) return res.status(404).json({ success: false, message: 'Boutique non trouvée.' });
+      if (!req.file) return res.status(400).json({ success: false, message: 'Aucun fichier fourni.' });
+
+      const ext = path.extname(req.file.originalname || '').toLowerCase();
+      let spreadsheetBuffer;
+      let spreadsheetExt;
+      let imagesByReference = new Map();
+
+      // Erreurs de contenu (ZIP corrompu, ZIP-bombe, fichier illisible) —
+      // problème d'entrée utilisateur, pas une panne serveur : 400, pas 500.
+      let parsed;
+      try {
+        if (ext === '.zip') {
+          const archive = readZipArchive(req.file.buffer);
+          if (!archive.spreadsheet) {
+            return res.status(400).json({ success: false, message: 'Le ZIP ne contient aucun fichier produits.xlsx ou produits.csv à la racine.' });
+          }
+          spreadsheetBuffer = archive.spreadsheet.buffer;
+          spreadsheetExt = archive.spreadsheet.ext;
+          imagesByReference = materializeImages(archive.imagesByReference);
+        } else if (ext === '.xlsx' || ext === '.csv') {
+          spreadsheetBuffer = req.file.buffer;
+          spreadsheetExt = ext.slice(1);
+        } else {
+          return res.status(400).json({ success: false, message: 'Format non supporté — utilisez un fichier .xlsx, .csv ou .zip.' });
+        }
+
+        parsed = await parseSpreadsheetBuffer(spreadsheetBuffer, spreadsheetExt);
+      } catch (parseError) {
+        return res.status(400).json({ success: false, message: `Fichier illisible : ${parseError.message}` });
+      }
+      const categories = await Categorie.findAll();
+      const existingProduits = await Produit.findAll({ attributes: ['reference'], where: { reference: { [Op.not]: null } } });
+      const existingReferences = new Set(existingProduits.map((p) => p.reference));
+
+      const { rows, summary } = buildImportPreview(parsed, { categories, existingReferences, imagesByReference });
+
+      const importId = randomUUID();
+      createImport(importId, { vendeurId: Number(vendeurId), rows, imagesByReference });
+
+      // On ne renvoie jamais les chemins disque au client — seulement ce qui
+      // sert à l'affichage de la prévisualisation.
+      const rowsForClient = rows.map(({ imagePaths, ...rest }) => rest);
+
+      res.json({ success: true, data: { importId, rows: rowsForClient, summary } });
+    } catch (error) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  },
+);
+
+// Étape 2 : le vendeur confirme — crée un Produit par ligne valide (hors
+// erreurs), envoie ses photos éventuelles vers Cloudinary/stockage local via
+// le même uploadImage() que le formulaire de création manuelle.
+router.post('/vendor/products/:vendeurId/import/commit', authMiddleware, boutiqueAdminMiddleware, async (req, res) => {
+  try {
+    const { vendeurId } = req.params;
+    if (!canManageVendor(req, vendeurId)) return res.status(403).json({ success: false, message: 'Accès à cette boutique refusé.' });
+    const boutique = await Boutique.findOne({ where: { vendeurId } });
+    if (!boutique) return res.status(404).json({ success: false, message: 'Boutique non trouvée.' });
+
+    const { importId } = req.body;
+    const pending = getImport(importId);
+    if (!pending || pending.vendeurId !== Number(vendeurId)) {
+      return res.status(410).json({ success: false, message: "Session d'import expirée ou introuvable — veuillez réimporter votre fichier." });
+    }
+
+    const skippedRows = pending.rows.filter((row) => row.status === 'error');
+    const importableRows = pending.rows.filter((row) => row.status !== 'error');
+    const produits = [];
+    const commitErrors = [];
+
+    for (const row of importableRows) {
+      try {
+        const uploadedUrls = [];
+        for (const imagePath of row.imagePaths) {
+          const url = await uploadImage({ path: imagePath, originalname: path.basename(imagePath) }, 'heretn/products');
+          uploadedUrls.push(url);
+        }
+
+        const produit = await Produit.create({
+          nom: row.nom,
+          description: row.description,
+          prix: row.prix,
+          prixAvant: null,
+          stock: row.stock,
+          reference: row.reference,
+          marque: row.marque,
+          image: uploadedUrls[0] || null,
+          images: uploadedUrls,
+          categorieId: row.categorieId,
+          boutiqueId: boutique.id,
+          status: 'actif',
+          hasVariantes: false,
+        });
+        await enregistrerChangementPrix(produit.id, row.prix);
+        produits.push(produit);
+      } catch (error) {
+        commitErrors.push({ rowIndex: row.rowIndex, reference: row.reference, nom: row.nom, message: error.message });
+      }
+    }
+
+    discardImport(importId);
+
+    res.status(201).json({
+      success: true,
+      data: {
+        createdCount: produits.length,
+        skippedRows: skippedRows.map((r) => ({ rowIndex: r.rowIndex, reference: r.reference, nom: r.nom, errors: r.errors })),
+        commitErrors,
+        produits,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Annulation depuis l'écran de prévisualisation — libère les photos
+// temporaires sans attendre l'expiration du TTL.
+router.delete('/vendor/products/import/:importId', authMiddleware, boutiqueAdminMiddleware, (req, res) => {
+  const { importId } = req.params;
+  const pending = getImport(importId);
+  if (pending && !canManageVendor(req, pending.vendeurId)) {
+    return res.status(403).json({ success: false, message: 'Accès à cet import refusé.' });
+  }
+  discardImport(importId);
+  res.json({ success: true });
+});
+
 // Create product with optional variants
 router.post('/vendor/products/:vendeurId', authMiddleware, boutiqueAdminMiddleware, async (req, res) => {
   try {
     const { vendeurId } = req.params;
     if (!canManageVendor(req, vendeurId)) return res.status(403).json({ success: false, message: 'Accès à cette boutique refusé.' });
-    const { nom, description, prix, stock, image, categorieId, status = 'actif', variantes, delaiRetourJoursOverride } = req.body;
+    const { nom, description, prix, stock, image, images, categorieId, status = 'actif', variantes, delaiRetourJoursOverride } = req.body;
 
     if (!nom || !description || !prix) {
       return res.status(400).json({ success: false, message: 'Champs obligatoires manquants.' });
@@ -249,6 +475,7 @@ router.post('/vendor/products/:vendeurId', authMiddleware, boutiqueAdminMiddlewa
       prixAvant: null,
       stock: finalStock,
       image,
+      images: Array.isArray(images) ? images.filter(Boolean) : [],
       categorieId: categorieId || null,
       boutiqueId: boutique.id,
       status,
@@ -288,7 +515,7 @@ router.post('/vendor/products/:vendeurId', authMiddleware, boutiqueAdminMiddlewa
 router.put('/vendor/products/:produitId', authMiddleware, boutiqueAdminMiddleware, async (req, res) => {
   try {
     const { produitId } = req.params;
-    const { nom, description, prix, prixAvant, stock, image, categorieId, status, variantes, delaiRetourJoursOverride } = req.body;
+    const { nom, description, prix, prixAvant, stock, image, images, categorieId, status, variantes, delaiRetourJoursOverride } = req.body;
 
     const produit = await Produit.findByPk(produitId);
     if (!produit) {
@@ -349,6 +576,7 @@ router.put('/vendor/products/:produitId', authMiddleware, boutiqueAdminMiddlewar
       prixAvant: prixAvantValide,
       stock: finalStock,
       image: image || produit.image,
+      images: Array.isArray(images) ? images.filter(Boolean) : produit.images,
       categorieId: categorieId || produit.categorieId,
       status: status || produit.status,
       delaiRetourJoursOverride: delaiRetourJoursOverride !== undefined

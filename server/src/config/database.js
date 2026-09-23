@@ -32,9 +32,13 @@ if (isPostgres) {
 } else {
   const databaseDirectory = path.resolve(__dirname, '../../data');
   fs.mkdirSync(databaseDirectory, { recursive: true });
+  // SQLITE_STORAGE permet aux tests automatisés (server/tests/) de pointer
+  // vers un fichier isolé (data/test.db) plutôt que la base de démo réelle —
+  // évite tout conflit de verrou de fichier avec un `npm run dev` en cours et
+  // toute pollution des comptes de démonstration.
   sequelize = new Sequelize({
     dialect: 'sqlite',
-    storage: path.join(databaseDirectory, 'marketplace.db'),
+    storage: process.env.SQLITE_STORAGE || path.join(databaseDirectory, 'marketplace.db'),
     logging: false,
   });
 }

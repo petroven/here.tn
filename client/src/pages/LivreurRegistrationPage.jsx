@@ -64,7 +64,7 @@ export default function LivreurRegistrationPage({ onBack, onSuccess }) {
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 font-sans">
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-soft max-w-md w-full p-8">
+      <div className="bg-white rounded-lg border border-slate-200 shadow-soft max-w-md w-full p-8">
         <button onClick={onBack} className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-amber-600 mb-6">
           <ArrowLeft size={14} /> Retour
         </button>

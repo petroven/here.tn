@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Store, ArrowLeft, CheckCircle, AlertCircle, Check, Languages } from 'lucide-react';
+import {
+  Store, ArrowLeft, CheckCircle, AlertCircle, Check, Languages, ArrowRight,
+  MapPin, Package, Wallet, ShieldCheck, PackageCheck, Truck, Sparkles, UserPlus,
+} from 'lucide-react';
 import { useTranslation } from '../i18n';
 import { API_URL } from '../config/api.js';
 import PolicyConsentModal from '../components/PolicyConsentModal';
+import Logo from '../components/ui/Logo.jsx';
 
 export function VendorRegistration({ onClose, onSuccess, onOpenTerms }) {
   const [language, setLanguage] = useState('fr');
@@ -119,33 +123,160 @@ export function VendorRegistration({ onClose, onSuccess, onOpenTerms }) {
   };
 
   const isAr = language === 'ar';
+  const tr = (fr, ar) => (isAr ? ar : fr);
   const inputClass = 'input-premium w-full p-3 text-sm outline-none';
+
+  const scrollToForm = () => {
+    document.getElementById('inscription-vendeur-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   return (
     <div dir={isAr ? 'rtl' : 'ltr'} className="min-h-screen bg-slate-50 font-sans">
-      {/* Header */}
-      <div className="gradient-brand p-6 text-white shadow-md">
-        <div className="mx-auto max-w-3xl">
-          <div className="mb-4 flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-2xl glass"><Store size={22} /></span>
-            <h1 className="text-2xl font-black sm:text-3xl">{t('becomeVendor')}</h1>
-          </div>
-          <div className="flex items-center justify-between">
-            <button
-              onClick={() => setLanguage(language === 'fr' ? 'ar' : 'fr')}
-              className="flex items-center gap-1.5 rounded-xl bg-white/15 px-4 py-2 text-xs font-bold text-white backdrop-blur transition hover:bg-white/25"
-            >
-              <Languages size={14} /> {language === 'fr' ? 'عربي' : 'Français'}
-            </button>
-            <button onClick={onClose} className="rounded-xl p-2 text-white/90 transition hover:bg-white/15">
-              <ArrowLeft size={20} className={isAr ? 'rotate-180' : ''} />
-            </button>
-          </div>
+      {/* Barre utilitaire */}
+      <div className="bg-[#1E1B18] p-4 text-white">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-2">
+          <button onClick={onClose} className="flex items-center gap-2 rounded-xl p-2 text-white/80 transition hover:bg-white/10 hover:text-white">
+            <ArrowLeft size={18} className={isAr ? 'rotate-180' : ''} />
+            <Logo variant="compact" tone="blanc" className="h-7 w-auto" />
+          </button>
+          <button
+            onClick={() => setLanguage(language === 'fr' ? 'ar' : 'fr')}
+            className="flex items-center gap-1.5 rounded-xl bg-white/10 px-4 py-2 text-xs font-bold text-white transition hover:bg-white/20"
+          >
+            <Languages size={14} /> {language === 'fr' ? 'عربي' : 'Français'}
+          </button>
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="mx-auto my-8 max-w-3xl p-4 sm:p-6">
+      {/* Hero */}
+      <section className="bg-[#F4ECDF] px-4 py-14 sm:px-6 sm:py-20">
+        <div className="mx-auto grid max-w-6xl items-center gap-10 lg:grid-cols-2">
+          <div className="space-y-5">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-bold text-[#C4532C] shadow-sm">
+              <Sparkles size={14} /> {tr('Vendeurs tunisiens', 'بائعون تونسيون')}
+            </span>
+            <h1 className="text-3xl font-black leading-tight text-[#1E1B18] sm:text-5xl">
+              {tr('Développez votre boutique avec BuyHere', 'طوّروا متجركم مع BuyHere')}
+            </h1>
+            <p className="max-w-lg text-base leading-7 text-slate-600">
+              {tr('Présentez vos produits à des clients partout en Tunisie et développez votre activité simplement.', 'اعرضوا منتجاتكم لعملاء في كل أنحاء تونس وطوّروا نشاطكم بكل بساطة.')}
+            </p>
+            <div className="flex flex-wrap gap-3 pt-2">
+              <button onClick={scrollToForm} className="inline-flex items-center gap-2 rounded-xl bg-[#C4532C] px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-terre-200 transition hover:bg-[#994122]">
+                {tr('Créer ma boutique', 'أنشئ متجري')} <ArrowRight size={16} className="rtl:rotate-180" />
+              </button>
+              <a href="#comment-ca-marche" className="inline-flex items-center gap-2 rounded-xl border border-[#1E1B18]/15 bg-white px-6 py-3.5 text-sm font-bold text-[#1E1B18] transition hover:bg-slate-50">
+                {tr('Découvrir comment ça marche', 'اكتشفوا كيف يعمل الأمر')}
+              </a>
+            </div>
+          </div>
+          <div className="relative hidden aspect-[4/3] overflow-hidden rounded-lg lg:block">
+            <div className="absolute inset-0 bg-gradient-to-br from-[#C4532C] via-[#D87350] to-[#F4ECDF]" />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="flex h-28 w-28 items-center justify-center rounded-full bg-white/20 backdrop-blur">
+                <Store size={52} className="text-white" />
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Pourquoi vendre sur BuyHere */}
+      <section className="mx-auto max-w-6xl px-4 py-14 sm:px-6">
+        <h2 className="mb-10 text-center text-2xl font-black text-[#1E1B18] sm:text-3xl">{tr('Pourquoi vendre sur BuyHere ?', 'لماذا البيع على BuyHere؟')}</h2>
+        <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            { icon: Store, text: tr('Créez votre boutique', 'أنشئوا متجركم') },
+            { icon: MapPin, text: tr('Touchez des clients partout en Tunisie', 'وصلوا إلى عملاء في كل أنحاء تونس') },
+            { icon: Package, text: tr('Gérez facilement vos produits et commandes', 'أدِيروا منتجاتكم وطلباتكم بسهولة') },
+            { icon: Wallet, text: tr('Recevez vos revenus simplement', 'استلموا أرباحكم بكل بساطة') },
+          ].map((item) => {
+            const Icon = item.icon;
+            return (
+              <div key={item.text} className="flex flex-col items-center gap-3 text-center">
+                <span className="flex h-14 w-14 items-center justify-center rounded-full bg-[#F8E4DE] text-[#C4532C]">
+                  <Icon size={24} />
+                </span>
+                <p className="text-sm font-bold text-slate-800">{item.text}</p>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* Comment ça marche */}
+      <section id="comment-ca-marche" className="bg-white px-4 py-14 sm:px-6">
+        <div className="mx-auto max-w-4xl">
+          <h2 className="mb-10 text-center text-2xl font-black text-[#1E1B18] sm:text-3xl">{tr('Comment ça marche ?', 'كيف يعمل الأمر؟')}</h2>
+          <div className="space-y-6">
+            {[
+              tr('Créer votre compte', 'أنشئوا حسابكم'),
+              tr('Créer votre boutique', 'أنشئوا متجركم'),
+              tr('Ajouter vos produits', 'أضيفوا منتجاتكم'),
+              tr('Recevoir vos commandes', 'استلموا طلباتكم'),
+              tr('Recevoir vos revenus', 'استلموا أرباحكم'),
+            ].map((label, i) => (
+              <div key={label} className="flex items-center gap-4">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#1E1B18] text-sm font-black text-white">{i + 1}</span>
+                <p className="text-base font-bold text-slate-800">{label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Commission */}
+      <section className="mx-auto max-w-4xl px-4 py-14 sm:px-6">
+        <div className="rounded-lg border border-[#E2D9CB] bg-[#F4ECDF] p-8 text-center sm:p-10">
+          <p className="text-xs font-bold uppercase tracking-wide text-[#994122]">{tr('Commission', 'العمولة')}</p>
+          <p className="mt-2 text-3xl font-black text-[#1E1B18] sm:text-4xl">{tr('Une commission simple et transparente de 5%.', 'عمولة بسيطة وشفافة بنسبة 5%.')}</p>
+          <p className="mx-auto mt-3 max-w-xl text-sm text-slate-600">
+            {tr('Prélevée uniquement sur le sous-total de chaque vente (hors frais de livraison). Le reste — 95% — vous revient directement, versé sur demande de retrait.', 'تُقتطع فقط من المجموع الفرعي لكل عملية بيع (باستثناء مصاريف التوصيل). البقية — 95% — تعود إليكم مباشرة، تُصرف عند طلب السحب.')}
+          </p>
+        </div>
+      </section>
+
+      {/* Confiance */}
+      <section className="bg-white px-4 py-14 sm:px-6">
+        <div className="mx-auto grid max-w-6xl grid-cols-2 gap-6 sm:grid-cols-4">
+          {[
+            { icon: ShieldCheck, label: tr('Vendeurs vérifiés', 'بائعون موثّقون') },
+            { icon: PackageCheck, label: tr('Paiements sécurisés', 'مدفوعات آمنة') },
+            { icon: UserPlus, label: tr('Support client', 'دعم العملاء') },
+            { icon: Truck, label: tr('Marketplace tunisienne', 'سوق تونسية') },
+          ].map((item) => {
+            const Icon = item.icon;
+            return (
+              <div key={item.label} className="flex flex-col items-center gap-2 text-center">
+                <Icon size={22} className="text-[#C4532C]" />
+                <p className="text-xs font-bold text-slate-700">{item.label}</p>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* Témoignages — pas de faux témoignages, placeholder en attendant les vrais retours vendeurs */}
+      <section className="mx-auto max-w-4xl px-4 py-14 text-center sm:px-6">
+        <h2 className="mb-3 text-2xl font-black text-[#1E1B18] sm:text-3xl">{tr('Ce que disent nos vendeurs', 'ماذا يقول بائعونا')}</h2>
+        <div className="mx-auto max-w-md rounded-lg border border-dashed border-slate-300 bg-slate-50 p-8">
+          <Sparkles className="mx-auto mb-3 text-slate-300" size={28} />
+          <p className="text-sm font-semibold text-slate-500">
+            {tr('Les témoignages de nos vendeurs arrivent bientôt.', 'شهادات بائعينا قادمة قريبًا.')}
+          </p>
+        </div>
+      </section>
+
+      {/* CTA final */}
+      <section className="bg-[#1E1B18] px-4 py-14 text-center text-white sm:px-6">
+        <h2 className="text-2xl font-black sm:text-3xl">{tr('Prêt à ouvrir votre boutique ?', 'مستعدون لفتح متجركم؟')}</h2>
+        <button onClick={scrollToForm} className="mt-6 inline-flex items-center gap-2 rounded-xl bg-[#C4532C] px-7 py-3.5 text-sm font-bold text-white transition hover:bg-[#994122]">
+          {tr('Devenir vendeur', 'كن بائعًا')} <ArrowRight size={16} className="rtl:rotate-180" />
+        </button>
+      </section>
+
+      {/* Main Content — formulaire d'inscription (logique inchangée) */}
+      <div id="inscription-vendeur-form" className="mx-auto my-8 max-w-3xl scroll-mt-6 p-4 sm:p-6">
         <div className="card-premium p-6 sm:p-8">
           {/* Step indicator */}
           <div className="mb-8 flex items-center justify-center">
@@ -157,7 +288,7 @@ export function VendorRegistration({ onClose, onSuccess, onOpenTerms }) {
                   }`}>
                     {step > s.n ? <Check size={18} /> : s.n}
                   </div>
-                  <p className={`text-xs font-bold ${step >= s.n ? 'text-[#7C3AED]' : 'text-slate-400'}`}>{s.label}</p>
+                  <p className={`text-xs font-bold ${step >= s.n ? 'text-[#C4532C]' : 'text-slate-400'}`}>{s.label}</p>
                 </div>
                 {i < arr.length - 1 && <div className={`mx-3 h-0.5 w-16 sm:w-28 ${step > s.n ? 'bg-emerald-400' : 'bg-slate-200'}`} />}
               </React.Fragment>
@@ -213,17 +344,17 @@ export function VendorRegistration({ onClose, onSuccess, onOpenTerms }) {
                     <button
                       type="button"
                       onClick={() => setStoreData({ ...storeData, modePaiement: 'iban' })}
-                      className={`rounded-2xl border p-3.5 text-left transition-all duration-200 ${storeData.modePaiement === 'iban' ? 'border-[#7C3AED] bg-[#F5F3FF] shadow-sm' : 'border-slate-200 bg-white hover:bg-slate-50'}`}
+                      className={`rounded-2xl border p-3.5 text-left transition-all duration-200 ${storeData.modePaiement === 'iban' ? 'border-[#C4532C] bg-[#F8E4DE] shadow-sm' : 'border-slate-200 bg-white hover:bg-slate-50'}`}
                     >
-                      <span className={`block text-sm font-bold ${storeData.modePaiement === 'iban' ? 'text-[#7C3AED]' : 'text-slate-800'}`}>Virement bancaire</span>
+                      <span className={`block text-sm font-bold ${storeData.modePaiement === 'iban' ? 'text-[#C4532C]' : 'text-slate-800'}`}>Virement bancaire</span>
                       <span className="text-xs text-slate-400">IBAN tunisien</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setStoreData({ ...storeData, modePaiement: 'flouci' })}
-                      className={`rounded-2xl border p-3.5 text-left transition-all duration-200 ${storeData.modePaiement === 'flouci' ? 'border-[#7C3AED] bg-[#F5F3FF] shadow-sm' : 'border-slate-200 bg-white hover:bg-slate-50'}`}
+                      className={`rounded-2xl border p-3.5 text-left transition-all duration-200 ${storeData.modePaiement === 'flouci' ? 'border-[#C4532C] bg-[#F8E4DE] shadow-sm' : 'border-slate-200 bg-white hover:bg-slate-50'}`}
                     >
-                      <span className={`block text-sm font-bold ${storeData.modePaiement === 'flouci' ? 'text-[#7C3AED]' : 'text-slate-800'}`}>Flouci</span>
+                      <span className={`block text-sm font-bold ${storeData.modePaiement === 'flouci' ? 'text-[#C4532C]' : 'text-slate-800'}`}>Flouci</span>
                       <span className="text-xs text-slate-400">Portefeuille mobile</span>
                     </button>
                   </div>
@@ -248,7 +379,7 @@ export function VendorRegistration({ onClose, onSuccess, onOpenTerms }) {
 
                 <input type="text" name="adresse" placeholder="Adresse de la boutique (Rue, Local...)" value={storeData.adresse} onChange={handleStoreChange} className={inputClass} required />
 
-                <div className="rounded-2xl border border-[#DDD6FE] bg-[#F5F3FF] p-4">
+                <div className="rounded-2xl border border-[#DDD6FE] bg-[#F8E4DE] p-4">
                   <p className="text-sm text-[#5B21B6]">
                     <strong>Note :</strong> {storeData.modePaiement === 'flouci'
                       ? 'Vos virements seront versés sur votre compte Flouci.'

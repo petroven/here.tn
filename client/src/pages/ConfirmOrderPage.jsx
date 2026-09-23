@@ -59,9 +59,9 @@ export default function ConfirmOrderPage({ token }) {
 
   return (
     <div className="max-w-2xl mx-auto p-6 font-sans min-h-screen flex items-center">
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-soft p-8 w-full">
+      <div className="bg-white rounded-lg border border-slate-200 shadow-soft p-8 w-full">
         <div className="flex items-center gap-3 mb-6">
-          <div className="w-12 h-12 bg-[#EEF2FF] text-[#6366F1] rounded-2xl flex items-center justify-center">
+          <div className="w-12 h-12 bg-[#F8E4DE] text-[#C4532C] rounded-2xl flex items-center justify-center">
             <PackageCheck size={24} />
           </div>
           <div>
@@ -83,7 +83,7 @@ export default function ConfirmOrderPage({ token }) {
               <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Commande</p>
               <p className="text-lg font-black text-slate-900 mt-1">#{commande.numeroCommande}</p>
               <p className="text-sm text-slate-600 mt-1">{commande.boutique?.nom}</p>
-              <p className="text-xl font-black text-teal-700 mt-3">{Number(commande.total).toFixed(3)} TND</p>
+              <p className="text-xl font-black text-terre-700 mt-3">{Number(commande.total).toFixed(3)} TND</p>
             </div>
 
             <div className="divide-y divide-slate-100 border border-slate-100 rounded-2xl overflow-hidden">

@@ -7,6 +7,7 @@ import LivreurHistorique from '../components/livreur/LivreurHistorique';
 import LivreurStatsPanel from '../components/livreur/LivreurStatsPanel';
 import LivreurNotificationOverlay from '../components/livreur/LivreurNotificationOverlay';
 import { API_URL, SERVER_ORIGIN } from '../config/api.js';
+import Logo from '../components/ui/Logo.jsx';
 
 const STATUT_OPTIONS = [
   { value: 'disponible', label: 'Disponible', icon: Wifi },
@@ -215,7 +216,7 @@ export default function LivreurDashboardPage({ onLogout }) {
         <div className="px-4 py-3.5 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center overflow-hidden p-1">
-              <img src="/logo-icon.png" alt="here.tn" className="h-full w-full object-contain" />
+              <Logo variant="symbole" className="h-full w-full" />
             </div>
             <h1 className="text-sm font-black text-slate-900">Espace Livreur</h1>
           </div>

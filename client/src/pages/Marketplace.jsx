@@ -174,7 +174,7 @@ export function Marketplace({ cartItems = [], onUpdateCart, onStartChat, onViewC
         <div className="space-y-1">
           <button
             onClick={() => { setCurrentPage(1); setSelectedCategory(null); }}
-            className={`w-full rounded-xl px-3.5 py-2 text-left text-xs font-semibold transition ${!selectedCategory ? 'bg-[#F5F3FF] font-bold text-[#7C3AED]' : 'text-slate-600 hover:bg-slate-50'}`}
+            className={`w-full rounded-xl px-3.5 py-2 text-left text-xs font-semibold transition ${!selectedCategory ? 'bg-[#F8E4DE] font-bold text-[#C4532C]' : 'text-slate-600 hover:bg-slate-50'}`}
           >
             {tr('Toutes', 'الكل')}
           </button>
@@ -182,7 +182,7 @@ export function Marketplace({ cartItems = [], onUpdateCart, onStartChat, onViewC
             <button
               key={category.id}
               onClick={() => { setCurrentPage(1); setSelectedCategory(category); }}
-              className={`w-full rounded-xl px-3.5 py-2 text-left text-xs font-semibold transition ${selectedCategory?.id === category.id ? 'bg-[#F5F3FF] font-bold text-[#7C3AED]' : 'text-slate-600 hover:bg-slate-50'}`}
+              className={`w-full rounded-xl px-3.5 py-2 text-left text-xs font-semibold transition ${selectedCategory?.id === category.id ? 'bg-[#F8E4DE] font-bold text-[#C4532C]' : 'text-slate-600 hover:bg-slate-50'}`}
             >
               {category.nom}
             </button>
@@ -197,11 +197,11 @@ export function Marketplace({ cartItems = [], onUpdateCart, onStartChat, onViewC
           max="500"
           value={priceRange[1]}
           onChange={(e) => { setCurrentPage(1); setPriceRange([priceRange[0], parseInt(e.target.value, 10)]); }}
-          className="w-full cursor-pointer accent-[#7C3AED]"
+          className="w-full cursor-pointer accent-[#C4532C]"
         />
         <div className="mt-2 flex justify-between text-xs font-bold text-slate-500">
           <span>0 TND</span>
-          <span className="text-[#7C3AED]">{priceRange[1]} TND</span>
+          <span className="text-[#C4532C]">{priceRange[1]} TND</span>
         </div>
       </FilterSection>
 
@@ -223,7 +223,7 @@ export function Marketplace({ cartItems = [], onUpdateCart, onStartChat, onViewC
         <div className="max-h-48 space-y-1 overflow-y-auto">
           <button
             onClick={() => { setCurrentPage(1); setSelectedStore(null); }}
-            className={`flex w-full items-center gap-2 rounded-xl px-3.5 py-2 text-left text-xs font-semibold transition ${!selectedStore ? 'bg-[#F5F3FF] font-bold text-[#7C3AED]' : 'text-slate-600 hover:bg-slate-50'}`}
+            className={`flex w-full items-center gap-2 rounded-xl px-3.5 py-2 text-left text-xs font-semibold transition ${!selectedStore ? 'bg-[#F8E4DE] font-bold text-[#C4532C]' : 'text-slate-600 hover:bg-slate-50'}`}
           >
             <Store size={14} /> {tr('Toutes les boutiques', 'كل المتاجر')}
           </button>
@@ -231,7 +231,7 @@ export function Marketplace({ cartItems = [], onUpdateCart, onStartChat, onViewC
             <button
               key={boutique.id}
               onClick={() => { setCurrentPage(1); setSelectedStore(boutique); }}
-              className={`flex w-full items-center gap-2 rounded-xl px-3.5 py-2 text-left text-xs font-semibold transition ${selectedStore?.id === boutique.id ? 'bg-[#F5F3FF] font-bold text-[#7C3AED]' : 'text-slate-600 hover:bg-slate-50'}`}
+              className={`flex w-full items-center gap-2 rounded-xl px-3.5 py-2 text-left text-xs font-semibold transition ${selectedStore?.id === boutique.id ? 'bg-[#F8E4DE] font-bold text-[#C4532C]' : 'text-slate-600 hover:bg-slate-50'}`}
             >
               <Store size={14} /> {boutique.nom}
             </button>
@@ -247,7 +247,7 @@ export function Marketplace({ cartItems = [], onUpdateCart, onStartChat, onViewC
       <div className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 p-5 shadow-soft backdrop-blur">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 md:flex-row">
           <div className="flex items-center gap-2 text-slate-900">
-            <Sparkles size={22} className="text-[#7C3AED]" />
+            <Sparkles size={22} className="text-[#C4532C]" />
             <h1 className="text-xl font-black">{tr('Catalogue', 'الكتالوج')}</h1>
           </div>
 
@@ -271,6 +271,32 @@ export function Marketplace({ cartItems = [], onUpdateCart, onStartChat, onViewC
           </div>
         </div>
       </div>
+
+      {/* Bannière de catégorie — uniquement quand une catégorie est sélectionnée */}
+      {selectedCategory && (
+        <div className="relative overflow-hidden bg-[#1E1B18] text-white">
+          <img
+            src="https://images.unsplash.com/photo-1761090617068-f1b3257d27ad?fm=jpg&q=70&w=1600&auto=format&fit=crop"
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover opacity-45"
+            style={{ filter: 'sepia(20%) saturate(130%)' }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#1E1B18] via-[#1E1B18]/85 to-[#C4532C]/30" />
+          <div className="relative mx-auto max-w-7xl px-4 py-10 sm:px-6">
+            <nav className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold text-slate-300">
+              <span>{tr('Accueil', 'الرئيسية')}</span>
+              <ChevronRight size={11} className="rtl:rotate-180" />
+              <button onClick={() => { setCurrentPage(1); setSelectedCategory(null); }} className="hover:text-white">{tr('Catalogue', 'الكتالوج')}</button>
+              <ChevronRight size={11} className="rtl:rotate-180" />
+              <span className="text-white">{selectedCategory.nom}</span>
+            </nav>
+            <h2 className="text-2xl font-black sm:text-3xl">{selectedCategory.nom}</h2>
+            <p className="mt-1 text-sm text-slate-300">
+              {filteredProducts.length} {tr('produits dans cette catégorie', 'منتج في هذه الفئة')}
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="mx-auto max-w-7xl p-4 sm:p-6">
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
@@ -298,8 +324,8 @@ export function Marketplace({ cartItems = [], onUpdateCart, onStartChat, onViewC
                 </button>
 
                 <div className="hidden items-center gap-1 rounded-xl border border-slate-200 bg-white p-1 sm:flex">
-                  <button onClick={() => setViewMode('grid')} className={`rounded-lg p-1.5 transition ${viewMode === 'grid' ? 'bg-[#F5F3FF] text-[#7C3AED]' : 'text-slate-400'}`}><LayoutGrid size={16} /></button>
-                  <button onClick={() => setViewMode('list')} className={`rounded-lg p-1.5 transition ${viewMode === 'list' ? 'bg-[#F5F3FF] text-[#7C3AED]' : 'text-slate-400'}`}><List size={16} /></button>
+                  <button onClick={() => setViewMode('grid')} className={`rounded-lg p-1.5 transition ${viewMode === 'grid' ? 'bg-[#F8E4DE] text-[#C4532C]' : 'text-slate-400'}`}><LayoutGrid size={16} /></button>
+                  <button onClick={() => setViewMode('list')} className={`rounded-lg p-1.5 transition ${viewMode === 'list' ? 'bg-[#F8E4DE] text-[#C4532C]' : 'text-slate-400'}`}><List size={16} /></button>
                 </div>
 
                 <select
@@ -322,7 +348,7 @@ export function Marketplace({ cartItems = [], onUpdateCart, onStartChat, onViewC
                 {activeChips.map((chip) => (
                   <Badge key={chip.key} tone="violet" className="pl-3 pr-1.5 py-1">
                     {chip.label}
-                    <button onClick={chip.clear} className="ml-1 rounded-full p-0.5 hover:bg-[#7C3AED]/15 rtl:ml-0 rtl:mr-1">
+                    <button onClick={chip.clear} className="ml-1 rounded-full p-0.5 hover:bg-[#C4532C]/15 rtl:ml-0 rtl:mr-1">
                       <X size={11} />
                     </button>
                   </Badge>
@@ -361,7 +387,7 @@ export function Marketplace({ cartItems = [], onUpdateCart, onStartChat, onViewC
                         <h3 className="truncate text-sm font-bold text-slate-900">{product.nom}</h3>
                         <div className="mt-1 flex items-center gap-1 text-xs text-slate-500"><Star size={12} className="fill-amber-400 text-amber-400" /> {Number(product.note || 0).toFixed(1)}</div>
                       </div>
-                      <strong className="shrink-0 text-base font-black text-[#7C3AED]">{Number(product.prix).toFixed(3)} TND</strong>
+                      <strong className="shrink-0 text-base font-black text-[#C4532C]">{Number(product.prix).toFixed(3)} TND</strong>
                     </button>
                   )
                 ))}

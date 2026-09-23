@@ -123,6 +123,7 @@ export async function getBoutiques(_req, res) {
       include: [
         { model: Produit, where: { status: 'actif' }, required: false, attributes: ['id'] },
         { model: Gouvernorat, attributes: ['id', 'nom', 'nomAr'], required: false },
+        { model: Utilisateur, as: 'vendeur', attributes: ['id', 'nom', 'prenom', 'photo'], required: false },
       ],
       order: [['createdAt', 'DESC']],
     });
@@ -151,7 +152,31 @@ export async function getBoutiqueById(req, res) {
       ],
     });
     if (!boutique) return res.status(404).json({ success: false, message: 'Boutique introuvable.' });
-    res.json({ success: true, data: { ...boutique.toJSON(), nombreProduits: boutique.Produits?.length || 0 } });
+
+    // Pas de type d'avis "boutique" dédié — on agrège les avis produit
+    // validés de toute la boutique, qui sont par construction déjà liés à
+    // des commandes livrées (voir avisController.js:createAvis).
+    const avisBoutique = await Avis.findAll({
+      where: { type: 'produit', valide: true },
+      include: [
+        { model: Produit, as: 'produit', where: { boutiqueId: boutique.id }, attributes: ['id', 'nom'] },
+        { model: Utilisateur, as: 'auteur', attributes: ['id', 'nom', 'prenom'] },
+      ],
+      order: [['createdAt', 'DESC']],
+      limit: 30,
+    });
+    const noteMoyenne = avisBoutique.length
+      ? Math.round((avisBoutique.reduce((sum, a) => sum + a.note, 0) / avisBoutique.length) * 10) / 10
+      : 0;
+
+    res.json({
+      success: true,
+      data: {
+        ...boutique.toJSON(),
+        nombreProduits: boutique.Produits?.length || 0,
+        avisBoutique: { moyenne: noteMoyenne, nombre: avisBoutique.length, avis: avisBoutique },
+      },
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -203,13 +228,28 @@ export async function createCommande(req, res) {
     const {
       lignes, adresseLivraison,
       gouvernoratId, delegationId, methodePaiement = 'cod', couponCode, walletMontant = 0,
-      referenceVirement,
+      referenceVirement, guestNom, guestPrenom, guestEmail, guestTelephone,
     } = req.body;
 
     if (!Array.isArray(lignes) || lignes.length === 0) {
       throw new Error('Aucune ligne de commande fournie.');
     }
-    const clientId = req.user.id;
+
+    // Checkout invité : sans compte, req.user est absent (optionalAuthMiddleware
+    // ne bloque jamais la requête). Un compte connecté avec un autre rôle
+    // (vendeur, admin...) ne doit en revanche jamais passer commande — c'était
+    // auparavant garanti par requireRole('client') au niveau de la route.
+    if (req.user && req.user.role !== 'client') {
+      throw new Error('Seuls les clients peuvent passer commande.');
+    }
+    const clientId = req.user?.id || null;
+    let guestInfo = null;
+    if (!clientId) {
+      if (!guestNom || !guestPrenom || !guestEmail || !guestTelephone) {
+        throw new Error('Nom, prénom, email et téléphone sont requis pour commander sans compte.');
+      }
+      guestInfo = { nom: guestNom, prenom: guestPrenom, email: guestEmail, telephone: guestTelephone };
+    }
 
     const gouvernorat = await Gouvernorat.findByPk(gouvernoratId);
     if (!gouvernorat) throw new Error('Gouvernorat invalide.');
@@ -284,10 +324,14 @@ export async function createCommande(req, res) {
     // Wallet: le montant utilisable est toujours plafonné côté serveur au
     // solde réel du client et au sous-total des produits uniquement — les
     // frais de livraison doivent toujours être réglés par un vrai moyen de
-    // paiement (COD ou carte), jamais couverts par le solde/cashback.
-    const utilisateurCourant = await Utilisateur.findByPk(clientId, { transaction });
+    // paiement (COD ou carte), jamais couverts par le solde/cashback. Un
+    // invité n'a pas de compte donc pas de solde : le wallet est simplement
+    // désactivé pour cette commande plutôt que de bloquer le checkout.
+    const utilisateurCourant = clientId ? await Utilisateur.findByPk(clientId, { transaction }) : null;
     const plafondWalletProduits = Math.max(0, roundMoney(sousTotal - remise));
-    const walletUtiliseTotal = plafonnerUtilisationWallet(utilisateurCourant.soldeWallet, walletMontant, plafondWalletProduits);
+    const walletUtiliseTotal = utilisateurCourant
+      ? plafonnerUtilisationWallet(utilisateurCourant.soldeWallet, walletMontant, plafondWalletProduits)
+      : 0;
 
     const commandesCreees = [];
     const paiementsCrees = [];
@@ -307,6 +351,10 @@ export async function createCommande(req, res) {
         numeroCommande: genererNumeroCommande(),
         groupeCommande,
         clientId,
+        guestNom: guestInfo?.nom || null,
+        guestPrenom: guestInfo?.prenom || null,
+        guestEmail: guestInfo?.email || null,
+        guestTelephone: guestInfo?.telephone || null,
         boutiqueId,
         sousTotal: roundMoney(bucket.sousTotal),
         fraisLivraison: fraisLivraisonUnitaire,
@@ -399,7 +447,7 @@ export async function createCommande(req, res) {
 
     let paymentRedirect = null;
     if ((methodePaiement === 'konnect' || methodePaiement === 'flouci') && commandesCreees.length === 1 && commandesCreees[0].total > 0) {
-      const client = await Utilisateur.findByPk(clientId);
+      const client = clientId ? await Utilisateur.findByPk(clientId) : guestInfo;
       const initFn = methodePaiement === 'konnect' ? initKonnectPayment : initFlouciPayment;
       paymentRedirect = await initFn({
         amount: commandesCreees[0].total,
@@ -424,7 +472,7 @@ export async function createCommande(req, res) {
       if (commande.statut === 'payee') await crediterCashback(commande.id);
     }
 
-    const client = await Utilisateur.findByPk(clientId);
+    const client = clientId ? await Utilisateur.findByPk(clientId) : guestInfo;
     if (client) {
       for (const commande of commandesCreees) {
         await emailConfirmationCommande(commande, client);

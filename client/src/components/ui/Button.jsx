@@ -24,7 +24,7 @@ export default function Button({
   const variantClass = {
     primary: 'btn-primary-premium',
     secondary: 'btn-secondary-premium',
-    ghost: 'text-[#7C3AED] hover:bg-[#F5F3FF] rounded-xl transition-colors',
+    ghost: 'text-[#C4532C] hover:bg-[#F8E4DE] rounded-xl transition-colors',
   }[variant];
 
   return (

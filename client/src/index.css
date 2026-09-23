@@ -1,40 +1,57 @@
-@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700&family=Tajawal:wght@400;500;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================
+   Design minimal — palette restreinte (encre, blanc cassé, un
+   seul accent), rayons discrets, ombres presque absentes. Les
+   noms de classes/variables historiques sont conservés tels
+   quels pour que chaque page qui les utilise déjà en hérite
+   automatiquement, sans devoir toucher chaque fichier.
+   ============================================================ */
 :root {
-  --mp-bg: #f8fafc;
+  /* Identité buyhere. — charbon / chaux / terre de Nabeul. Voir
+     client/public/brand (logos + buyhere-identite.html) pour la source. */
+  --mp-bg: #fbf8f3;
   --mp-surface: #ffffff;
-  --mp-soft: #f1f5f9;
-  --mp-border: #e2e8f0;
-  --mp-text: #0f172a;
-  --mp-muted: #475569;
-  --mp-disabled: #94a3b8;
-  --mp-primary: #6366f1;
-  --mp-primary-hover: #4f46e5;
-  --mp-primary-light: #eef2ff;
-  --mp-primary-dark: #4338ca;
-  --mp-secondary: #7c3aed;
-  --mp-secondary-hover: #6d28d9;
-  --mp-secondary-light: #f5f3ff;
-  --mp-accent: #14b8a6;
-  --mp-accent-hover: #0d9488;
-  --mp-accent-light: #f0fdfa;
-  --mp-success: #22c55e;
+  --mp-soft: #f4ecdf;
+  --mp-border: #e2d9cb;
+  --mp-text: #1e1b18;
+  --mp-muted: #8c8378;
+  --mp-disabled: #b8b0a3;
+
+  /* Accent unique — terre de Nabeul (#c4532c), volontairement plus
+     profonde que l'orange de la maquette initiale : contraste 4.5:1 avec
+     du texte blanc (contre 3.4:1), ce qui passe le seuil d'accessibilité
+     AA pour les boutons pleins. */
+  --mp-primary: #c4532c;
+  --mp-primary-hover: #994122;
+  --mp-primary-light: #f8e4de;
+  --mp-primary-dark: #6e2e19;
+  --mp-secondary: #c4532c;
+  --mp-secondary-hover: #994122;
+  --mp-secondary-light: #f8e4de;
+  --mp-accent: #c4532c;
+  --mp-accent-hover: #994122;
+  --mp-accent-light: #f8e4de;
+
+  --mp-success: #16a34a;
   --mp-success-light: #f0fdf4;
-  --mp-warning: #f59e0b;
-  --mp-warning-light: #fff7e6;
-  --mp-danger: #ef4444;
+  --mp-warning: #d97706;
+  --mp-warning-light: #fffbeb;
+  --mp-danger: #dc2626;
   --mp-danger-light: #fef2f2;
-  --mp-radius: 12px;
-  --mp-shadow: 0 8px 24px -18px rgba(15, 23, 42, 0.22);
-  font-family: 'Manrope', 'Cairo', sans-serif;
+
+  --mp-radius: 8px;
+  --mp-shadow: 0 1px 2px rgba(24, 24, 27, 0.05);
+  font-family: 'Schibsted Grotesk', system-ui, sans-serif;
   color: var(--mp-text);
   background: var(--mp-bg);
-  line-height: 1.5;
+  line-height: 1.55;
   font-weight: 400;
+  -webkit-font-smoothing: antialiased;
 }
 
 * {
@@ -54,7 +71,7 @@ body {
 
 [dir='rtl'] body,
 .rtl {
-  font-family: 'Cairo', 'Manrope', sans-serif;
+  font-family: 'Tajawal', 'Schibsted Grotesk', sans-serif;
 }
 
 #root {
@@ -82,9 +99,9 @@ img {
 
 .badge {
   @apply inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold;
-  border: 1px solid #bfe6d1;
-  background: #ecfdf3;
-  color: #036b3f;
+  border: 1px solid var(--mp-border);
+  background: var(--mp-soft);
+  color: var(--mp-text);
 }
 
 .shadow-soft {
@@ -92,14 +109,14 @@ img {
 }
 
 .marketplace-shell {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.85) 0%, rgba(246, 247, 249, 0.95) 100%);
+  background: var(--mp-bg);
 }
 
 .primary-btn {
   background: var(--mp-primary);
   color: white;
-  border-radius: 14px;
+  border-radius: var(--mp-radius);
+  transition: background 300ms ease;
 }
 
 .primary-btn:hover {
@@ -109,11 +126,13 @@ img {
 .mp-header {
   background: var(--mp-surface);
   color: var(--mp-text);
+  border-bottom: 1px solid var(--mp-border);
 }
 
 .mp-secondary-button {
   background: var(--mp-primary);
   color: white;
+  transition: background 300ms ease;
 }
 
 .mp-secondary-button:hover {
@@ -129,103 +148,94 @@ img {
   color: var(--mp-secondary);
 }
 
-.premium-gradient {
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-}
-
-.dynamic-gradient {
-  background: linear-gradient(135deg, #6366f1, #14b8a6);
-}
-
-/* ============ Premium design system (violet -> indigo -> blue) ============ */
-:root {
-  --mp-brand-1: #7c3aed;
-  --mp-brand-2: #6366f1;
-  --mp-brand-3: #3b82f6;
-  --mp-gradient-brand: linear-gradient(135deg, var(--mp-brand-1), var(--mp-brand-2), var(--mp-brand-3));
-  --mp-gradient-brand-hover: linear-gradient(135deg, #6d28d9, #4f46e5, #2563eb);
-  --mp-gradient-text: linear-gradient(135deg, var(--mp-brand-1), var(--mp-brand-3));
-  --mp-shadow-brand: 0 10px 28px -10px rgba(124, 58, 237, 0.35);
-  --mp-shadow-lift: 0 20px 40px -16px rgba(15, 23, 42, 0.18);
-}
-
+/* Les anciens fonds dégradés deviennent des aplats — plus de dégradé
+   décoratif, cohérent avec la direction "2-3 couleurs, pas d'artifice". */
+.premium-gradient,
+.dynamic-gradient,
 .gradient-brand {
-  background: var(--mp-gradient-brand);
+  background: var(--mp-primary);
+}
+
+/* ============ Système de design (encre / blanc / accent unique) ============ */
+:root {
+  --mp-brand-1: #c4532c;
+  --mp-brand-2: #c4532c;
+  --mp-brand-3: #c4532c;
+  --mp-gradient-brand: var(--mp-primary);
+  --mp-gradient-brand-hover: var(--mp-primary-hover);
+  --mp-gradient-text: var(--mp-primary);
+  --mp-shadow-brand: 0 1px 2px rgba(24, 24, 27, 0.06);
+  --mp-shadow-lift: 0 4px 16px -4px rgba(24, 24, 27, 0.1);
 }
 
 .text-gradient-brand {
-  background: var(--mp-gradient-text);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: var(--mp-primary);
 }
 
+/* Halos translucides remplacés par des surfaces pleines et nettes — plus
+   de flou d'arrière-plan. */
 .glass {
-  background: rgba(255, 255, 255, 0.55);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: var(--mp-surface);
+  border: 1px solid var(--mp-border);
 }
 
 .glass-badge {
-  background: rgba(255, 255, 255, 0.35);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.3);
 }
 
 .card-premium {
   background: var(--mp-surface);
   border: 1px solid var(--mp-border);
-  border-radius: 16px;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
-  transition: all 0.3s ease;
+  border-radius: var(--mp-radius);
+  box-shadow: var(--mp-shadow);
+  transition: border-color 300ms ease, box-shadow 300ms ease;
 }
 
 .card-premium:hover {
   box-shadow: var(--mp-shadow-lift);
-  transform: translateY(-4px);
-  border-color: rgba(124, 58, 237, 0.25);
+  border-color: #d4d4d8;
 }
 
 .btn-primary-premium {
-  background: var(--mp-gradient-brand);
+  background: var(--mp-primary);
   color: white;
-  border-radius: 14px;
-  box-shadow: var(--mp-shadow-brand);
-  transition: all 0.3s ease;
+  border-radius: var(--mp-radius);
+  transition: background 300ms ease, box-shadow 300ms ease;
 }
 
 .btn-primary-premium:hover {
-  background: var(--mp-gradient-brand-hover);
-  transform: scale(1.02);
-  box-shadow: 0 14px 32px -10px rgba(124, 58, 237, 0.45);
+  background: var(--mp-primary-hover);
+}
+
+.btn-primary-premium:active {
+  background: var(--mp-primary-dark);
 }
 
 .btn-secondary-premium {
   background: white;
-  color: var(--mp-brand-1);
-  border: 1.5px solid var(--mp-border);
-  border-radius: 14px;
-  transition: all 0.3s ease;
+  color: var(--mp-text);
+  border: 1px solid var(--mp-border);
+  border-radius: var(--mp-radius);
+  transition: border-color 300ms ease, background 300ms ease;
 }
 
 .btn-secondary-premium:hover {
-  background: var(--mp-secondary-light);
-  border-color: var(--mp-brand-1);
+  background: var(--mp-soft);
+  border-color: #d4d4d8;
 }
 
 .input-premium {
   background: white;
-  border: 1.5px solid var(--mp-border);
-  border-radius: 12px;
-  transition: all 0.2s ease;
+  border: 1px solid var(--mp-border);
+  border-radius: var(--mp-radius);
+  transition: border-color 200ms ease, box-shadow 200ms ease;
 }
 
 .input-premium:focus {
   outline: none;
-  border-color: var(--mp-brand-1);
-  box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.12);
+  border-color: var(--mp-primary);
+  box-shadow: 0 0 0 3px rgba(196, 83, 44, 0.16);
 }
 
 .icon-circle-pastel {

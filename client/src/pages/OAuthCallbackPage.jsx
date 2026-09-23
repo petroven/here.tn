@@ -48,7 +48,7 @@ export default function OAuthCallbackPage({ onSuccess }) {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50 p-6 font-sans">
-      <div className="w-full max-w-sm rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-soft">
+      <div className="w-full max-w-sm rounded-lg border border-slate-200 bg-white p-8 text-center shadow-soft">
         {error ? (
           <>
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-50 text-rose-600">
@@ -56,13 +56,13 @@ export default function OAuthCallbackPage({ onSuccess }) {
             </div>
             <h1 className="text-lg font-black text-slate-900">Connexion échouée</h1>
             <p className="mt-2 text-sm text-slate-500">{error}</p>
-            <a href="/" className="mt-6 inline-block rounded-xl bg-[#6366F1] px-5 py-2.5 text-xs font-bold text-white hover:bg-[#4F46E5]">
+            <a href="/" className="mt-6 inline-block rounded-xl bg-[#C4532C] px-5 py-2.5 text-xs font-bold text-white hover:bg-[#994122]">
               Retour à l'accueil
             </a>
           </>
         ) : (
           <>
-            <Loader2 className="mx-auto mb-4 animate-spin text-[#6366F1]" size={32} />
+            <Loader2 className="mx-auto mb-4 animate-spin text-[#C4532C]" size={32} />
             <p className="text-sm font-semibold text-slate-600">Connexion en cours...</p>
           </>
         )}

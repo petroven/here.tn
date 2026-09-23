@@ -1,7 +1,7 @@
 import React from 'react';
 
 const TONES = {
-  violet: 'bg-[#F5F3FF] text-[#7C3AED]',
+  violet: 'bg-[#F8E4DE] text-[#C4532C]',
   blue: 'bg-blue-50 text-blue-600',
   rose: 'bg-rose-50 text-rose-600',
   green: 'bg-emerald-50 text-emerald-700',

@@ -1,4 +1,4 @@
-import { Avis, Boutique, Commande, Produit, Utilisateur } from '../models/index.js';
+import { Avis, Boutique, Commande, LigneCommande, Produit, Utilisateur } from '../models/index.js';
 
 function isValidNote(note) {
   const n = Number(note);
@@ -35,6 +35,17 @@ export async function createAvis(req, res) {
       return res.status(403).json({
         success: false,
         message: 'Vous ne pouvez laisser un avis que sur un produit acheté et livré.',
+      });
+    }
+
+    // Le produit doit réellement faire partie de cette commande — sans ce
+    // contrôle, n'importe quelle commande livrée à l'utilisateur suffirait
+    // pour noter n'importe quel produit du catalogue.
+    const ligne = await LigneCommande.findOne({ where: { commandeId, produitId } });
+    if (!ligne) {
+      return res.status(403).json({
+        success: false,
+        message: 'Ce produit ne fait pas partie de cette commande.',
       });
     }
 
@@ -92,6 +103,22 @@ export async function createAvisClient(req, res) {
     });
 
     res.status(201).json({ success: true, data: avis, message: 'Évaluation client publiée.' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+// Liste légère des avis produit déjà déposés par l'utilisateur connecté —
+// utilisée par ClientOrdersPage.jsx pour afficher "Avis publié ✓" au lieu de
+// "Laisser un avis" sur les lignes déjà notées, sans devoir refaire un appel
+// par commande.
+export async function getMesAvis(req, res) {
+  try {
+    const avis = await Avis.findAll({
+      where: { auteurId: req.user.id, type: 'produit' },
+      attributes: ['id', 'produitId', 'commandeId', 'note'],
+    });
+    res.json({ success: true, data: avis });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

@@ -3,8 +3,8 @@ import { MapPin, Navigation, Wallet } from 'lucide-react';
 
 const STATUS_LABELS = {
   en_attente: { label: 'Disponible', className: 'bg-amber-100 text-amber-700' },
-  assignee: { label: 'À récupérer', className: 'bg-indigo-100 text-indigo-700' },
-  en_cours: { label: 'En livraison', className: 'bg-teal-100 text-teal-700' },
+  assignee: { label: 'À récupérer', className: 'bg-terre-100 text-terre-700' },
+  en_cours: { label: 'En livraison', className: 'bg-terre-100 text-terre-700' },
   livree: { label: 'Livrée', className: 'bg-emerald-100 text-emerald-700' },
   echec: { label: 'Échec', className: 'bg-rose-100 text-rose-700' },
 };

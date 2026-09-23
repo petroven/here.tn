@@ -6,7 +6,7 @@ import dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
 import fs from 'fs';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 import './models/index.js';
 import { syncDatabase } from './config/database.js';
 import { initIo } from './realtime/io.js';
@@ -128,4 +128,14 @@ const startServer = async () => {
   }
 };
 
-startServer();
+// Ne démarre le serveur (écoute réseau + sync DB) que lorsque ce fichier est
+// exécuté directement (`node src/server.js`, `npm run dev`/`start`) — pas
+// lorsqu'il est importé, ce que font les tests automatisés (server/tests/)
+// pour récupérer `app` et l'attacher eux-mêmes à un port éphémère isolé.
+const isMainModule = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (isMainModule) {
+  startServer();
+}
+
+export default app;
+export { startServer };

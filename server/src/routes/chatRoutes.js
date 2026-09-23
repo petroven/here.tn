@@ -19,6 +19,11 @@ router.post('/chat/conversations', authMiddleware, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Vous ne pouvez pas démarrer une discussion avec vous-même.' });
     }
 
+    const boutiqueVendeur = await Boutique.findOne({ where: { vendeurId } });
+    if (!boutiqueVendeur) {
+      return res.status(404).json({ success: false, message: 'Vendeur introuvable.' });
+    }
+
     // Check if conversation already exists
     let conversation = await Conversation.findOne({
       where: { clientId, vendeurId },

@@ -68,7 +68,7 @@ export default function LivreurProofModal({ course, onClose, onDelivered }) {
 
   return (
     <div className="fixed inset-0 bg-slate-900/70 flex items-end sm:items-center justify-center z-[60] p-0 sm:p-4">
-      <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-md max-h-[85vh] overflow-y-auto p-6 space-y-4">
+      <div className="bg-white rounded-t-3xl sm:rounded-lg w-full max-w-md max-h-[85vh] overflow-y-auto p-6 space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-black text-slate-900">Confirmer la livraison</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>

@@ -4,6 +4,9 @@ import {
   login,
   forgotPassword,
   resetPassword,
+  getMe,
+  updateMe,
+  changePassword,
 } from '../controllers/authController.js';
 import {
   validate,
@@ -11,7 +14,10 @@ import {
   loginSchema,
   resetPasswordSchema,
   newPasswordSchema,
+  updateProfileSchema,
+  changePasswordSchema,
 } from '../utils/validation.js';
+import { authMiddleware } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -26,5 +32,10 @@ router.post('/auth/forgot-password', validate(resetPasswordSchema), forgotPasswo
 
 // Reset password route
 router.post('/auth/reset-password', validate(newPasswordSchema), resetPassword);
+
+// Espace client (/compte) — profil de l'utilisateur connecté
+router.get('/users/me', authMiddleware, getMe);
+router.patch('/users/me', authMiddleware, validate(updateProfileSchema), updateMe);
+router.patch('/users/me/password', authMiddleware, validate(changePasswordSchema), changePassword);
 
 export default router;
