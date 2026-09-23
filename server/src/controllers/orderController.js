@@ -55,7 +55,7 @@ export async function getProduits(req, res) {
     if (inStock === 'true') where.stock = { [Op.gt]: 0 };
     if (promotion === 'true') andConditions.push(literal('"prixAvant" IS NOT NULL AND "prixAvant" > "prix"'));
     if (minRating) {
-      andConditions.push(literal(`(SELECT AVG("note") FROM "Avis" WHERE "Avis"."produitId" = "Produit"."id" AND "Avis"."valide" = 1) >= ${Number(minRating)}`));
+      andConditions.push(literal(`(SELECT AVG("note") FROM "Avis" WHERE "Avis"."produitId" = "Produit"."id" AND "Avis"."valide" = true) >= ${Number(minRating)}`));
     }
     if (andConditions.length > 0) where[Op.and] = andConditions;
 
@@ -64,7 +64,7 @@ export async function getProduits(req, res) {
       : sort === 'price_desc'
       ? [['prix', 'DESC']]
       : sort === 'rating'
-      ? [[literal('(SELECT AVG("note") FROM "Avis" WHERE "Avis"."produitId" = "Produit"."id" AND "Avis"."valide" = 1)'), 'DESC']]
+      ? [[literal('(SELECT AVG("note") FROM "Avis" WHERE "Avis"."produitId" = "Produit"."id" AND "Avis"."valide" = true)'), 'DESC']]
       : sort === 'best_sellers'
       ? [['createdAt', 'ASC']]
       : [['createdAt', 'DESC']];
@@ -78,8 +78,8 @@ export async function getProduits(req, res) {
       ],
       attributes: {
         include: [
-          [literal('(SELECT AVG("note") FROM "Avis" WHERE "Avis"."produitId" = "Produit"."id" AND "Avis"."valide" = 1)'), 'note'],
-          [literal('(SELECT COUNT(*) FROM "Avis" WHERE "Avis"."produitId" = "Produit"."id" AND "Avis"."valide" = 1)'), 'nombreAvis'],
+          [literal('(SELECT AVG("note") FROM "Avis" WHERE "Avis"."produitId" = "Produit"."id" AND "Avis"."valide" = true)'), 'note'],
+          [literal('(SELECT COUNT(*) FROM "Avis" WHERE "Avis"."produitId" = "Produit"."id" AND "Avis"."valide" = true)'), 'nombreAvis'],
         ],
       },
       order,
@@ -104,8 +104,8 @@ export async function getProduitById(req, res) {
       ],
       attributes: {
         include: [
-          [literal('(SELECT AVG("note") FROM "Avis" WHERE "Avis"."produitId" = "Produit"."id" AND "Avis"."valide" = 1)'), 'note'],
-          [literal('(SELECT COUNT(*) FROM "Avis" WHERE "Avis"."produitId" = "Produit"."id" AND "Avis"."valide" = 1)'), 'nombreAvis'],
+          [literal('(SELECT AVG("note") FROM "Avis" WHERE "Avis"."produitId" = "Produit"."id" AND "Avis"."valide" = true)'), 'note'],
+          [literal('(SELECT COUNT(*) FROM "Avis" WHERE "Avis"."produitId" = "Produit"."id" AND "Avis"."valide" = true)'), 'nombreAvis'],
         ],
       },
     });
