@@ -1,0 +1,47 @@
+services:
+  - type: web
+    name: here-tn
+    runtime: node
+    plan: free
+    region: frankfurt
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: NODE_ENV
+        value: production
+      - key: PAYMENT_MODE
+        value: sandbox
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: here-tn-db
+          property: connectionString
+      # Set these to your Render URL (e.g. https://here-tn.onrender.com) or https://here.tn
+      - key: CLIENT_URL
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: API_BASE_URL
+        sync: false
+      # Override the demo passwords that are public in the README
+      - key: DEMO_CLIENT_PASSWORD
+        generateValue: true
+      - key: DEMO_BOUTIQUE_ADMIN_PASSWORD
+        generateValue: true
+      - key: DEMO_SUPER_ADMIN_PASSWORD
+        sync: false
+      - key: COMMISSION_RATE
+        value: "0.05"
+      - key: MIN_WITHDRAWAL_AMOUNT
+        value: "50"
+      - key: SMS_PROVIDER
+        value: mock
+
+databases:
+  - name: here-tn-db
+    plan: free
+    region: frankfurt
