@@ -6,7 +6,8 @@ import { formatPrice } from '@/utils/format';
 type Props = {
   subtotal: number;
   discount: number;
-  shippingFee: number;
+  /** null : dépend de l'adresse, calculé au moment du paiement. */
+  shippingFee: number | null;
   total: number;
   couponCode?: string | null;
 };
@@ -35,7 +36,7 @@ export function OrderSummary({ subtotal, discount, shippingFee, total, couponCod
       ) : null}
       <Row
         label={t('cart.shipping')}
-        value={shippingFee === 0 ? t('cart.free') : formatPrice(shippingFee, lang)}
+        value={shippingFee === null ? t('cart.shippingAtCheckout') : shippingFee === 0 ? t('cart.free') : formatPrice(shippingFee, lang)}
         accent={shippingFee === 0}
       />
       <View className="mt-2 flex-row justify-between border-t border-gray-100 pt-3 dark:border-gray-800">

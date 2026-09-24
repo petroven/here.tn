@@ -1,13 +1,13 @@
-import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios';
+import axios, { AxiosError } from 'axios';
 import { API_URL } from '@/config';
 import { useAuthStore } from '@/store/auth';
 import { useSettingsStore } from '@/store/settings';
-import type { ApiErrorBody, AuthResponse } from './types';
+import type { ApiErrorBody } from './types';
 
 // 60 s : sur l'offre gratuite Render, le serveur en veille met jusqu'à ~50 s à se réveiller.
 export const api = axios.create({ baseURL: API_URL, timeout: 60_000 });
 
-/** Erreur normalisée consommée par l'UI (message déjà traduit par l'API). */
+/** Erreur normalisée consommée par l'UI (message déjà rédigé par l'API). */
 export class ApiError extends Error {
   constructor(
     public code: string,
@@ -28,61 +28,34 @@ api.interceptors.request.use((config) => {
 });
 
 /**
- * Refresh unique partagé : si plusieurs requêtes reçoivent TOKEN_EXPIRED en
- * même temps, un seul appel /auth/refresh est effectué et toutes attendent.
+ * L'API web répond { success: false, message } en cas d'erreur.
+ * Un 401 sur une requête authentifiée signifie que le JWT (7 jours) a expiré :
+ * la session locale est fermée, l'utilisateur devra se reconnecter.
  */
-let refreshing: Promise<string | null> | null = null;
-
-async function refreshAccessToken(): Promise<string | null> {
-  const { refreshToken, setSession, clearSession } = useAuthStore.getState();
-  if (!refreshToken) return null;
-  try {
-    const { data } = await axios.post<AuthResponse>(`${API_URL}/auth/refresh`, { refreshToken });
-    await setSession(data);
-    return data.accessToken;
-  } catch {
-    await clearSession();
-    return null;
-  }
-}
-
-type RetriableConfig = InternalAxiosRequestConfig & { _retried?: boolean };
-
 api.interceptors.response.use(
   (res) => res,
   async (error: AxiosError<ApiErrorBody>) => {
-    const original = error.config as RetriableConfig | undefined;
-    const code = error.response?.data?.error?.code;
+    const status = error.response?.status;
+    const sentToken = !!error.config?.headers?.Authorization;
 
-    if (error.response?.status === 401 && code === 'TOKEN_EXPIRED' && original && !original._retried) {
-      original._retried = true;
-      refreshing ??= refreshAccessToken().finally(() => (refreshing = null));
-      const token = await refreshing;
-      if (token) {
-        original.headers.Authorization = `Bearer ${token}`;
-        return api(original);
-      }
+    if (status === 401 && sentToken) {
+      await useAuthStore.getState().clearSession();
+      throw new ApiError('UNAUTHORIZED', error.response?.data?.message ?? 'Session expirée.', status);
     }
-
-    if (error.response?.data?.error) {
-      const e = error.response.data.error;
-      throw new ApiError(e.code, e.message, error.response.status, e.details);
+    if (error.response?.data?.message) {
+      throw new ApiError(status === 400 ? 'VALIDATION_ERROR' : 'API_ERROR', error.response.data.message, status);
     }
     if (error.code === 'ECONNABORTED' || !error.response) {
       throw new ApiError('NETWORK', 'network');
     }
-    throw new ApiError('UNKNOWN', error.message, error.response.status);
+    throw new ApiError('UNKNOWN', error.message, status);
   },
 );
 
-/** Premier message de validation Zod, sinon le message global. */
+/** Message d'erreur à afficher, sinon le message de repli (erreur réseau). */
 export function errorMessage(err: unknown, fallback: string): string {
   if (err instanceof ApiError) {
     if (err.code === 'NETWORK') return fallback;
-    const details = err.details as { message?: string }[] | undefined;
-    if (err.code === 'VALIDATION_ERROR' && Array.isArray(details) && details[0]?.message) {
-      return details[0].message;
-    }
     return err.message;
   }
   return fallback;

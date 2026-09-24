@@ -3,15 +3,17 @@ import * as SecureStore from 'expo-secure-store';
 import type { AuthResponse, User } from '@/api/types';
 
 /**
- * Session utilisateur. Les jetons sont conservés dans le trousseau sécurisé
+ * Session utilisateur. Le jeton est conservé dans le trousseau sécurisé
  * (Keychain iOS / Keystore Android), jamais en AsyncStorage.
+ * L'API web délivre un seul JWT valable 7 jours (pas de refresh token) :
+ * à son expiration, l'utilisateur se reconnecte.
+ * Clés « bh.web.* » : les sessions de l'ancienne API mobile sont ignorées.
  */
-const KEYS = { access: 'bh.accessToken', refresh: 'bh.refreshToken', user: 'bh.user' } as const;
+const KEYS = { access: 'bh.web.accessToken', user: 'bh.web.user' } as const;
 
 type AuthState = {
   user: User | null;
   accessToken: string | null;
-  refreshToken: string | null;
   hydrated: boolean;
   hydrate: () => Promise<void>;
   setSession: (session: AuthResponse) => Promise<void>;
@@ -22,27 +24,24 @@ type AuthState = {
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   accessToken: null,
-  refreshToken: null,
   hydrated: false,
 
   hydrate: async () => {
     try {
-      const [accessToken, refreshToken, rawUser] = await Promise.all([
+      const [accessToken, rawUser] = await Promise.all([
         SecureStore.getItemAsync(KEYS.access),
-        SecureStore.getItemAsync(KEYS.refresh),
         SecureStore.getItemAsync(KEYS.user),
       ]);
-      set({ accessToken, refreshToken, user: rawUser ? (JSON.parse(rawUser) as User) : null });
+      set({ accessToken, user: rawUser ? (JSON.parse(rawUser) as User) : null });
     } finally {
       set({ hydrated: true });
     }
   },
 
-  setSession: async ({ user, accessToken, refreshToken }) => {
-    set({ user, accessToken, refreshToken });
+  setSession: async ({ user, accessToken }) => {
+    set({ user, accessToken });
     await Promise.all([
       SecureStore.setItemAsync(KEYS.access, accessToken),
-      SecureStore.setItemAsync(KEYS.refresh, refreshToken),
       SecureStore.setItemAsync(KEYS.user, JSON.stringify(user)),
     ]);
   },
@@ -53,7 +52,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   clearSession: async () => {
-    set({ user: null, accessToken: null, refreshToken: null });
+    set({ user: null, accessToken: null });
     await Promise.all(Object.values(KEYS).map((k) => SecureStore.deleteItemAsync(k)));
   },
 }));

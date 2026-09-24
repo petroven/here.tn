@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react';
 import { FlatList, Modal, Pressable, ScrollView, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, ChevronDown, X } from 'lucide-react-native';
-import { meApi } from '@/api/endpoints';
+import { geoApi, meApi } from '@/api/endpoints';
 import { errorMessage } from '@/api/client';
 import type { AddressInput } from '@/api/types';
 import { Button } from '@/components/ui/Button';
@@ -18,13 +18,15 @@ import { useAuthStore } from '@/store/auth';
 import { useSettingsStore } from '@/store/settings';
 import { useTheme } from '@/theme/useTheme';
 import { formatPhone } from '@/utils/format';
-import { GOVERNORATES, governorateLabel } from '@/utils/governorates';
 import type { RootScreenProps } from '@/navigation/types';
 
 const PHONE_RE = /^(\+216|00216)?[2-9]\d{7}$/;
 type Errors = Partial<Record<keyof AddressInput, string>>;
 
-/** Création / modification d'une adresse : gouvernorat (24) + ville + rue. */
+/**
+ * Création / modification d'une adresse : gouvernorat + délégation (listes de
+ * l'API, identiques au checkout du site) + rue.
+ */
 export function AddressFormScreen({ navigation, route }: RootScreenProps<'AddressForm'>) {
   const { t } = useTranslation();
   const { colors } = useTheme();
@@ -40,6 +42,8 @@ export function AddressFormScreen({ navigation, route }: RootScreenProps<'Addres
     fullName: user ? `${user.firstName} ${user.lastName}` : '',
     phone: formatPhone(user?.phone),
     governorate: '',
+    governorateId: 0,
+    delegationId: 0,
     city: '',
     street: '',
     postalCode: '',
@@ -56,14 +60,22 @@ export function AddressFormScreen({ navigation, route }: RootScreenProps<'Addres
   }, [existing]);
 
   const set = <K extends keyof AddressInput>(key: K, value: AddressInput[K]) => setForm((f) => ({ ...f, [key]: value }));
-  const cities = GOVERNORATES.find((g) => g.value === form.governorate)?.cities ?? [];
+  const governorates = useQuery({ queryKey: ['governorates'], queryFn: geoApi.governorates, staleTime: Infinity });
+  const delegations = useQuery({
+    queryKey: ['delegations', form.governorateId],
+    queryFn: () => geoApi.delegations(form.governorateId),
+    enabled: form.governorateId > 0,
+    staleTime: Infinity,
+  });
+  const selectedGovernorate = governorates.data?.find((g) => g.id === form.governorateId);
+  const governorateName = (g: { name: string; nameAr: string | null }) => (lang === 'ar' && g.nameAr ? g.nameAr : g.name);
 
   const validate = () => {
     const e: Errors = {};
     if (form.fullName.trim().length < 3) e.fullName = t('common.required');
     if (!PHONE_RE.test(form.phone.replace(/[\s.-]/g, ''))) e.phone = t('auth.invalidPhone');
-    if (!form.governorate) e.governorate = t('common.required');
-    if (form.city.trim().length < 2) e.city = t('common.required');
+    if (!form.governorateId) e.governorate = t('common.required');
+    if (!form.delegationId) e.city = t('common.required');
     if (form.street.trim().length < 3) e.street = t('common.required');
     if (form.postalCode && !/^\d{4}$/.test(form.postalCode)) e.postalCode = '4 chiffres';
     setErrors(e);
@@ -135,23 +147,29 @@ export function AddressFormScreen({ navigation, route }: RootScreenProps<'Addres
             accessibilityRole="button"
           >
             <Text className={form.governorate ? 'text-base text-ink dark:text-gray-100' : 'text-base text-ink-subtle'}>
-              {form.governorate ? governorateLabel(form.governorate, lang) : t('address.chooseGovernorate')}
+              {selectedGovernorate ? governorateName(selectedGovernorate) : form.governorate || t('address.chooseGovernorate')}
             </Text>
             <ChevronDown size={18} color={colors.muted} />
           </Pressable>
           {errors.governorate ? <Text className="mt-1 text-xs text-danger">{errors.governorate}</Text> : null}
         </View>
 
-        <View>
-          <Input label={t('address.city')} value={form.city} onChangeText={(v) => set('city', v)} error={errors.city} />
-          {cities.length ? (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="gap-2 pt-2" keyboardShouldPersistTaps="handled">
-              {cities.map((c) => (
-                <Chip key={c} label={c} selected={form.city === c} onPress={() => set('city', c)} />
+        {form.governorateId ? (
+          <View>
+            <Text className="mb-1.5 text-sm font-medium text-ink dark:text-gray-200">{t('address.city')}</Text>
+            <View className="flex-row flex-wrap gap-2">
+              {(delegations.data ?? []).map((d) => (
+                <Chip
+                  key={d.id}
+                  label={lang === 'ar' && d.nameAr ? d.nameAr : d.name}
+                  selected={form.delegationId === d.id}
+                  onPress={() => setForm((f) => ({ ...f, delegationId: d.id, city: d.name }))}
+                />
               ))}
-            </ScrollView>
-          ) : null}
-        </View>
+            </View>
+            {errors.city ? <Text className="mt-1 text-xs text-danger">{errors.city}</Text> : null}
+          </View>
+        ) : null}
 
         <Input label={t('address.street')} value={form.street} onChangeText={(v) => set('street', v)} error={errors.street} autoComplete="street-address" />
         <Input
@@ -198,19 +216,20 @@ export function AddressFormScreen({ navigation, route }: RootScreenProps<'Addres
             </Pressable>
           </View>
           <FlatList
-            data={GOVERNORATES}
-            keyExtractor={(g) => g.value}
+            data={governorates.data ?? []}
+            keyExtractor={(g) => String(g.id)}
             renderItem={({ item }) => (
               <Pressable
                 onPress={() => {
-                  set('governorate', item.value);
-                  if (form.governorate !== item.value) set('city', '');
+                  if (form.governorateId !== item.id) {
+                    setForm((f) => ({ ...f, governorate: item.name, governorateId: item.id, delegationId: 0, city: '' }));
+                  }
                   setPickerOpen(false);
                 }}
                 className="flex-row items-center justify-between border-b border-gray-100 px-5 py-4 active:bg-gray-50 dark:border-gray-800"
               >
-                <Text className="text-base text-ink dark:text-gray-100">{lang === 'ar' ? item.ar : item.value}</Text>
-                {form.governorate === item.value ? <Check size={20} color={colors.primary} /> : null}
+                <Text className="text-base text-ink dark:text-gray-100">{governorateName(item)}</Text>
+                {form.governorateId === item.id ? <Check size={20} color={colors.primary} /> : null}
               </Pressable>
             )}
           />

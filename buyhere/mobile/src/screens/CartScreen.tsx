@@ -108,8 +108,6 @@ export function CartScreen({ navigation }: TabScreenProps<'Cart'>) {
     );
   }
 
-  const remaining = data.freeShippingThreshold - (data.subtotal - data.discount);
-  const progress = Math.min(1, (data.subtotal - data.discount) / data.freeShippingThreshold);
   const hasUnavailable = data.items.some((i) => !i.isAvailable);
 
   const onApply = () => {
@@ -138,19 +136,10 @@ export function CartScreen({ navigation }: TabScreenProps<'Cart'>) {
           />
         )}
         ListHeaderComponent={
-          // Progression vers la livraison gratuite
-          <View className="mx-4 mb-3 rounded-2xl bg-white p-3.5 dark:bg-surface-dark-card">
-            <View className="flex-row items-center gap-2">
-              <Truck size={18} color={colors.primary} />
-              <Text className="flex-1 text-sm font-medium text-ink dark:text-gray-200">
-                {remaining > 0
-                  ? t('cart.freeShippingLeft', { amount: formatPrice(remaining, lang) })
-                  : t('cart.freeShippingReached')}
-              </Text>
-            </View>
-            <View className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
-              <View className="h-full rounded-full bg-primary" style={{ width: `${progress * 100}%` }} />
-            </View>
+          // Frais de livraison : fixés par gouvernorat, connus au paiement
+          <View className="mx-4 mb-3 flex-row items-center gap-2 rounded-2xl bg-white p-3.5 dark:bg-surface-dark-card">
+            <Truck size={18} color={colors.primary} />
+            <Text className="flex-1 text-sm font-medium text-ink dark:text-gray-200">{t('cart.shippingInfo')}</Text>
           </View>
         }
         ListFooterComponent={

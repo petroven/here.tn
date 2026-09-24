@@ -43,6 +43,7 @@ import ChatWidget from './components/ChatWidget';
 import MessagesPage from './pages/MessagesPage';
 import PolicyConsentModal from './components/PolicyConsentModal';
 import CategoryDrawer from './components/CategoryDrawer';
+import HomeDashboard from './components/home/HomeDashboard.jsx';
 import ProductCard from './components/ProductCard';
 import BoutiqueCard from './components/BoutiqueCard';
 import Avatar from './components/ui/Avatar';
@@ -396,6 +397,8 @@ function App() {
             <HomeView
               navigate={navigate}
               language={language}
+              user={user}
+              cartCount={cart.length}
               setSelectedCategoryId={setSelectedCategoryId}
               onOpenProduct={openProduct}
               onOpenStore={openStore}
@@ -483,8 +486,9 @@ function App() {
   );
 }
 
-function HomeView({ navigate, language = 'fr', setSelectedCategoryId, onOpenProduct, onOpenStore, onAddToCart }) {
+function HomeView({ navigate, language = 'fr', user, cartCount = 0, setSelectedCategoryId, onOpenProduct, onOpenStore, onAddToCart }) {
   const isAr = language === 'ar';
+  const isClient = user?.role === 'client';
   const tr = (fr, ar) => (isAr ? ar : fr);
 
   const [categories, setCategories] = useState([]);
@@ -547,7 +551,10 @@ function HomeView({ navigate, language = 'fr', setSelectedCategoryId, onOpenProd
 
   return (
     <div className="space-y-12 pb-20 md:pb-10">
-      {/* Hero */}
+      {/* Client connecté : tableau de bord personnel à la place du bandeau marketing */}
+      {isClient ? (
+        <HomeDashboard language={language} navigate={navigate} cartCount={cartCount} onOpenProduct={onOpenProduct} />
+      ) : (
       <section className="max-w-7xl mx-auto px-4 sm:px-6 pt-8">
         <div className="premium-gradient grid overflow-hidden rounded-lg text-white lg:grid-cols-2">
           <div className="max-w-2xl space-y-4 p-8 sm:p-12">
@@ -590,6 +597,7 @@ function HomeView({ navigate, language = 'fr', setSelectedCategoryId, onOpenProd
           </div>
         </div>
       </section>
+      )}
 
       {/* Catégories */}
       {categories.length > 0 && (
@@ -625,7 +633,7 @@ function HomeView({ navigate, language = 'fr', setSelectedCategoryId, onOpenProd
       {populaires.length > 0 && (
         <section className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="flex items-end justify-between mb-4">
-            <h3 className="text-xl sm:text-2xl font-extrabold text-slate-900">{tr('Produits populaires', 'المنتجات الأكثر رواجًا')}</h3>
+            <h3 className="text-xl sm:text-2xl font-extrabold text-slate-900">{isClient ? tr('Recommandés pour vous', 'مقترحة لكم') : tr('Produits populaires', 'المنتجات الأكثر رواجًا')}</h3>
             <button onClick={() => navigate('/catalogue')} className="text-sm font-bold text-[#C4532C] hover:text-[#994122]">{tr('Voir tout', 'عرض الكل')}</button>
           </div>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
@@ -682,7 +690,8 @@ function HomeView({ navigate, language = 'fr', setSelectedCategoryId, onOpenProd
         </section>
       )}
 
-      {/* Confiance */}
+      {/* Confiance — utile surtout aux visiteurs */}
+      {!isClient && (
       <section className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           {[
@@ -704,6 +713,7 @@ function HomeView({ navigate, language = 'fr', setSelectedCategoryId, onOpenProd
           })}
         </div>
       </section>
+      )}
 
       {/* Newsletter */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6">
@@ -992,7 +1002,7 @@ function MainShell({
       {/* Login & Register Modal */}
       {showLoginModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 animate-fadeIn">
-          <div className="relative grid max-h-[90vh] w-full max-w-3xl overflow-y-auto overflow-x-hidden rounded-lg bg-white shadow-soft lg:grid-cols-2">
+          <div className="relative grid max-h-[90vh] w-full max-w-3xl overflow-y-auto overflow-x-hidden rounded-lg bg-white shadow-soft md:grid-cols-2">
             <button
               onClick={() => setShowLoginModal(false)}
               className="absolute right-4 top-4 z-10 rounded-full bg-white/80 p-1.5 text-slate-400 backdrop-blur transition hover:text-slate-600 rtl:right-auto rtl:left-4"
@@ -1002,7 +1012,7 @@ function MainShell({
 
             {/* Form side */}
             <div className="p-6 sm:p-8 font-sans">
-              <Logo variant="symbole" className="mb-4 h-10 w-10" />
+              <Logo variant="symbole" className="mb-4 h-10 w-10 md:hidden" />
               <h2 className="mb-2 text-2xl font-black text-slate-900">
                 {authForm.isRegister ? tr('Créer un compte', 'إنشاء حساب') : tr('Bienvenue chez BuyHere', 'مرحبًا بكم في BuyHere')}
               </h2>
@@ -1139,15 +1149,26 @@ function MainShell({
               </p>
             </div>
 
-            {/* Illustration side — desktop only */}
-            <div className="relative hidden overflow-hidden lg:flex lg:flex-col lg:items-center lg:justify-center gradient-brand p-10 text-white">
-              <div className="flex h-16 w-16 items-center justify-center rounded-lg glass">
-                <Store size={30} />
-              </div>
-              <h3 className="mt-6 text-center text-xl font-black">{tr('Le marketplace 100% tunisien', 'السوق التونسي 100%')}</h3>
-              <p className="mt-2 max-w-[240px] text-center text-sm text-white/80">
+            {/* Côté marque — logo BuyHere, à partir de la tablette */}
+            <div className="relative hidden overflow-hidden bg-[#1E1B18] p-10 text-white md:flex md:flex-col md:items-center md:justify-center">
+              <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-[#C4532C]/25 blur-2xl" />
+              <div className="pointer-events-none absolute -bottom-20 -left-12 h-56 w-56 rounded-full bg-[#C4532C]/15 blur-2xl" />
+              <Logo variant="compact" tone="inverse" className="relative h-32 w-auto" />
+              <h3 className="relative mt-8 text-center text-xl font-black">{tr('Le marketplace 100% tunisien', 'السوق التونسي 100%')}</h3>
+              <p className="relative mt-2 max-w-[260px] text-center text-sm text-white/70">
                 {tr('Des milliers de produits, des boutiques vérifiées, une livraison partout en Tunisie.', 'آلاف المنتجات، متاجر موثّقة، وتوصيل في كامل تونس.')}
               </p>
+              <ul className="relative mt-6 space-y-2 text-xs font-semibold text-white/80">
+                {[
+                  { icon: ShieldCheck, label: tr('Paiement sécurisé', 'دفع آمن') },
+                  { icon: Store, label: tr('Boutiques vérifiées', 'متاجر موثّقة') },
+                  { icon: Truck, label: tr('Livraison dans les 24 gouvernorats', 'توصيل إلى الولايات الـ24') },
+                ].map(({ icon: Icon, label }) => (
+                  <li key={label} className="flex items-center gap-2">
+                    <Icon size={14} className="text-[#E39B82]" /> {label}
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
         </div>

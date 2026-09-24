@@ -40,6 +40,8 @@
   "devDependencies": {
     "@types/react": "~19.2.2",
     "babel-preset-expo": "^57.0.12",
+    "eslint": "^9.0.0",
+    "eslint-config-expo": "~57.0.2",
     "prettier-plugin-tailwindcss": "^0.5.14",
     "tailwindcss": "^3.4.19",
     "typescript": "~6.0.3"
@@ -49,7 +51,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "build:apk": "expo prebuild --platform android --clean && cd android && gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a"
+    "build:apk": "expo prebuild --platform android --clean && cd android && gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a",
+    "lint": "expo lint"
   },
   "private": true
 }

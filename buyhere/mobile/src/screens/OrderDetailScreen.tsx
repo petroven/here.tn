@@ -75,7 +75,8 @@ export function OrderDetailScreen({ route, navigation }: RootScreenProps<'OrderD
   }
 
   const canCancel = o && (o.status === 'PENDING' || o.status === 'CONFIRMED');
-  const canPay = o && o.paymentMethod !== 'CASH_ON_DELIVERY' && o.paymentStatus !== 'PAID' && o.status !== 'CANCELLED';
+  const canPay =
+    o && (o.paymentMethod === 'KONNECT' || o.paymentMethod === 'FLOUCI') && o.paymentStatus !== 'PAID' && o.status !== 'CANCELLED';
 
   return (
     <Screen muted>
@@ -129,14 +130,24 @@ export function OrderDetailScreen({ route, navigation }: RootScreenProps<'OrderD
           </Card>
 
           <Card title={t('orders.shippingTo')}>
-            <Text className="font-semibold text-ink dark:text-gray-100">{o.shippingAddress.fullName}</Text>
-            <Text className="mt-1 text-sm text-ink-muted dark:text-gray-400">
-              {o.shippingAddress.street}, {o.shippingAddress.city}, {governorateLabel(o.shippingAddress.governorate, lang)}
+            {o.shippingAddress.fullName ? (
+              <Text className="mb-1 font-semibold text-ink dark:text-gray-100">{o.shippingAddress.fullName}</Text>
+            ) : null}
+            <Text className="text-sm text-ink-muted dark:text-gray-400">
+              {[o.shippingAddress.street, o.shippingAddress.city, governorateLabel(o.shippingAddress.governorate, lang)]
+                .filter(Boolean)
+                .join(', ')}
             </Text>
-            <Text className="text-sm text-ink-muted dark:text-gray-400" style={{ writingDirection: 'ltr' }}>
-              {formatPhone(o.shippingAddress.phone)}
-            </Text>
-            {o.note ? <Text className="mt-2 text-sm italic text-ink-muted">« {o.note} »</Text> : null}
+            {o.shippingAddress.phone ? (
+              <Text className="text-sm text-ink-muted dark:text-gray-400" style={{ writingDirection: 'ltr' }}>
+                {formatPhone(o.shippingAddress.phone)}
+              </Text>
+            ) : null}
+            {o.trackingId ? (
+              <Text className="mt-2 text-sm text-ink-muted dark:text-gray-400">
+                {t('orders.trackingNumber')} : <Text className="font-bold text-ink dark:text-gray-100">{o.trackingId}</Text>
+              </Text>
+            ) : null}
           </Card>
 
           <Card title={t('orders.paymentMethod')}>

@@ -1,5 +1,7 @@
 /**
- * Types des réponses de l'API BuyHere.
+ * Modèle de données utilisé par les écrans de l'app.
+ * Les réponses de l'API web (server/, champs en français, montants en TND)
+ * sont converties vers ces types dans api/web.ts.
  * Tous les montants sont en MILLIMES (1 DT = 1000) — voir utils/format.ts.
  */
 
@@ -12,12 +14,15 @@ export type User = {
   firstName: string;
   lastName: string;
   avatarUrl: string | null;
-  role: 'CUSTOMER' | 'ADMIN';
+  /** Rôle du site web : seuls les comptes « client » peuvent commander. */
+  role: string;
   language: Language;
   createdAt: string;
+  /** Solde BuyHere (cashback), en millimes. */
+  walletBalance: number;
 };
 
-export type AuthResponse = { user: User; accessToken: string; refreshToken: string };
+export type AuthResponse = { user: User; accessToken: string };
 
 export type Paginated<T> = {
   items: T[];
@@ -51,6 +56,7 @@ export type ProductCard = {
   flashEndsAt: string | null;
   category: { slug: string; name: string };
   isFavorite: boolean;
+  store: { id: string; name: string } | null;
 };
 
 export type ProductVariant = {
@@ -130,6 +136,7 @@ export type CartLine = {
   lineTotal: number;
   available: number;
   isAvailable: boolean;
+  storeId: string | null;
 };
 
 export type Cart = {
@@ -139,8 +146,8 @@ export type Cart = {
   couponError: string | null;
   subtotal: number;
   discount: number;
-  shippingFee: number;
-  freeShippingThreshold: number;
+  /** null : dépend du gouvernorat, calculé au moment du paiement. */
+  shippingFee: number | null;
   total: number;
 };
 
@@ -149,7 +156,10 @@ export type Address = {
   label: string;
   fullName: string;
   phone: string;
+  /** Nom du gouvernorat (affichage) + identifiants de l'API pour la commande. */
   governorate: string;
+  governorateId: number;
+  delegationId: number;
   city: string;
   street: string;
   postalCode: string | null;
@@ -159,7 +169,7 @@ export type Address = {
 export type AddressInput = Omit<Address, 'id' | 'postalCode'> & { postalCode?: string };
 
 export type OrderStatus = 'PENDING' | 'CONFIRMED' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED';
-export type PaymentMethod = 'CASH_ON_DELIVERY' | 'KONNECT' | 'FLOUCI';
+export type PaymentMethod = 'CASH_ON_DELIVERY' | 'KONNECT' | 'FLOUCI' | 'CARD' | 'BANK_TRANSFER';
 export type PaymentStatus = 'UNPAID' | 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED';
 
 export type Order = {
@@ -173,7 +183,8 @@ export type Order = {
   shippingFee: number;
   total: number;
   couponCode: string | null;
-  note: string | null;
+  trackingId: string | null;
+  store: { id: string; name: string } | null;
   shippingAddress: { fullName: string; phone: string; governorate: string; city: string; street: string };
   items: {
     id: string;
@@ -201,7 +212,8 @@ export type AppNotification = {
   createdAt: string;
 };
 
-/** Format d'erreur unique renvoyé par l'API. */
-export type ApiErrorBody = {
-  error: { code: string; message: string; details?: unknown };
-};
+/** Format d'erreur renvoyé par l'API web. */
+export type ApiErrorBody = { success: false; message?: string };
+
+export type Governorate = { id: number; name: string; nameAr: string | null; shippingFee: number };
+export type Delegation = { id: number; name: string; nameAr: string | null };

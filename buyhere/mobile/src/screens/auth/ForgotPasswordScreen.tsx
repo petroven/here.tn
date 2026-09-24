@@ -2,61 +2,40 @@ import { useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useMutation } from '@tanstack/react-query';
-import { KeyRound, Lock, Mail } from 'lucide-react-native';
+import { KeyRound, Mail } from 'lucide-react-native';
 import { authApi } from '@/api/endpoints';
 import { errorMessage } from '@/api/client';
 import { Button } from '@/components/ui/Button';
 import { Header } from '@/components/ui/Header';
 import { Input } from '@/components/ui/Input';
 import { Screen } from '@/components/ui/Screen';
-import { toast } from '@/components/ui/toast';
 import { useTheme } from '@/theme/useTheme';
 import type { RootScreenProps } from '@/navigation/types';
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 /**
- * Mot de passe oublié en 2 étapes :
- *  1. email/téléphone → envoi d'un code à 6 chiffres
- *  2. code + nouveau mot de passe
+ * Mot de passe oublié : comme sur le site, un lien de réinitialisation
+ * (valable 1 h) est envoyé par email ; le nouveau mot de passe se choisit
+ * sur la page ouverte par ce lien.
  */
 export function ForgotPasswordScreen({ navigation }: RootScreenProps<'ForgotPassword'>) {
   const { t } = useTranslation();
   const { colors } = useTheme();
-  const [identifier, setIdentifier] = useState('');
-  const [code, setCode] = useState('');
-  const [password, setPassword] = useState('');
-  const [step, setStep] = useState<'request' | 'reset'>('request');
+  const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  const [sent, setSent] = useState(false);
 
-  const requestCode = useMutation({
-    mutationFn: () => authApi.forgotPassword(identifier.trim()),
-    onSuccess: (res) => {
-      setStep('reset');
-      // En développement, l'API renvoie le code pour faciliter les tests.
-      setInfo(res.devCode ? `${t('auth.codeSent')} (dev : ${res.devCode})` : t('auth.codeSent'));
-    },
-    onError: (err) => setError(errorMessage(err, t('common.networkError'))),
-  });
-
-  const reset = useMutation({
-    mutationFn: () => authApi.resetPassword(identifier.trim(), code.trim(), password),
-    onSuccess: () => {
-      toast(t('auth.resetSuccess'));
-      navigation.replace('Login', { redirect: 'back' });
-    },
+  const request = useMutation({
+    mutationFn: () => authApi.forgotPassword(email.trim()),
+    onSuccess: () => setSent(true),
     onError: (err) => setError(errorMessage(err, t('common.networkError'))),
   });
 
   const submit = () => {
     setError(null);
-    if (step === 'request') {
-      if (identifier.trim().length < 3) return setError(t('common.required'));
-      requestCode.mutate();
-    } else {
-      if (!/^\d{6}$/.test(code.trim())) return setError(t('auth.code'));
-      if (!/^(?=.*[A-Za-z])(?=.*\d).{8,72}$/.test(password)) return setError(t('auth.weakPassword'));
-      reset.mutate();
-    }
+    if (!EMAIL_RE.test(email.trim())) return setError(t('auth.invalidEmail'));
+    request.mutate();
   };
 
   return (
@@ -70,43 +49,22 @@ export function ForgotPasswordScreen({ navigation }: RootScreenProps<'ForgotPass
 
         <View className="mt-6 gap-4">
           <Input
-            label={t('auth.identifier')}
-            placeholder={t('auth.identifierPlaceholder')}
-            value={identifier}
-            onChangeText={setIdentifier}
+            label={t('auth.email')}
+            placeholder="exemple@mail.com"
+            value={email}
+            onChangeText={setEmail}
             autoCapitalize="none"
             keyboardType="email-address"
-            editable={step === 'request'}
+            autoComplete="email"
+            editable={!sent}
             leftIcon={<Mail size={18} color={colors.muted} />}
+            onSubmitEditing={submit}
           />
-          {step === 'reset' ? (
-            <>
-              <Input
-                label={t('auth.code')}
-                value={code}
-                onChangeText={(v) => setCode(v.replace(/\D/g, '').slice(0, 6))}
-                keyboardType="number-pad"
-                autoComplete="one-time-code"
-                textContentType="oneTimeCode"
-                placeholder="••••••"
-                className="tracking-[6px]"
-              />
-              <Input
-                label={t('auth.newPassword')}
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                hint={t('auth.passwordHint')}
-                autoComplete="new-password"
-                leftIcon={<Lock size={18} color={colors.muted} />}
-              />
-            </>
-          ) : null}
         </View>
 
-        {info && !error ? (
+        {sent && !error ? (
           <View className="mt-4 rounded-xl bg-green-50 p-3 dark:bg-green-900/30">
-            <Text className="text-sm text-success">{info}</Text>
+            <Text className="text-sm text-success">{t('auth.linkSent')}</Text>
           </View>
         ) : null}
         {error ? (
@@ -115,22 +73,11 @@ export function ForgotPasswordScreen({ navigation }: RootScreenProps<'ForgotPass
           </View>
         ) : null}
 
-        <Button
-          title={step === 'request' ? t('auth.sendCode') : t('auth.resetPassword')}
-          size="lg"
-          className="mt-6"
-          loading={requestCode.isPending || reset.isPending}
-          onPress={submit}
-        />
-        {step === 'reset' ? (
-          <Button
-            title={t('auth.sendCode')}
-            variant="ghost"
-            className="mt-2"
-            disabled={requestCode.isPending}
-            onPress={() => requestCode.mutate()}
-          />
-        ) : null}
+        {sent ? (
+          <Button title={t('auth.backToLogin')} size="lg" className="mt-6" onPress={() => navigation.replace('Login', { redirect: 'back' })} />
+        ) : (
+          <Button title={t('auth.sendLink')} size="lg" className="mt-6" loading={request.isPending} onPress={submit} />
+        )}
       </ScrollView>
     </Screen>
   );

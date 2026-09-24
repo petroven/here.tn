@@ -1,11 +1,10 @@
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { I18nManager, Linking, Pressable, ScrollView, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import Constants from 'expo-constants';
 import { useTranslation } from 'react-i18next';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Bell,
   ChevronLeft,
   ChevronRight,
   CircleHelp,
@@ -14,11 +13,11 @@ import {
   MapPin,
   Moon,
   Package,
-  Trash2,
+  Wallet,
   UserRound,
   type LucideIcon,
 } from 'lucide-react-native';
-import { authApi, meApi } from '@/api/endpoints';
+import { meApi } from '@/api/endpoints';
 import { Button } from '@/components/ui/Button';
 import { Screen } from '@/components/ui/Screen';
 import { confirm } from '@/components/ui/toast';
@@ -28,6 +27,7 @@ import { useAuthStore } from '@/store/auth';
 import { useSettingsStore, type ThemePreference } from '@/store/settings';
 import { useTheme } from '@/theme/useTheme';
 import type { Language } from '@/api/types';
+import { formatPrice } from '@/utils/format';
 import type { TabScreenProps } from '@/navigation/types';
 
 /** Profil : infos, commandes, adresses, notifications, langue, thème, déconnexion. */
@@ -35,13 +35,16 @@ export function ProfileScreen({ navigation }: TabScreenProps<'Profile'>) {
   const { t } = useTranslation();
   const { colors } = useTheme();
   const qc = useQueryClient();
-  const { user, refreshToken, clearSession } = useAuthStore();
+  const { user, clearSession, setUser } = useAuthStore();
+  // Profil relu à chaque visite : le solde (cashback) évolue avec les commandes.
+  const me = useQuery({ queryKey: ['me'], queryFn: meApi.get, enabled: !!user });
+  useEffect(() => {
+    if (me.data) setUser(me.data);
+  }, [me.data, setUser]);
   const { language, setLanguage, theme, setTheme } = useSettingsStore();
   const Chevron = I18nManager.isRTL ? ChevronLeft : ChevronRight;
 
   const logout = async () => {
-    if (refreshToken) authApi.logout(refreshToken).catch(() => undefined);
-    meApi.setPushToken(null).catch(() => undefined);
     await clearSession();
     qc.clear();
   };
@@ -50,7 +53,6 @@ export function ProfileScreen({ navigation }: TabScreenProps<'Profile'>) {
     if (lang === language) return;
     const run = async () => {
       setLanguage(lang);
-      if (user) meApi.update({ language: lang }).catch(() => undefined); // langue des notifications
       await applyLanguage(lang); // redémarre l'app si le sens d'écriture change
     };
     if ((lang === 'ar') !== I18nManager.isRTL) {
@@ -131,7 +133,11 @@ export function ProfileScreen({ navigation }: TabScreenProps<'Profile'>) {
             <Row icon={Package} label={t('profile.myOrders')} onPress={() => navigation.navigate('Orders')} />
             <Row icon={MapPin} label={t('profile.addresses')} onPress={() => navigation.navigate('Addresses')} />
             <Row icon={UserRound} label={t('profile.personalInfo')} onPress={() => navigation.navigate('EditProfile')} />
-            <Row icon={Bell} label={t('profile.notifications')} onPress={() => navigation.navigate('Notifications')} />
+            <Row
+              icon={Wallet}
+              label={t('profile.wallet')}
+              right={<Text className="font-bold text-primary">{formatPrice(user.walletBalance ?? 0, language)}</Text>}
+            />
           </Group>
         )}
 
@@ -176,23 +182,6 @@ export function ProfileScreen({ navigation }: TabScreenProps<'Profile'>) {
               danger
               onPress={() =>
                 confirm(t('profile.logout'), t('profile.logoutConfirm'), { confirm: t('profile.logout'), cancel: t('common.cancel') }, logout)
-              }
-            />
-            <Row
-              icon={Trash2}
-              label={t('profile.deleteAccount')}
-              danger
-              onPress={() =>
-                confirm(
-                  t('profile.deleteAccount'),
-                  t('profile.deleteAccountConfirm'),
-                  { confirm: t('common.delete'), cancel: t('common.cancel') },
-                  async () => {
-                    await meApi.deleteAccount().catch(() => undefined);
-                    await clearSession();
-                    qc.clear();
-                  },
-                )
               }
             />
           </Group>

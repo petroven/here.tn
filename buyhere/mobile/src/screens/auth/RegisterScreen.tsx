@@ -2,14 +2,13 @@ import { useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Lock, Mail, Phone, User, X } from 'lucide-react-native';
+import { Check, Lock, Mail, Phone, User, X } from 'lucide-react-native';
 import { authApi } from '@/api/endpoints';
 import { errorMessage } from '@/api/client';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Screen } from '@/components/ui/Screen';
 import { useAuthStore } from '@/store/auth';
-import { useSettingsStore } from '@/store/settings';
 import { useTheme } from '@/theme/useTheme';
 import type { RootScreenProps } from '@/navigation/types';
 
@@ -33,10 +32,12 @@ export function RegisterScreen({ navigation }: RootScreenProps<'Register'>) {
   const { colors } = useTheme();
   const qc = useQueryClient();
   const setSession = useAuthStore((s) => s.setSession);
-  const language = useSettingsStore((s) => s.language);
   const [form, setForm] = useState<Form>({ firstName: '', lastName: '', email: '', phone: '', password: '', confirm: '' });
   const [errors, setErrors] = useState<Errors>({});
   const [apiError, setApiError] = useState<string | null>(null);
+  // Le site exige une acceptation explicite des conditions de vente et de retour.
+  const [accepted, setAccepted] = useState(false);
+  const [termsError, setTermsError] = useState(false);
 
   const set = (key: keyof Form) => (value: string) => setForm((f) => ({ ...f, [key]: value }));
 
@@ -50,7 +51,8 @@ export function RegisterScreen({ navigation }: RootScreenProps<'Register'>) {
     if (!PASSWORD_RE.test(form.password)) e.password = t('auth.weakPassword');
     if (form.confirm !== form.password) e.confirm = t('auth.passwordsMismatch');
     setErrors(e);
-    return Object.keys(e).length === 0;
+    setTermsError(!accepted);
+    return Object.keys(e).length === 0 && accepted;
   };
 
   const register = useMutation({
@@ -61,7 +63,6 @@ export function RegisterScreen({ navigation }: RootScreenProps<'Register'>) {
         email: form.email.trim().toLowerCase(),
         phone: form.phone.trim() || undefined,
         password: form.password,
-        language,
       }),
     onSuccess: async (session) => {
       await setSession(session);
@@ -162,8 +163,25 @@ export function RegisterScreen({ navigation }: RootScreenProps<'Register'>) {
           </View>
         ) : null}
 
+        <Pressable
+          onPress={() => (setAccepted((v) => !v), setTermsError(false))}
+          className="mt-5 flex-row items-start gap-3"
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: accepted }}
+        >
+          <View
+            className={`mt-0.5 h-5 w-5 items-center justify-center rounded-md border-2 ${
+              accepted ? 'border-primary bg-primary' : termsError ? 'border-danger' : 'border-gray-300 dark:border-gray-600'
+            }`}
+          >
+            {accepted ? <Check size={14} color="#fff" strokeWidth={3} /> : null}
+          </View>
+          <Text className={`flex-1 text-sm ${termsError ? 'text-danger' : 'text-ink-muted dark:text-gray-400'}`}>
+            {t('auth.acceptTerms')}
+          </Text>
+        </Pressable>
+
         <Button title={t('auth.register')} size="lg" className="mt-6" loading={register.isPending} onPress={submit} />
-        <Text className="mt-3 text-center text-xs text-ink-subtle">{t('auth.acceptTerms')}</Text>
 
         <View className="mt-6 flex-row justify-center gap-1">
           <Text className="text-ink-muted dark:text-gray-400">{t('auth.haveAccount')}</Text>

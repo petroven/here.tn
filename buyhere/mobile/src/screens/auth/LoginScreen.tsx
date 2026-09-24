@@ -12,7 +12,7 @@ import { useAuthStore } from '@/store/auth';
 import { useTheme } from '@/theme/useTheme';
 import type { RootScreenProps } from '@/navigation/types';
 
-/** Connexion par email OU numéro de téléphone. */
+/** Connexion par email et mot de passe — le même compte que sur le site web. */
 export function LoginScreen({ navigation, route }: RootScreenProps<'Login'>) {
   const { t } = useTranslation();
   const { colors } = useTheme();
@@ -53,12 +53,12 @@ export function LoginScreen({ navigation, route }: RootScreenProps<'Login'>) {
 
         <View className="mt-8 gap-4">
           <Input
-            label={t('auth.identifier')}
-            placeholder={t('auth.identifierPlaceholder')}
+            label={t('auth.email')}
+            placeholder="exemple@mail.com"
             value={identifier}
             onChangeText={setIdentifier}
             autoCapitalize="none"
-            autoComplete="username"
+            autoComplete="email"
             keyboardType="email-address"
             textContentType="username"
             leftIcon={<Mail size={18} color={colors.muted} />}

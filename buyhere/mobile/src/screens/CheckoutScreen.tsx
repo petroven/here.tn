@@ -1,11 +1,11 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import * as WebBrowser from 'expo-web-browser';
 import { useTranslation } from 'react-i18next';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Banknote, CreditCard, MapPinPlus, Smartphone } from 'lucide-react-native';
-import { ordersApi } from '@/api/endpoints';
+import { geoApi, ordersApi } from '@/api/endpoints';
 import { errorMessage } from '@/api/client';
 import type { PaymentMethod } from '@/api/types';
 import { AddressCard } from '@/components/AddressCard';
@@ -24,8 +24,10 @@ import type { RootScreenProps } from '@/navigation/types';
 
 /**
  * Checkout : adresse de livraison, mode de paiement et récapitulatif.
+ * La commande passe par la même API que le site (POST /commandes).
  * Paiement en ligne : la page Konnect/Flouci s'ouvre dans un navigateur
- * in-app puis l'API vérifie le paiement au retour.
+ * in-app puis l'API vérifie le paiement au retour. En mode sandbox du site,
+ * le paiement simulé est confirmé directement.
  */
 export function CheckoutScreen({ navigation }: RootScreenProps<'Checkout'>) {
   const { t } = useTranslation();
@@ -36,7 +38,7 @@ export function CheckoutScreen({ navigation }: RootScreenProps<'Checkout'>) {
   const addresses = useAddresses();
   const [addressId, setAddressId] = useState<string | null>(null);
   const [method, setMethod] = useState<PaymentMethod>('CASH_ON_DELIVERY');
-  const [note, setNote] = useState('');
+  const governorates = useQuery({ queryKey: ['governorates'], queryFn: geoApi.governorates, staleTime: Infinity });
 
   // Sélectionne l'adresse par défaut (ou la première) à chaque rechargement de la
   // liste : après un ajout ou un choix dans « Mes adresses », elle devient la sélection.
@@ -46,14 +48,17 @@ export function CheckoutScreen({ navigation }: RootScreenProps<'Checkout'>) {
   }, [addresses.data]);
 
   const placeOrder = useMutation({
-    mutationFn: () => ordersApi.create({ addressId: addressId!, paymentMethod: method, note: note.trim() || undefined }),
-    onSuccess: async ({ order, payUrl }) => {
+    mutationFn: () => ordersApi.create({ addressId: addressId!, paymentMethod }),
+    onSuccess: async ({ order, payUrl, sandboxRef }) => {
       qc.invalidateQueries({ queryKey: qk.cart });
       qc.invalidateQueries({ queryKey: ['orders'] });
       qc.invalidateQueries({ queryKey: qk.unread });
 
       if (order.paymentMethod !== 'CASH_ON_DELIVERY') {
-        if (payUrl) {
+        if (sandboxRef) {
+          const confirmed = await ordersApi.confirmSandbox(sandboxRef).then(() => true, () => false);
+          if (!confirmed) toast(t('checkout.paymentFailed'));
+        } else if (payUrl) {
           await WebBrowser.openAuthSessionAsync(payUrl, PAYMENT_RETURN_URL);
           // Quelle que soit la façon dont le navigateur a été fermé, on vérifie côté serveur.
           const status = await ordersApi.verifyPayment(order.id).catch(() => null);
@@ -76,8 +81,16 @@ export function CheckoutScreen({ navigation }: RootScreenProps<'Checkout'>) {
     { value: 'FLOUCI', title: t('checkout.flouci'), text: t('checkout.flouciText'), icon: <Smartphone size={22} color={colors.primary} />, sandbox: true },
   ];
 
-  const data = cart.data;
   const selectedAddress = addresses.data?.find((a) => a.id === addressId);
+  // Frais de livraison du gouvernorat, facturés par boutique (même calcul que le site ; l'API fait foi).
+  const storeCount = new Set(cart.data?.items.map((i) => i.storeId)).size;
+  const governorateFee = governorates.data?.find((g) => g.id === selectedAddress?.governorateId)?.shippingFee;
+  const shippingFee = selectedAddress && governorateFee !== undefined ? governorateFee * Math.max(storeCount, 1) : null;
+  const data = cart.data ? { ...cart.data, shippingFee, total: cart.data.total + (shippingFee ?? 0) } : undefined;
+  const multiStore = storeCount > 1;
+  // Le site n'accepte que le paiement à la livraison pour une commande multi-boutiques.
+  const paymentMethod: PaymentMethod = multiStore ? 'CASH_ON_DELIVERY' : method;
+
   const Section = ({ title, right, children }: { title: string; right?: ReactNode; children: ReactNode }) => (
     <View className="mx-4 mb-3 rounded-2xl bg-white p-4 dark:bg-surface-dark-card">
       <View className="mb-3 flex-row items-center justify-between">
@@ -129,8 +142,11 @@ export function CheckoutScreen({ navigation }: RootScreenProps<'Checkout'>) {
         {/* Paiement */}
         <Section title={t('checkout.payment')}>
           <View className="gap-2.5">
-            {payments.map((p) => {
-              const active = method === p.value;
+            {multiStore ? (
+              <Text className="text-xs text-ink-muted dark:text-gray-400">{t('checkout.multiStoreCod')}</Text>
+            ) : null}
+            {payments.filter((p) => !multiStore || p.value === 'CASH_ON_DELIVERY').map((p) => {
+              const active = paymentMethod === p.value;
               return (
                 <Pressable
                   key={p.value}
@@ -179,17 +195,6 @@ export function CheckoutScreen({ navigation }: RootScreenProps<'Checkout'>) {
               <Text className="text-sm font-semibold text-ink dark:text-gray-100">{formatPrice(item.lineTotal, lang)}</Text>
             </View>
           ))}
-          <TextInput
-            value={note}
-            onChangeText={setNote}
-            placeholder={t('checkout.notePlaceholder')}
-            placeholderTextColor={colors.subtle}
-            maxLength={500}
-            multiline
-            className="mb-4 mt-1 min-h-[60px] rounded-xl bg-surface-muted p-3 text-sm text-ink dark:bg-surface-dark-muted dark:text-gray-100"
-            style={{ textAlignVertical: 'top' }}
-            accessibilityLabel={t('checkout.note')}
-          />
           {data ? <OrderSummary {...data} /> : null}
         </Section>
       </ScrollView>

@@ -1,10 +1,9 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 import { Image } from 'expo-image';
-import * as ImagePicker from 'expo-image-picker';
 import { useTranslation } from 'react-i18next';
 import { useMutation } from '@tanstack/react-query';
-import { Camera, Lock, Phone, User } from 'lucide-react-native';
+import { Lock, Phone, User } from 'lucide-react-native';
 import { meApi } from '@/api/endpoints';
 import { errorMessage } from '@/api/client';
 import { Button } from '@/components/ui/Button';
@@ -20,7 +19,7 @@ import type { RootScreenProps } from '@/navigation/types';
 const PHONE_RE = /^(\+216|00216)?[2-9]\d{7}$/;
 const PASSWORD_RE = /^(?=.*[A-Za-z])(?=.*\d).{8,72}$/;
 
-/** Informations personnelles, photo de profil (Cloudinary) et mot de passe. */
+/** Informations personnelles et mot de passe (même compte que sur le site web). */
 export function EditProfileScreen({ navigation }: RootScreenProps<'EditProfile'>) {
   const { t } = useTranslation();
   const { colors } = useTheme();
@@ -47,24 +46,6 @@ export function EditProfileScreen({ navigation }: RootScreenProps<'EditProfile'>
     onError: (err) => setError(err instanceof Error && !('code' in err) ? err.message : errorMessage(err, t('common.networkError'))),
   });
 
-  const avatar = useMutation({
-    mutationFn: async () => {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.7,
-      });
-      if (result.canceled || !result.assets[0]) return null;
-      const asset = result.assets[0];
-      return meApi.uploadAvatar(asset.uri, asset.mimeType ?? 'image/jpeg');
-    },
-    onSuccess: async (updated) => {
-      if (updated) await setUser(updated);
-    },
-    onError: (err) => toast(errorMessage(err, t('common.networkError'))),
-  });
-
   const changePassword = useMutation({
     mutationFn: () => {
       if (!PASSWORD_RE.test(newPassword)) throw new Error(t('auth.weakPassword'));
@@ -82,9 +63,8 @@ export function EditProfileScreen({ navigation }: RootScreenProps<'EditProfile'>
     <Screen keyboard>
       <Header title={t('profile.personalInfo')} />
       <ScrollView contentContainerClassName="px-4 pb-10 pt-5" keyboardShouldPersistTaps="handled">
-        {/* Photo */}
-        <Pressable onPress={() => avatar.mutate()} className="mb-6 items-center" accessibilityLabel={t('profile.changePhoto')}>
-          <View>
+        {/* Photo (celle du compte Google/Facebook le cas échéant) */}
+        <View className="mb-6 items-center">
             {user.avatarUrl ? (
               <Image source={{ uri: user.avatarUrl }} style={{ width: 96, height: 96, borderRadius: 48 }} />
             ) : (
@@ -92,12 +72,7 @@ export function EditProfileScreen({ navigation }: RootScreenProps<'EditProfile'>
                 <Text className="text-3xl font-bold text-white">{user.firstName.charAt(0)}</Text>
               </View>
             )}
-            <View className="absolute bottom-0 end-0 h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-ink dark:border-surface-dark">
-              <Camera size={15} color="#fff" />
-            </View>
-          </View>
-          <Text className="mt-2 font-semibold text-primary">{avatar.isPending ? t('common.loading') : t('profile.changePhoto')}</Text>
-        </Pressable>
+        </View>
 
         <View className="gap-4">
           <Input label={t('auth.firstName')} value={firstName} onChangeText={setFirstName} leftIcon={<User size={18} color={colors.muted} />} />
