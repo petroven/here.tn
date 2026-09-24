@@ -104,8 +104,8 @@ const CATEGORIES = [
       {
         q: { fr: 'Comment suis-je payé ?', ar: 'كيف يتم دفع مستحقاتي؟' },
         a: {
-          fr: "Au choix, par virement bancaire (IBAN) ou via Flouci. Une commission de 5% est prélevée sur chaque vente. Vous pouvez demander un retrait à tout moment depuis votre tableau de bord vendeur (montant minimum 50 TND), à traiter par notre équipe.",
-          ar: 'حسب اختيارك، عبر تحويل بنكي (IBAN) أو عبر Flouci. تُخصم عمولة 5% من كل عملية بيع. يمكنك طلب سحب أموالك في أي وقت من لوحة تحكم البائع (الحد الأدنى 50 دينار)، ليتم معالجته من طرف فريقنا.',
+          fr: "Au choix, par virement bancaire (IBAN) ou via Flouci. Une commission de 15% est prélevée sur chaque vente. Vous pouvez demander un retrait à tout moment depuis votre tableau de bord vendeur (montant minimum 50 TND), à traiter par notre équipe.",
+          ar: 'حسب اختيارك، عبر تحويل بنكي (IBAN) أو عبر Flouci. تُخصم عمولة 15% من كل عملية بيع. يمكنك طلب سحب أموالك في أي وقت من لوحة تحكم البائع (الحد الأدنى 50 دينار)، ليتم معالجته من طرف فريقنا.',
         },
       },
       {

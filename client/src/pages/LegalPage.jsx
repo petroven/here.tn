@@ -23,7 +23,7 @@ const legalContent = {
       intro: "Ces conditions s'appliquent a toute boutique creee sur here.tn, en complement des conditions generales d'utilisation.",
       sections: [
         ['Validation de la boutique', "Une boutique nouvellement creee reste au statut \"en attente\" et n'apparait pas dans le catalogue public tant qu'elle n'a pas ete validee par l'equipe here.tn."],
-        ['Commission', "here.tn preleve une commission de 5% sur le sous-total de chaque vente (hors frais de livraison). Le montant net revenant au vendeur est calcule automatiquement sur chaque commande et visible depuis le tableau de bord vendeur."],
+        ['Commission', "here.tn preleve une commission de 15% sur le sous-total de chaque vente (hors frais de livraison). Le montant net revenant au vendeur est calcule automatiquement sur chaque commande et visible depuis le tableau de bord vendeur."],
         ['Paiement des ventes', "Les sommes dues sont versees sur demande de retrait (montant minimum 50 TND), par virement bancaire (IBAN) ou vers un compte Flouci selon le mode choisi a l'inscription. Chaque demande est examinee par l'equipe here.tn avant versement."],
         ['Conformite des produits', "Le vendeur est seul responsable de l'exactitude des fiches produit (prix, description, images, stock) et de la conformite des articles vendus a la reglementation tunisienne en vigueur."],
         ['Preparation et delais', "Le vendeur s'engage a maintenir son stock a jour et a preparer les commandes confirmees dans un delai raisonnable pour eviter les ruptures et les annulations."],
@@ -37,7 +37,7 @@ const legalContent = {
       intro: 'تنطبق هذه الشروط على كل متجر يتم إنشاؤه على here.tn، بالإضافة إلى الشروط العامة للاستخدام.',
       sections: [
         ['اعتماد المتجر', 'يبقى المتجر الذي تم إنشاؤه حديثًا في حالة "قيد الانتظار" ولا يظهر في الكتالوج العام إلى أن يتم اعتماده من طرف فريق here.tn.'],
-        ['العمولة', 'تقتطع here.tn عمولة 5% من المجموع الفرعي لكل عملية بيع (باستثناء مصاريف التوصيل). يتم احتساب المبلغ الصافي للبائع تلقائيًا لكل طلب ويظهر في لوحة تحكم البائع.'],
+        ['العمولة', 'تقتطع here.tn عمولة 15% من المجموع الفرعي لكل عملية بيع (باستثناء مصاريف التوصيل). يتم احتساب المبلغ الصافي للبائع تلقائيًا لكل طلب ويظهر في لوحة تحكم البائع.'],
         ['دفع المبيعات', 'تُصرف المبالغ المستحقة عند طلب السحب (بحد أدنى 50 دينار)، عبر تحويل بنكي (IBAN) أو إلى حساب Flouci حسب الطريقة المختارة عند التسجيل. تتم مراجعة كل طلب من طرف فريق here.tn قبل الصرف.'],
         ['مطابقة المنتجات', 'يتحمل البائع وحده مسؤولية دقة بطاقات المنتج (السعر، الوصف، الصور، المخزون) ومطابقة المنتجات المباعة للتشريع التونسي الساري.'],
         ['التحضير والآجال', 'يلتزم البائع بتحديث مخزونه وتحضير الطلبات المؤكدة في أجل معقول لتجنب النفاد والإلغاءات.'],

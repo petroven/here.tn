@@ -270,7 +270,7 @@ export function emailBienvenueVendeur(vendeur, boutique, lang = 'fr') {
         <p>تم إنشاء متجرك <strong>${boutique.nom}</strong> بنجاح وهو الآن قيد المراجعة من طرف فريقنا قبل التفعيل.</p>
         <h3>القواعد الأساسية</h3>
         <ul>
-          <li>عمولة المنصة: <strong>5%</strong> على كل عملية بيع.</li>
+          <li>عمولة المنصة: <strong>15%</strong> على كل عملية بيع.</li>
           <li>طريقة استلام أموالك: <strong>${modePaiementLabel}</strong>.</li>
           <li>يمكنك طلب سحب أموالك في أي وقت من لوحة التحكم، بحد أدنى قدره 50 دينار.</li>
           <li>يبقى المتجر مسؤولاً عن مطابقة منتجاته وتوفرها وجودتها.</li>
@@ -282,7 +282,7 @@ export function emailBienvenueVendeur(vendeur, boutique, lang = 'fr') {
       <p>Votre boutique <strong>${boutique.nom}</strong> a bien été créée et est actuellement en attente de validation par notre équipe avant activation.</p>
       <h3>Les règles essentielles à connaître</h3>
       <ul>
-        <li>Commission de la plateforme : <strong>5%</strong> sur chaque vente.</li>
+        <li>Commission de la plateforme : <strong>15%</strong> sur chaque vente.</li>
         <li>Mode de réception de vos paiements : <strong>${modePaiementLabel}</strong>.</li>
         <li>Vous pouvez demander un retrait à tout moment depuis votre tableau de bord (montant minimum 50 TND).</li>
         <li>Votre boutique reste responsable de la conformité, de la disponibilité et de la qualité de ses produits.</li>

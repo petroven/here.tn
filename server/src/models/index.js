@@ -202,7 +202,7 @@ export const Retrait = sequelize.define('Retrait', {
 export const Commission = sequelize.define('Commission', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   montant: { type: DataTypes.FLOAT, allowNull: false },
-  tauxCommission: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 0.05 },
+  tauxCommission: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 0.15 },
   statut: { type: DataTypes.STRING, defaultValue: 'collectee' },
 });
 

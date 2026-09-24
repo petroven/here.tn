@@ -35,7 +35,7 @@ services:
       - key: DEMO_SUPER_ADMIN_PASSWORD
         sync: false
       - key: COMMISSION_RATE
-        value: "0.05"
+        value: "0.15"
       - key: MIN_WITHDRAWAL_AMOUNT
         value: "50"
       - key: SMS_PROVIDER

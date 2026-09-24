@@ -533,7 +533,7 @@ export function VendorDashboard({ language = 'fr', setLanguage = () => {} }) {
             Gains nets se vérifie toujours ici. */}
         <div className="mb-2 flex items-center justify-between">
           <h2 className="text-sm font-black uppercase tracking-wider text-slate-500">{tr('Finances', 'المالية')}</h2>
-          <p className="text-[11px] font-semibold text-slate-400">{tr('Commission plateforme : 5% du sous-total produits (livraison exclue)', 'عمولة المنصة: 5% من مجموع المنتجات (التوصيل غير مشمول)')}</p>
+          <p className="text-[11px] font-semibold text-slate-400">{tr('Commission plateforme : 15% du sous-total produits (livraison exclue)', 'عمولة المنصة: 15% من مجموع المنتجات (التوصيل غير مشمول)')}</p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-2">
           <div className="bg-white rounded-lg border border-slate-200 shadow-soft p-5">
@@ -543,7 +543,7 @@ export function VendorDashboard({ language = 'fr', setLanguage = () => {} }) {
           </div>
 
           <div className="bg-white rounded-lg border border-rose-100 shadow-soft p-5">
-            <p className="text-rose-400 text-[11px] font-bold uppercase tracking-wider">{tr('− Commission (5%)', '− العمولة (5%)')}</p>
+            <p className="text-rose-400 text-[11px] font-bold uppercase tracking-wider">{tr('− Commission (15%)', '− العمولة (15%)')}</p>
             <p className="text-xl font-black text-rose-600 mt-1">{(stats.totalCommissions ?? 0).toFixed(3)} TND</p>
             <p className="mt-1 text-[10px] font-semibold text-rose-300">{tr('Prélevée sur le sous-total produits', 'مقتطعة من مجموع المنتجات')}</p>
           </div>

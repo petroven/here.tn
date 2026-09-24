@@ -30,8 +30,8 @@ Votre marketplace e-commerce bilingue (Français/Arabe) est maintenant **complè
 - **Routes:** `/api/vendor/*`
 - **UI:** `VendorDashboard.jsx`, `VendorRegistration.jsx`
 
-### 4. **Système de Commission (5%)**
-- ✅ Calcul automatique 5% sur chaque vente
+### 4. **Système de Commission (15%)**
+- ✅ Calcul automatique 15% sur chaque vente
 - ✅ Suivi détaillé des commissions par vendeur
 - ✅ Historique complet des commissions
 - **Modèle:** Commission avec montant, taux, statut
@@ -71,7 +71,7 @@ Modèles Sequelize implémentés:
 - **Produit** - Catalogue complet avec stock, prix, description
 - **Commande** - Gestion des ventes avec montants
 - **LigneCommande** - Détail des articles
-- **Commission** - Suivi des commissions 5%
+- **Commission** - Suivi des commissions 15%
 - **Retrait** - Gestion des paiements aux vendeurs
 - **Paiement** - Historique des transactions
 - **Catégorie** - Organisation des produits
@@ -261,7 +261,7 @@ VITE_DEFAULT_LANGUAGE=fr
 ## ✨ Highlights
 
 - ✅ **100% Bilingue** - Interface complète en FR et AR
-- ✅ **Commission Automatique** - 5% calculé automatiquement
+- ✅ **Commission Automatique** - 15% calculé automatiquement
 - ✅ **Paiements Tunisiens** - IBAN et virements bancaires
 - ✅ **Admin Panel Complet** - Dashboard avec tous les outils
 - ✅ **Vendor Dashboard** - Suivi complet des ventes et revenus

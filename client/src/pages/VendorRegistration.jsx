@@ -229,9 +229,9 @@ export function VendorRegistration({ onClose, onSuccess, onOpenTerms }) {
       <section className="mx-auto max-w-4xl px-4 py-14 sm:px-6">
         <div className="rounded-lg border border-[#E2D9CB] bg-[#F4ECDF] p-8 text-center sm:p-10">
           <p className="text-xs font-bold uppercase tracking-wide text-[#994122]">{tr('Commission', 'العمولة')}</p>
-          <p className="mt-2 text-3xl font-black text-[#1E1B18] sm:text-4xl">{tr('Une commission simple et transparente de 5%.', 'عمولة بسيطة وشفافة بنسبة 5%.')}</p>
+          <p className="mt-2 text-3xl font-black text-[#1E1B18] sm:text-4xl">{tr('Une commission simple et transparente de 15%.', 'عمولة بسيطة وشفافة بنسبة 15%.')}</p>
           <p className="mx-auto mt-3 max-w-xl text-sm text-slate-600">
-            {tr('Prélevée uniquement sur le sous-total de chaque vente (hors frais de livraison). Le reste — 95% — vous revient directement, versé sur demande de retrait.', 'تُقتطع فقط من المجموع الفرعي لكل عملية بيع (باستثناء مصاريف التوصيل). البقية — 95% — تعود إليكم مباشرة، تُصرف عند طلب السحب.')}
+            {tr('Prélevée uniquement sur le sous-total de chaque vente (hors frais de livraison). Le reste — 85% — vous revient directement, versé sur demande de retrait.', 'تُقتطع فقط من المجموع الفرعي لكل عملية بيع (باستثناء مصاريف التوصيل). البقية — 85% — تعود إليكم مباشرة، تُصرف عند طلب السحب.')}
           </p>
         </div>
       </section>
@@ -383,7 +383,7 @@ export function VendorRegistration({ onClose, onSuccess, onOpenTerms }) {
                   <p className="text-sm text-[#5B21B6]">
                     <strong>Note :</strong> {storeData.modePaiement === 'flouci'
                       ? 'Vos virements seront versés sur votre compte Flouci.'
-                      : 'Vous devez avoir un compte bancaire tunisien pour recevoir les virements.'} Une commission de 5% sera appliquée à chaque vente. Un email récapitulant les règles de la plateforme vous sera envoyé après l'inscription.
+                      : 'Vous devez avoir un compte bancaire tunisien pour recevoir les virements.'} Une commission de 15% sera appliquée à chaque vente. Un email récapitulant les règles de la plateforme vous sera envoyé après l'inscription.
                   </p>
                   {onOpenTerms && (
                     <button type="button" onClick={onOpenTerms} className="mt-2 text-xs font-bold text-[#6D28D9] underline hover:text-[#5B21B6]">

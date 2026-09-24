@@ -7,7 +7,7 @@ const parsedCashbackRate = Number(process.env.WALLET_CASHBACK_RATE);
 export const marketplaceConfig = {
   commissionRate: Number.isFinite(parsedCommissionRate) && parsedCommissionRate >= 0 && parsedCommissionRate <= 1
     ? parsedCommissionRate
-    : 0.05,
+    : 0.15,
   minimumWithdrawal: Number.isFinite(parsedMinimumWithdrawal) && parsedMinimumWithdrawal >= 0
     ? parsedMinimumWithdrawal
     : 50,
