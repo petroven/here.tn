@@ -21,8 +21,9 @@ export class ApiError extends Error {
 
 // Ajoute le jeton et la langue à chaque requête.
 api.interceptors.request.use((config) => {
+  // Un jeton passé explicitement (connexion / inscription en cours) n'est jamais remplacé.
   const token = useAuthStore.getState().accessToken;
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+  if (token && !config.headers.Authorization) config.headers.Authorization = `Bearer ${token}`;
   config.headers['Accept-Language'] = useSettingsStore.getState().language;
   return config;
 });
