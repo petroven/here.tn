@@ -10,8 +10,8 @@ function roundMoney(value) {
 // que les retours RMA restent ouvrables, voir retourRoutes.js). Toute requête
 // financière qui filtrait strictement sur statut === 'payee' perdait donc le
 // chiffre d'affaires des commandes payées en ligne dès qu'elles étaient
-// livrées (les commandes COD, elles, repassent à 'payee' à la livraison —
-// d'où l'incohérence). Ces trois statuts sont les seuls où l'argent du
+// livrées (l'encaissement COD est lui aussi tracé sur le Paiement, la
+// commande restant 'livree'). Ces trois statuts sont les seuls où l'argent du
 // vendeur est réellement acquis.
 export const REVENUE_STATUTS = ['payee', 'expediee', 'livree'];
 

@@ -6,7 +6,7 @@ import {
 import { authMiddleware } from '../middleware/auth.js';
 import { crediterCashback } from '../utils/wallet.js';
 import { envoyerRecuPaiement } from '../utils/email.js';
-import { calculerFinancesBoutique } from '../utils/finance.js';
+import { calculerFinancesBoutique, REVENUE_STATUTS } from '../utils/finance.js';
 
 const router = express.Router();
 
@@ -297,7 +297,7 @@ router.get('/admin/stats', adminMiddleware, async (req, res) => {
     
     const totalOrders = await Commande.count();
     const totalProducts = await Produit.count();
-    const totalRevenue = await Commande.sum('montantCommission', { where: { statut: 'payee' } }) || 0;
+    const totalRevenue = await Commande.sum('montantCommission', { where: { statut: REVENUE_STATUTS } }) || 0;
     const pendingCommissions = await Commission.sum('montant', { where: { statut: 'collectee' } }) || 0;
     
     const totalUsers = await Utilisateur.count();

@@ -707,9 +707,11 @@ export async function updateLivraisonStatut(req, res) {
       updates.dateLivraison = new Date();
       await Commande.update({ statut: 'livree' }, { where: { id: livraison.commandeId } });
       const paiement = livraison.Commande?.paiement;
+      // L'encaissement COD est tracé sur le Paiement : la commande reste
+      // 'livree', statut requis pour laisser un avis ou demander un retour.
       if (paiement?.methode === 'cod' && paiement.statut === 'en_attente_livraison') {
         await paiement.update({ statut: 'paye_livraison' });
-        await Commande.update({ statut: 'payee' }, { where: { id: livraison.commandeId } });
+        await crediterCashback(livraison.commandeId);
       }
     }
 

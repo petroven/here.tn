@@ -203,8 +203,8 @@ router.patch('/livreur/courses/:id/statut', authMiddleware, livreurOnly, async (
       await Commande.update({ statut: 'livree' }, { where: { id: livraison.commandeId } });
       const paiement = livraison.Commande?.paiement;
       if (paiement?.methode === 'cod' && paiement.statut === 'en_attente_livraison') {
+        // La commande reste 'livree' (avis et retours) : l'encaissement est tracé sur le Paiement.
         await paiement.update({ statut: 'paye_livraison' });
-        await Commande.update({ statut: 'payee' }, { where: { id: livraison.commandeId } });
         await crediterCashback(livraison.commandeId);
       }
 
