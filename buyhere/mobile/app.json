@@ -17,7 +17,7 @@
     "android": {
       "package": "tn.buyhere.app",
       "adaptiveIcon": {
-        "backgroundColor": "#FF6B00",
+        "backgroundColor": "#1E1B18",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -42,17 +42,17 @@
         "expo-splash-screen",
         {
           "image": "./assets/splash-icon.png",
-          "imageWidth": 160,
-          "backgroundColor": "#FF6B00",
+          "imageWidth": 150,
+          "backgroundColor": "#1E1B18",
           "dark": {
-            "backgroundColor": "#0F1115"
+            "backgroundColor": "#1E1B18"
           }
         }
       ],
       [
         "expo-notifications",
         {
-          "color": "#FF6B00"
+          "color": "#C4532C"
         }
       ],
       [

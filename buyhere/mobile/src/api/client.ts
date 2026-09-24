@@ -4,7 +4,8 @@ import { useAuthStore } from '@/store/auth';
 import { useSettingsStore } from '@/store/settings';
 import type { ApiErrorBody, AuthResponse } from './types';
 
-export const api = axios.create({ baseURL: API_URL, timeout: 15_000 });
+// 60 s : sur l'offre gratuite Render, le serveur en veille met jusqu'à ~50 s à se réveiller.
+export const api = axios.create({ baseURL: API_URL, timeout: 60_000 });
 
 /** Erreur normalisée consommée par l'UI (message déjà traduit par l'API). */
 export class ApiError extends Error {

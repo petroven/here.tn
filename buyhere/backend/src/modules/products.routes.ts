@@ -56,13 +56,13 @@ function buildWhere(q: ListQuery): Prisma.ProductWhereInput {
   const and: Prisma.ProductWhereInput[] = [];
 
   if (q.q) {
-    // Recherche insensible à la casse (collation MySQL par défaut) sur FR, AR et marque.
+    // Recherche insensible à la casse sur FR, AR, marque et description.
     and.push({
       OR: [
-        { nameFr: { contains: q.q } },
-        { nameAr: { contains: q.q } },
-        { brand: { contains: q.q } },
-        { descriptionFr: { contains: q.q } },
+        { nameFr: { contains: q.q, mode: 'insensitive' } },
+        { nameAr: { contains: q.q, mode: 'insensitive' } },
+        { brand: { contains: q.q, mode: 'insensitive' } },
+        { descriptionFr: { contains: q.q, mode: 'insensitive' } },
       ],
     });
   }
@@ -109,7 +109,7 @@ router.get(
     const { q } = getQuery<{ q: string }>(res);
     const lang = getLang(req);
     const rows = await prisma.product.findMany({
-      where: { isActive: true, OR: [{ nameFr: { contains: q } }, { nameAr: { contains: q } }] },
+      where: { isActive: true, OR: [{ nameFr: { contains: q, mode: 'insensitive' } }, { nameAr: { contains: q, mode: 'insensitive' } }] },
       select: { slug: true, nameFr: true, nameAr: true },
       orderBy: { soldCount: 'desc' },
       take: 8,

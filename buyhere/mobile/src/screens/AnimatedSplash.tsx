@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
 import Animated, {
   runOnJS,
   useAnimatedStyle,
@@ -9,12 +9,12 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { ShoppingBag } from 'lucide-react-native';
+import { BRAND_CREAM, BRAND_DARK, LogoWordmark } from '@/components/Logo';
 
 type Props = { ready: boolean; onFinish: () => void };
 
 /**
- * Splash animé (prolonge le splash natif orange) : le logo apparaît avec un
+ * Splash animé (prolonge le splash natif) : le logo « buyhere. » apparaît avec un
  * rebond, puis l'écran s'efface dès que l'app est prête.
  */
 export function AnimatedSplash({ ready, onFinish }: Props) {
@@ -42,14 +42,11 @@ export function AnimatedSplash({ ready, onFinish }: Props) {
   const logoStyle = useAnimatedStyle(() => ({ opacity: logoOpacity.value, transform: [{ scale: scale.value }] }));
 
   return (
-    <Animated.View style={[{ flex: 1, backgroundColor: '#FF6B00' }, screenStyle]}>
+    <Animated.View style={[{ flex: 1, backgroundColor: BRAND_DARK }, screenStyle]}>
       <View className="flex-1 items-center justify-center">
+        {/* Même logo et même fond que le splash natif (app.json) : transition invisible. */}
         <Animated.View style={logoStyle} className="items-center">
-          <View className="h-24 w-24 items-center justify-center rounded-3xl bg-white shadow-lg">
-            <ShoppingBag size={48} color="#FF6B00" strokeWidth={2.2} />
-          </View>
-          <Text className="mt-5 text-4xl font-extrabold tracking-tight text-white">BuyHere</Text>
-          <Text className="mt-1 text-sm font-medium text-white/85">Achetez malin, partout en Tunisie</Text>
+          <LogoWordmark height={54} color={BRAND_CREAM} />
         </Animated.View>
       </View>
     </Animated.View>

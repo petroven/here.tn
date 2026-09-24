@@ -6,7 +6,7 @@ Français et arabe (RTL), mode sombre, prix en dinars (« 49,900 DT »).
 
 ```
 buyhere/
-├── backend/   API REST — Node.js, Express 5, Prisma 6, MySQL, Zod, JWT
+├── backend/   API REST — Node.js, Express 5, Prisma 6, PostgreSQL, Zod, JWT
 └── mobile/    App — React Native (Expo SDK 57), TypeScript, React Navigation,
                Zustand, TanStack Query, NativeWind, i18next
 ```
@@ -18,7 +18,7 @@ buyhere/
 | Outil | Version |
 |---|---|
 | Node.js | 20 ou plus |
-| MySQL | 8 (ou MariaDB 10.6+) |
+| PostgreSQL | 14 ou plus |
 | Expo Go / development build | sur votre téléphone, ou un émulateur Android / simulateur iOS |
 
 Comptes facultatifs : [Cloudinary](https://cloudinary.com) (photos de profil),
@@ -37,7 +37,7 @@ cp .env.example .env          # puis renseigner DATABASE_URL et les 2 secrets JW
 Créez la base, puis appliquez le schéma et les données de test :
 
 ```bash
-mysql -u root -p -e "CREATE DATABASE buyhere CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+createdb buyhere        # ou via pgAdmin
 npm run db:migrate            # crée les tables (prisma migrate dev)
 npm run db:seed               # 5 catégories, 30 produits, coupons, comptes démo
 npm run dev                   # API sur http://localhost:4000
@@ -114,7 +114,7 @@ middleware/            auth (JWT), validate (Zod), error (gestion centralisée)
 services/              pricing (panier, coupons, livraison), productView,
                        notify (in-app + push Expo), payments (Konnect / Flouci)
 modules/*.routes.ts    Une route Express par ressource
-prisma/schema.prisma   Schéma MySQL complet · prisma/seed.ts : données de test
+prisma/schema.prisma   Schéma PostgreSQL complet · prisma/seed.ts : données de test
 tests/e2e.mjs          Tests de bout en bout
 ```
 

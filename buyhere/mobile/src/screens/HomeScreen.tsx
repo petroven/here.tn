@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Bell, Search, Truck, Zap } from 'lucide-react-native';
 import type { Banner, ProductFilters } from '@/api/types';
 import { BannerCarousel } from '@/components/BannerCarousel';
+import { BRAND_CREAM, BRAND_DARK, LogoWordmark } from '@/components/Logo';
 import { CategoryItem } from '@/components/CategoryItem';
 import { FlashCountdown } from '@/components/FlashCountdown';
 import { ProductRow } from '@/components/ProductGrid';
@@ -20,7 +21,7 @@ import type { TabScreenProps } from '@/navigation/types';
 /** Accueil : bannières, catégories, offres flash, populaires et nouveautés. */
 export function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
   const { t } = useTranslation();
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const user = useAuthStore((s) => s.user);
   const lang = useSettingsStore((s) => s.language);
   const home = useHome();
@@ -53,7 +54,9 @@ export function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
           <Text className="text-xs text-ink-muted dark:text-gray-400">
             {user ? t('home.greeting', { name: user.firstName }) : t('home.greetingGuest')}
           </Text>
-          <Text className="text-2xl font-extrabold text-primary">BuyHere</Text>
+          <View className="mt-1">
+            <LogoWordmark height={26} color={isDark ? BRAND_CREAM : BRAND_DARK} />
+          </View>
         </View>
         <Pressable
           onPress={() => (user ? navigation.navigate('Notifications') : navigation.navigate('Login', { redirect: 'back' }))}
