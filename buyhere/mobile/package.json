@@ -21,6 +21,7 @@
     "expo-secure-store": "~57.0.4",
     "expo-splash-screen": "~57.0.9",
     "expo-status-bar": "~57.0.1",
+    "expo-system-ui": "~57.0.4",
     "expo-web-browser": "~57.0.3",
     "i18next": "^26.4.2",
     "lucide-react-native": "^1.47.0",
@@ -47,7 +48,8 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "build:apk": "expo prebuild --platform android --clean && cd android && gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a"
   },
   "private": true
 }
