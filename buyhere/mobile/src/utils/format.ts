@@ -36,17 +36,17 @@ export function formatDateTime(iso: string, lang: Language = 'fr'): string {
 
 /** Temps relatif pour les notifications : "il y a 5 min". */
 export function timeAgo(iso: string, lang: Language = 'fr'): string {
-  const seconds = Math.round((new Date(iso).getTime() - Date.now()) / 1000);
-  const rtf = new Intl.RelativeTimeFormat(lang, { numeric: 'auto' });
-  const units: [Intl.RelativeTimeFormatUnit, number][] = [
-    ['day', 86400],
-    ['hour', 3600],
-    ['minute', 60],
-  ];
-  for (const [unit, size] of units) {
-    if (Math.abs(seconds) >= size) return rtf.format(Math.round(seconds / size), unit);
-  }
-  return rtf.format(0, 'minute');
+  const elapsed = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
+  // Pas d'Intl.RelativeTimeFormat : il n'est pas disponible sur tous les moteurs Hermes.
+  const labels =
+    lang === 'ar'
+      ? { now: 'الآن', min: 'د', h: 'س', day: 'ي', prefix: 'منذ ' }
+      : { now: "à l'instant", min: 'min', h: 'h', day: 'j', prefix: 'il y a ' };
+  if (elapsed < 60) return labels.now;
+  if (elapsed < 3600) return `${labels.prefix}${Math.floor(elapsed / 60)} ${labels.min}`;
+  if (elapsed < 86400) return `${labels.prefix}${Math.floor(elapsed / 3600)} ${labels.h}`;
+  if (elapsed < 7 * 86400) return `${labels.prefix}${Math.floor(elapsed / 86400)} ${labels.day}`;
+  return formatDate(iso, lang);
 }
 
 /** Masque un numéro pour l'affichage : +21622123456 => "22 123 456". */
