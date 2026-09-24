@@ -1,32 +1,33 @@
 import { useColorScheme } from 'nativewind';
 
-export const BRAND = '#FF6B00';
+/** Terre de Nabeul — couleur de marque du site web. */
+export const BRAND = '#C4532C';
 
 const light = {
   primary: BRAND,
-  text: '#1F2937',
-  muted: '#6B7280',
-  subtle: '#9CA3AF',
-  background: '#FFFFFF',
+  text: '#1E1B18',
+  muted: '#8C8378',
+  subtle: '#B8B0A3',
+  background: '#FBF8F3',
   card: '#FFFFFF',
-  surface: '#F5F6F8',
-  border: '#E5E7EB',
-  skeleton: '#E9EBEF',
+  surface: '#F4ECDF',
+  border: '#E2D9CB',
+  skeleton: '#EFE7DA',
   star: '#F5A623',
   danger: '#DC2626',
   success: '#16A34A',
 };
 
 const dark: typeof light = {
-  primary: BRAND,
-  text: '#F3F4F6',
-  muted: '#9CA3AF',
-  subtle: '#6B7280',
-  background: '#0F1115',
-  card: '#1A1D23',
-  surface: '#23272F',
-  border: '#2D323B',
-  skeleton: '#2A2E36',
+  primary: '#D87350',
+  text: '#F4ECDF',
+  muted: '#B8B0A3',
+  subtle: '#8C8378',
+  background: '#141210',
+  card: '#1E1B18',
+  surface: '#2A2622',
+  border: '#38322C',
+  skeleton: '#2F2A25',
   star: '#F5A623',
   danger: '#F87171',
   success: '#4ADE80',

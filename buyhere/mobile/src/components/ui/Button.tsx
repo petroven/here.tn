@@ -19,14 +19,14 @@ const variants: Record<Variant, { box: string; text: string; spinner: string }> 
   secondary: {
     box: 'bg-primary-50 active:bg-primary-100 dark:bg-primary-900/40',
     text: 'text-primary-600 dark:text-primary-300',
-    spinner: '#FF6B00',
+    spinner: '#C4532C',
   },
   outline: {
     box: 'border border-gray-300 bg-transparent active:bg-gray-100 dark:border-gray-600 dark:active:bg-surface-dark-muted',
     text: 'text-ink dark:text-gray-100',
-    spinner: '#FF6B00',
+    spinner: '#C4532C',
   },
-  ghost: { box: 'bg-transparent active:bg-gray-100 dark:active:bg-surface-dark-muted', text: 'text-primary', spinner: '#FF6B00' },
+  ghost: { box: 'bg-transparent active:bg-gray-100 dark:active:bg-surface-dark-muted', text: 'text-primary', spinner: '#C4532C' },
   danger: { box: 'bg-danger active:opacity-90', text: 'text-white', spinner: '#FFFFFF' },
 };
 

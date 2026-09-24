@@ -22,6 +22,10 @@ import { EditProfileScreen } from '@/screens/profile/EditProfileScreen';
 import { AddressesScreen } from '@/screens/profile/AddressesScreen';
 import { AddressFormScreen } from '@/screens/profile/AddressFormScreen';
 import { NotificationsScreen } from '@/screens/NotificationsScreen';
+import { FavoritesScreen } from '@/screens/FavoritesScreen';
+import { StoresScreen } from '@/screens/StoresScreen';
+import { StoreScreen } from '@/screens/StoreScreen';
+import { BecomeVendorScreen } from '@/screens/BecomeVendorScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -75,6 +79,10 @@ export function RootNavigator() {
         <Stack.Screen name="Addresses" component={AddressesScreen} />
         <Stack.Screen name="AddressForm" component={AddressFormScreen} />
         <Stack.Screen name="Notifications" component={NotificationsScreen} />
+        <Stack.Screen name="Favorites" component={FavoritesScreen} />
+        <Stack.Screen name="Stores" component={StoresScreen} />
+        <Stack.Screen name="Store" component={StoreScreen} />
+        <Stack.Screen name="BecomeVendor" component={BecomeVendorScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

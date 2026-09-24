@@ -12,6 +12,7 @@ import {
   meApi,
   notificationsApi,
   ordersApi,
+  storesApi,
 } from '@/api/endpoints';
 import type {
   Cart,
@@ -32,6 +33,9 @@ import { useSettingsStore } from '@/store/settings';
 export const qk = {
   home: (lang: string) => ['home', lang] as const,
   categories: (lang: string) => ['categories', lang] as const,
+  categoriesWithPhotos: ['categoriesWithPhotos'] as const,
+  stores: ['stores'] as const,
+  store: (id: string) => ['store', id] as const,
   products: (lang: string, filters: ProductFilters) => ['products', lang, filters] as const,
   product: (lang: string, id: string) => ['product', lang, id] as const,
   reviews: (productId: string) => ['reviews', productId] as const,
@@ -57,6 +61,21 @@ export function useHome() {
 export function useCategories() {
   const lang = useLang();
   return useQuery({ queryKey: qk.categories(lang), queryFn: catalogApi.categories, staleTime: 10 * 60_000 });
+}
+
+/** Catégories + sous-catégories, avec une photo produit par catégorie (comme le site). */
+export function useCategoriesWithPhotos() {
+  return useQuery({ queryKey: qk.categoriesWithPhotos, queryFn: catalogApi.categoriesWithPhotos, staleTime: 10 * 60_000 });
+}
+
+// ─── Boutiques ───
+
+export function useStores() {
+  return useQuery({ queryKey: qk.stores, queryFn: storesApi.list, staleTime: 5 * 60_000 });
+}
+
+export function useStore(id: string) {
+  return useQuery({ queryKey: qk.store(id), queryFn: () => storesApi.get(id) });
 }
 
 /** Liste paginée pour le scroll infini (grille 2 colonnes). */

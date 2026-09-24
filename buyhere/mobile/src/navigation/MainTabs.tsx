@@ -1,18 +1,18 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useTranslation } from 'react-i18next';
-import { Heart, House, Search, ShoppingBag, User } from 'lucide-react-native';
+import { House, LayoutGrid, Search, ShoppingBag, User } from 'lucide-react-native';
 import { useCart } from '@/hooks/queries';
 import { useTheme } from '@/theme/useTheme';
 import { HomeScreen } from '@/screens/HomeScreen';
 import { SearchScreen } from '@/screens/SearchScreen';
 import { CartScreen } from '@/screens/CartScreen';
-import { FavoritesScreen } from '@/screens/FavoritesScreen';
+import { CategoriesScreen } from '@/screens/CategoriesScreen';
 import { ProfileScreen } from '@/screens/profile/ProfileScreen';
 import type { TabParamList } from './types';
 
 const Tab = createBottomTabNavigator<TabParamList>();
 
-/** Barre d'onglets : Accueil, Recherche, Panier (badge), Favoris, Profil. */
+/** Barre d'onglets, comme celle du site sur mobile : Accueil, Catégories, Recherche, Panier (badge), Compte. */
 export function MainTabs() {
   const { t } = useTranslation();
   const { colors } = useTheme();
@@ -35,6 +35,11 @@ export function MainTabs() {
         options={{ title: t('tabs.home'), tabBarIcon: ({ color, size }) => <House color={color} size={size} /> }}
       />
       <Tab.Screen
+        name="Categories"
+        component={CategoriesScreen}
+        options={{ title: t('tabs.categories'), tabBarIcon: ({ color, size }) => <LayoutGrid color={color} size={size} /> }}
+      />
+      <Tab.Screen
         name="Search"
         component={SearchScreen}
         options={{ title: t('tabs.search'), tabBarIcon: ({ color, size }) => <Search color={color} size={size} /> }}
@@ -48,11 +53,6 @@ export function MainTabs() {
           tabBarBadge: cartCount > 0 ? (cartCount > 99 ? '99+' : cartCount) : undefined,
           tabBarBadgeStyle: { backgroundColor: colors.primary, color: '#fff', fontSize: 10 },
         }}
-      />
-      <Tab.Screen
-        name="Favorites"
-        component={FavoritesScreen}
-        options={{ title: t('tabs.favorites'), tabBarIcon: ({ color, size }) => <Heart color={color} size={size} /> }}
       />
       <Tab.Screen
         name="Profile"

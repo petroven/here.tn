@@ -21,6 +21,7 @@ import {
   RotateCcw,
   Share2,
   ShoppingBag,
+  Store,
   Truck,
   Zap,
 } from 'lucide-react-native';
@@ -250,6 +251,14 @@ export function ProductDetailScreen({ route, navigation }: RootScreenProps<'Prod
                   {p.options.colors.map((c) => {
                     const available = colorAvailable(c.name);
                     const active = color === c.name;
+                    const select = () => {
+                      setColor(active ? null : c.name);
+                      setVariantError(false);
+                    };
+                    // Les variantes du site n'ont qu'un nom de couleur (pas de code hex) : puce texte.
+                    if (!c.hex) {
+                      return <Chip key={c.name} label={c.name} selected={active} disabled={!available && !active} onPress={select} />;
+                    }
                     return (
                       <Pressable
                         key={c.name}
@@ -315,6 +324,24 @@ export function ProductDetailScreen({ route, navigation }: RootScreenProps<'Prod
                 </View>
               ))}
             </View>
+
+            {/* Vendu par — lien vers la page boutique, comme sur le site */}
+            {p.store ? (
+              <Pressable
+                onPress={() => navigation.navigate('Store', { storeId: p.store!.id })}
+                className="mt-4 flex-row items-center gap-3 rounded-2xl border border-[#E2D9CB] p-3.5 active:opacity-80 dark:border-gray-800"
+                accessibilityRole="button"
+              >
+                <View className="h-10 w-10 items-center justify-center rounded-xl bg-primary-100 dark:bg-primary-900/30">
+                  <Store size={18} color={colors.primary} />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-xs text-ink-muted">{t('product.soldBy')}</Text>
+                  <Text className="font-bold text-ink dark:text-gray-100">{p.store.name}</Text>
+                </View>
+                <Text className="text-sm font-semibold text-primary">{t('stores.visit')}</Text>
+              </Pressable>
+            ) : null}
 
             {/* Description */}
             <View className="mt-6">

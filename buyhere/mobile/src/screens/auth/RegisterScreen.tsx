@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Check, Lock, Mail, Phone, User, X } from 'lucide-react-native';
 import { authApi } from '@/api/endpoints';
 import { errorMessage } from '@/api/client';
+import { SocialLogin } from '@/components/SocialLogin';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Screen } from '@/components/ui/Screen';
@@ -182,6 +183,8 @@ export function RegisterScreen({ navigation }: RootScreenProps<'Register'>) {
         </Pressable>
 
         <Button title={t('auth.register')} size="lg" className="mt-6" loading={register.isPending} onPress={submit} />
+
+        <SocialLogin onSuccess={() => navigation.reset({ index: 0, routes: [{ name: 'Main' }] })} onError={setApiError} />
 
         <View className="mt-6 flex-row justify-center gap-1">
           <Text className="text-ink-muted dark:text-gray-400">{t('auth.haveAccount')}</Text>

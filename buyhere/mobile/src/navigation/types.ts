@@ -4,11 +4,12 @@ import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { ProductFilters } from '@/api/types';
 
+/** Mêmes onglets que la barre du bas du site mobile : Accueil, Catégories, Recherche, Panier, Compte. */
 export type TabParamList = {
   Home: undefined;
+  Categories: undefined;
   Search: { initialQuery?: string; focus?: boolean } | undefined;
   Cart: undefined;
-  Favorites: undefined;
   Profile: undefined;
 };
 
@@ -29,6 +30,10 @@ export type RootStackParamList = {
   Addresses: { selectMode?: boolean } | undefined;
   AddressForm: { addressId?: string } | undefined;
   Notifications: undefined;
+  Favorites: undefined;
+  Stores: undefined;
+  Store: { storeId: string };
+  BecomeVendor: undefined;
 };
 
 export type RootScreenProps<T extends keyof RootStackParamList> = NativeStackScreenProps<RootStackParamList, T>;

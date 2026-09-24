@@ -9,6 +9,8 @@ import type {
   ProductCard,
   ProductDetail,
   Review,
+  Store,
+  StoreDetail,
   User,
 } from './types';
 
@@ -39,7 +41,33 @@ export type WebUser = {
   createdAt?: string;
 };
 
-export type WebCategory = { id: number; nom: string; slug: string | null; icone: string | null };
+export type WebCategory = {
+  id: number;
+  nom: string;
+  slug: string | null;
+  icone: string | null;
+  sousCategories?: WebCategory[];
+};
+
+export type WebStore = {
+  id: number;
+  nom: string;
+  description: string | null;
+  logo: string | null;
+  bannière: string | null;
+  categorie: string | null;
+  adresse?: string | null;
+  kycStatut?: string;
+  nombreProduits?: number;
+  Gouvernorat?: { nom: string; nomAr: string | null } | null;
+  vendeur?: { nom: string; prenom: string; photo: string | null } | null;
+  Produits?: WebProduct[];
+  avisBoutique?: {
+    moyenne: number;
+    nombre: number;
+    avis: (WebReview & { produit?: { nom: string } | null })[];
+  };
+};
 
 export type WebVariant = {
   id: number;
@@ -151,7 +179,49 @@ function categoryIcon(name: string): string | null {
 
 export function mapCategory(c: WebCategory): Category {
   // Le « slug » de l'app sert de filtre : on y met l'id numérique attendu par /produits?categoryId=
-  return { id: String(c.id), slug: String(c.id), name: c.nom, imageUrl: null, icon: c.icone ?? categoryIcon(c.nom) };
+  return {
+    id: String(c.id),
+    slug: String(c.id),
+    name: c.nom,
+    imageUrl: null,
+    icon: c.icone ?? categoryIcon(c.nom),
+    children: (c.sousCategories ?? []).map(mapCategory),
+  };
+}
+
+export function mapStore(s: WebStore): Store {
+  return {
+    id: String(s.id),
+    name: s.nom,
+    description: s.description || null,
+    logoUrl: imageUrl(s.logo),
+    bannerUrl: imageUrl(s.bannière),
+    category: s.categorie || null,
+    governorate: s.Gouvernorat?.nom ?? null,
+    productCount: s.nombreProduits ?? 0,
+    verified: s.kycStatut === 'valide',
+    seller: s.vendeur
+      ? { firstName: s.vendeur.prenom, lastName: s.vendeur.nom, photoUrl: imageUrl(s.vendeur.photo) }
+      : null,
+  };
+}
+
+export function mapStoreDetail(s: WebStore): StoreDetail {
+  const avis = s.avisBoutique ?? { moyenne: 0, nombre: 0, avis: [] };
+  return {
+    ...mapStore(s),
+    address: s.adresse || null,
+    // La page boutique du site n'inclut ni la boutique ni les variantes dans chaque produit.
+    products: (s.Produits ?? []).map((p) => mapProductCard({ ...p, boutique: { id: s.id, nom: s.nom } })),
+    rating: {
+      average: avis.moyenne,
+      count: avis.nombre,
+      reviews: avis.avis.map((a) => ({
+        ...mapReview(a),
+        productName: a.produit?.nom ?? null,
+      })),
+    },
+  };
 }
 
 export function mapProductCard(p: WebProduct, favoriteIds?: Set<string>): ProductCard {

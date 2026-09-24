@@ -7,31 +7,34 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // Orange BuyHere (#FF6B00) et ses nuances
+        // Identité buyhere. du site web (client/tailwind.config.js) :
+        // terre de Nabeul #C4532C, charbon #1E1B18, chaux/crème #F4ECDF.
         primary: {
-          50: '#FFF4EB',
-          100: '#FFE4CC',
-          200: '#FFC999',
-          300: '#FFA666',
-          400: '#FF8833',
-          DEFAULT: '#FF6B00',
-          500: '#FF6B00',
-          600: '#E05E00',
-          700: '#B84D00',
-          800: '#8A3A00',
-          900: '#5C2700',
+          50: '#FCF5F3',
+          100: '#F8E4DE',
+          200: '#EEC3B4',
+          300: '#E39B82',
+          400: '#D87350',
+          DEFAULT: '#C4532C',
+          500: '#C4532C',
+          600: '#AE4926',
+          700: '#994122',
+          800: '#6E2E19',
+          900: '#4A1F11',
         },
         ink: {
-          DEFAULT: '#1F2937', // texte principal (gris foncé)
-          muted: '#6B7280',
-          subtle: '#9CA3AF',
+          DEFAULT: '#1E1B18', // charbon
+          muted: '#8C8378',
+          subtle: '#B8B0A3',
         },
+        cream: '#F4ECDF',
         surface: {
           DEFAULT: '#FFFFFF',
-          muted: '#F5F6F8',
-          dark: '#0F1115',
-          'dark-card': '#1A1D23',
-          'dark-muted': '#23272F',
+          muted: '#F4ECDF',
+          page: '#FBF8F3',
+          dark: '#141210',
+          'dark-card': '#1E1B18',
+          'dark-muted': '#2A2622',
         },
         success: '#16A34A',
         danger: '#DC2626',

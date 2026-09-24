@@ -61,7 +61,7 @@ export function OnboardingScreen({ navigation }: RootScreenProps<'Onboarding'>) 
             <View style={{ width }} className="flex-1 items-center justify-center px-8">
               <View className="mb-10 h-56 w-56 items-center justify-center rounded-full bg-primary-50 dark:bg-primary-900/30">
                 <View className="h-36 w-36 items-center justify-center rounded-full bg-primary-100 dark:bg-primary-900/50">
-                  <Icon size={72} color="#FF6B00" strokeWidth={1.6} />
+                  <Icon size={72} color="#C4532C" strokeWidth={1.6} />
                 </View>
               </View>
               <Text className="text-center text-2xl font-extrabold text-ink dark:text-gray-100">{item.title}</Text>

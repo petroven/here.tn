@@ -9,10 +9,12 @@ import {
   ChevronRight,
   CircleHelp,
   Globe,
+  Heart,
   LogOut,
   MapPin,
   Moon,
   Package,
+  Store,
   Wallet,
   UserRound,
   type LucideIcon,
@@ -131,6 +133,7 @@ export function ProfileScreen({ navigation }: TabScreenProps<'Profile'>) {
         ) : (
           <Group>
             <Row icon={Package} label={t('profile.myOrders')} onPress={() => navigation.navigate('Orders')} />
+            <Row icon={Heart} label={t('favorites.title')} onPress={() => navigation.navigate('Favorites')} />
             <Row icon={MapPin} label={t('profile.addresses')} onPress={() => navigation.navigate('Addresses')} />
             <Row icon={UserRound} label={t('profile.personalInfo')} onPress={() => navigation.navigate('EditProfile')} />
             <Row
@@ -140,6 +143,13 @@ export function ProfileScreen({ navigation }: TabScreenProps<'Profile'>) {
             />
           </Group>
         )}
+
+        <Group>
+          <Row icon={Store} label={t('stores.title')} onPress={() => navigation.navigate('Stores')} />
+          {user?.role !== 'vendeur' && user?.role !== 'admin_boutique' ? (
+            <Row icon={Store} label={t('vendor.cta')} onPress={() => navigation.navigate('BecomeVendor')} />
+          ) : null}
+        </Group>
 
         <Group>
           <Row

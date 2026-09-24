@@ -1,4 +1,7 @@
+import * as Linking from 'expo-linking';
+import * as WebBrowser from 'expo-web-browser';
 import { api, ApiError } from './client';
+import { API_URL } from '@/config';
 import {
   mapCategory,
   mapGovernorate,
@@ -6,6 +9,8 @@ import {
   mapProductCard,
   mapProductDetail,
   mapReview,
+  mapStore,
+  mapStoreDetail,
   mapUser,
   toMillimes,
   toWebPaymentMethod,
@@ -15,6 +20,7 @@ import {
   type WebOrder,
   type WebProduct,
   type WebReview,
+  type WebStore,
   type WebUser,
 } from './web';
 import type {
@@ -38,6 +44,8 @@ import type {
   ProductFilters,
   Review,
   ReviewsPage,
+  Store,
+  StoreDetail,
   User,
 } from './types';
 import { localAddresses, localCart, type StoredCart } from '@/store/local';
@@ -81,6 +89,25 @@ export const authApi = {
         accepteConditions: true,
       })
       .then((r) => sessionFrom(r.data.token)),
+  /**
+   * Connexion Google / Facebook — mêmes comptes que le bouton du site. La page
+   * du fournisseur s'ouvre dans un navigateur ; l'API renvoie ensuite vers
+   * l'app avec le jeton. Renvoie null si l'utilisateur ferme la page.
+   */
+  oauth: async (provider: 'google' | 'facebook'): Promise<AuthResponse | null> => {
+    const returnUrl = Linking.createURL('oauth');
+    const result = await WebBrowser.openAuthSessionAsync(
+      `${API_URL}/auth/${provider}?redirect=${encodeURIComponent(returnUrl)}`,
+      returnUrl,
+    );
+    if (result.type !== 'success') return null;
+    const { queryParams } = Linking.parse(result.url);
+    const error = queryParams?.error;
+    if (typeof error === 'string') throw new ApiError('OAUTH', error);
+    const token = queryParams?.token;
+    if (typeof token !== 'string') throw new ApiError('OAUTH', 'Connexion impossible : le lien de retour est invalide.');
+    return sessionFrom(token);
+  },
   /** Le site envoie un lien de réinitialisation par email (valable 1 h). */
   forgotPassword: (email: string) =>
     api.post<{ message: string }>('/auth/forgot-password', { email: email.toLowerCase() }).then((r) => r.data),
@@ -202,6 +229,20 @@ export const catalogApi = {
     };
   },
   categories: (): Promise<Category[]> => get<WebCategory[]>('/categories').then((r) => r.data.map(mapCategory)),
+  /**
+   * Comme la page d'accueil du site : une vraie photo produit par catégorie
+   * (le premier produit de la catégorie) plutôt qu'une icône générique.
+   */
+  categoriesWithPhotos: async (): Promise<Category[]> => {
+    const categories = await catalogApi.categories();
+    return Promise.all(
+      categories.map(async (c) => {
+        const first = await productList({ category: c.slug, limit: 1 }).catch(() => null);
+        const product = first?.data[0];
+        return product ? { ...c, imageUrl: mapProductCard(product).imageUrl, productCount: first?.count } : c;
+      }),
+    );
+  },
   products: async (filters: ProductFilters & { page?: number; limit?: number }): Promise<Paginated<ProductCard>> => {
     const r = await productList(filters);
     const page = r.pagination?.page ?? 1;
@@ -246,6 +287,65 @@ export const catalogApi = {
       commentaire: comment || undefined,
     });
     return mapReview(r.data.data);
+  },
+};
+
+// ─── Boutiques ───
+
+export const storesApi = {
+  list: (): Promise<Store[]> => get<WebStore[]>('/boutiques').then((r) => r.data.map(mapStore)),
+  get: (id: string): Promise<StoreDetail> => get<WebStore>(`/boutiques/${id}`).then((r) => mapStoreDetail(r.data)),
+};
+
+// ─── Devenir vendeur (même parcours que la page « Devenir vendeur » du site) ───
+
+export type VendorApplication = {
+  account: { firstName: string; lastName: string; email: string; password: string };
+  store: {
+    name: string;
+    description: string;
+    payoutMethod: 'iban' | 'flouci';
+    iban: string;
+    flouciNumber: string;
+    governorateId: number;
+    delegationId: number;
+    address: string;
+  };
+};
+
+export const vendorApi = {
+  /**
+   * 1) crée le compte vendeur, 2) crée la boutique (statut « en attente » jusqu'à
+   * validation par l'admin). Les conditions vendeur et de retour ont été acceptées
+   * explicitement dans l'écran avant l'appel.
+   */
+  register: async ({ account, store }: VendorApplication): Promise<AuthResponse> => {
+    const created = await api.post<{ token: string; user: WebUser }>('/auth/register', {
+      prenom: account.firstName,
+      nom: account.lastName,
+      email: account.email.toLowerCase(),
+      password: account.password,
+      role: 'vendeur',
+      accepteConditions: true,
+    });
+    const token = created.data.token;
+    await api.post(
+      '/vendor/register',
+      {
+        vendeurId: created.data.user.id,
+        nom: store.name,
+        description: store.description,
+        modePaiement: store.payoutMethod,
+        iban: store.payoutMethod === 'iban' ? store.iban : undefined,
+        flouciNumero: store.payoutMethod === 'flouci' ? store.flouciNumber : undefined,
+        gouvernoratId: store.governorateId,
+        delegationId: store.delegationId,
+        adresse: store.address,
+        accepteConditionsRetour: true,
+      },
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    return sessionFrom(token);
   },
 };
 

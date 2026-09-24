@@ -1,24 +1,22 @@
-import { Text } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Heart } from 'lucide-react-native';
 import { ProductGrid } from '@/components/ProductGrid';
+import { Header } from '@/components/ui/Header';
 import { Screen } from '@/components/ui/Screen';
 import { EmptyState, ErrorState } from '@/components/ui/States';
 import { useFavorites } from '@/hooks/queries';
 import { useIsLoggedIn } from '@/store/auth';
 import { useTheme } from '@/theme/useTheme';
-import type { TabScreenProps } from '@/navigation/types';
+import type { RootScreenProps } from '@/navigation/types';
 
 /** Liste de souhaits : grille des produits favoris. */
-export function FavoritesScreen({ navigation }: TabScreenProps<'Favorites'>) {
+export function FavoritesScreen({ navigation }: RootScreenProps<'Favorites'>) {
   const { t } = useTranslation();
   const { colors } = useTheme();
   const loggedIn = useIsLoggedIn();
   const favorites = useFavorites();
 
-  const title = (
-    <Text className="px-4 pb-3 pt-2 text-2xl font-extrabold text-ink dark:text-gray-100">{t('favorites.title')}</Text>
-  );
+  const title = <Header title={t('favorites.title')} />;
 
   if (!loggedIn) {
     return (
@@ -56,7 +54,7 @@ export function FavoritesScreen({ navigation }: TabScreenProps<'Favorites'>) {
             icon={<Heart size={40} color={colors.primary} />}
             title={t('favorites.empty')}
             text={t('favorites.emptyText')}
-            action={{ label: t('cart.startShopping'), onPress: () => navigation.navigate('Home') }}
+            action={{ label: t('cart.startShopping'), onPress: () => navigation.navigate('Main', { screen: 'Home' }) }}
           />
         }
       />

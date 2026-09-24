@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Lock, Mail, X } from 'lucide-react-native';
 import { authApi } from '@/api/endpoints';
 import { errorMessage } from '@/api/client';
+import { SocialLogin } from '@/components/SocialLogin';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Screen } from '@/components/ui/Screen';
@@ -22,13 +23,17 @@ export function LoginScreen({ navigation, route }: RootScreenProps<'Login'>) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
 
+  const afterLogin = () => {
+    if (route.params?.redirect === 'back' && navigation.canGoBack()) navigation.goBack();
+    else navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
+  };
+
   const login = useMutation({
     mutationFn: () => authApi.login(identifier.trim(), password),
     onSuccess: async (session) => {
       await setSession(session);
       qc.invalidateQueries(); // recharge panier, favoris, prix personnalisés...
-      if (route.params?.redirect === 'back' && navigation.canGoBack()) navigation.goBack();
-      else navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
+      afterLogin();
     },
     onError: (err) => setError(errorMessage(err, t('common.networkError'))),
   });
@@ -87,6 +92,8 @@ export function LoginScreen({ navigation, route }: RootScreenProps<'Login'>) {
         ) : null}
 
         <Button title={t('auth.login')} size="lg" className="mt-6" loading={login.isPending} onPress={submit} />
+
+        <SocialLogin onSuccess={afterLogin} onError={setError} />
 
         <View className="mt-6 flex-row justify-center gap-1">
           <Text className="text-ink-muted dark:text-gray-400">{t('auth.noAccount')}</Text>

@@ -44,7 +44,7 @@ async function registerForPush(N: NotificationsModule): Promise<string | null> {
       name: 'BuyHere',
       importance: N.AndroidImportance.HIGH,
       vibrationPattern: [0, 250, 250, 250],
-      lightColor: '#FF6B00',
+      lightColor: '#C4532C',
     });
   }
 

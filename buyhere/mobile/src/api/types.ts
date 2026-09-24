@@ -39,6 +39,37 @@ export type Category = {
   imageUrl: string | null;
   icon: string | null;
   productCount?: number;
+  /** Sous-catégories (comme le tiroir des catégories du site). */
+  children?: Category[];
+};
+
+/** Boutique d'un vendeur (pages « Boutiques » du site). */
+export type Store = {
+  id: string;
+  name: string;
+  description: string | null;
+  logoUrl: string | null;
+  bannerUrl: string | null;
+  category: string | null;
+  governorate: string | null;
+  productCount: number;
+  verified: boolean;
+  seller: { firstName: string; lastName: string; photoUrl: string | null } | null;
+};
+
+export type StoreReview = {
+  id: string;
+  author: string;
+  productName: string | null;
+  rating: number;
+  comment: string | null;
+  createdAt: string;
+};
+
+export type StoreDetail = Store & {
+  address: string | null;
+  products: ProductCard[];
+  rating: { average: number; count: number; reviews: StoreReview[] };
 };
 
 export type ProductCard = {
