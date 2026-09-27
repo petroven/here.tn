@@ -213,7 +213,7 @@ function AccordionItem({ item, language }) {
   );
 }
 
-export default function HelpCenterPage({ language = 'fr', onBack }) {
+export default function HelpCenterPage({ language = 'fr', onBack, onContact }) {
   const isAr = language === 'ar';
   const tr = (fr, ar) => (isAr ? ar : fr);
   const [search, setSearch] = useState('');
@@ -303,9 +303,9 @@ export default function HelpCenterPage({ language = 'fr', onBack }) {
                 <h3 className="text-sm font-extrabold text-slate-900">{tr('Vous ne trouvez pas votre réponse ?', 'لم تجد إجابتك؟')}</h3>
                 <p className="mt-1 text-xs text-slate-500">{tr('Notre équipe vous répond directement.', 'فريقنا يجيبك مباشرة.')}</p>
               </div>
-              <a href="mailto:support@here.tn" className="btn-primary-premium flex items-center gap-2 px-5 py-2.5 text-xs">
+              <button onClick={onContact} className="btn-primary-premium flex items-center gap-2 px-5 py-2.5 text-xs">
                 <MessageSquare size={15} /> {tr('Nous contacter', 'تواصل معنا')}
-              </a>
+              </button>
             </div>
           </div>
         </div>

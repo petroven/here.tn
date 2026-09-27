@@ -16,6 +16,9 @@ import {
   X,
   ArrowRight,
   Mail,
+  MapPin,
+  Moon,
+  Sun,
 } from 'lucide-react';
 import CheckoutPage from './pages/CheckoutPage';
 import AdminDashboard from './pages/AdminDashboard';
@@ -31,6 +34,9 @@ import StorePage from './pages/StorePage';
 import ProductPage from './pages/ProductPage';
 import LegalPage from './pages/LegalPage';
 import HelpCenterPage from './pages/HelpCenterPage';
+import AboutPage from './pages/AboutPage';
+import ContactPage from './pages/ContactPage';
+import ComparePage from './pages/ComparePage';
 import ConfirmOrderPage from './pages/ConfirmOrderPage';
 import LivreurLoginPage from './pages/LivreurLoginPage';
 import LivreurRegistrationPage from './pages/LivreurRegistrationPage';
@@ -52,6 +58,9 @@ import ToastHost from './components/ui/Toast.jsx';
 import { iconForCategory } from './utils/categoryIcons.js';
 import { useTranslation } from './i18n';
 import { API_URL } from './config/api.js';
+import { CONTACT } from './config/contact.js';
+import { regionsFromBoutiques } from './utils/regions.js';
+import { useTheme } from './utils/theme.js';
 
 // --- Petits wrappers de route : lisent le paramètre d'URL et le passent en
 // prop aux pages existantes, qui n'ont pas besoin de connaître react-router.
@@ -309,7 +318,7 @@ function App() {
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/legal" element={<Navigate to="/legal/cgu" replace />} />
       <Route path="/legal/:type" element={<LegalRoute language={language} onBack={() => navigate('/')} />} />
-      <Route path="/aide" element={<HelpCenterPage language={language} onBack={() => navigate('/')} />} />
+      <Route path="/aide" element={<HelpCenterPage language={language} onBack={() => navigate('/')} onContact={() => navigate('/contact')} />} />
       <Route path="/confirmer-commande/:token" element={<ConfirmOrderRoute />} />
 
       <Route
@@ -477,6 +486,15 @@ function App() {
         />
         <Route path="/messages" element={<MessagesPage language={language} />} />
         <Route path="/suivi" element={<TrackingPage language={language} />} />
+        <Route
+          path="/a-propos"
+          element={<AboutPage language={language} onBack={() => navigate('/')} onOpenCatalog={() => navigate('/catalogue')} onBecomeVendor={() => navigate('/vendeur/inscription')} />}
+        />
+        <Route
+          path="/comparer"
+          element={<ComparePage language={language} onBack={() => navigate('/catalogue')} onOpenProduct={openProduct} onAddToCart={handleAddToCart} />}
+        />
+        <Route path="/contact" element={<ContactPage language={language} onBack={() => navigate('/')} onOpenHelp={() => navigate('/aide')} />} />
         <Route path="/compte" element={<AccountPage language={language} navigate={navigate} />} />
         <Route path="/commandes" element={<ClientOrdersPage onStartChat={handleStartChat} language={language} />} />
       </Route>
@@ -495,6 +513,8 @@ function HomeView({ navigate, language = 'fr', user, cartCount = 0, setSelectedC
   const [categoryPhotos, setCategoryPhotos] = useState({}); // { [categoryId]: imageUrl }
   const [populaires, setPopulaires] = useState([]);
   const [nouveautes, setNouveautes] = useState([]);
+  const [meilleuresVentes, setMeilleuresVentes] = useState([]);
+  const [promos, setPromos] = useState({ count: 0, maxPercent: 0 });
   const [boutiques, setBoutiques] = useState([]);
   const [newsletterEmail, setNewsletterEmail] = useState('');
   const [newsletterSent, setNewsletterSent] = useState(false);
@@ -529,11 +549,27 @@ function HomeView({ navigate, language = 'fr', user, cartCount = 0, setSelectedC
       .then((response) => response.json())
       .then((data) => { if (data.success) setNouveautes(data.data); })
       .catch(() => setNouveautes([]));
+    // « Meilleures ventes » n'apparaît qu'une fois des ventes enregistrées :
+    // sans commande, ce tri ne serait qu'un ordre arbitraire.
+    fetch(`${API_URL}/produits?limit=8&sort=best_sellers`)
+      .then((response) => response.json())
+      .then((data) => { if (data.success) setMeilleuresVentes(data.data.filter((product) => Number(product.ventes) > 0)); })
+      .catch(() => setMeilleuresVentes([]));
+    fetch(`${API_URL}/produits?limit=60&promotion=true`)
+      .then((response) => response.json())
+      .then((data) => {
+        if (!data.success) return;
+        const percents = data.data.map((product) => Math.round((1 - product.prix / product.prixAvant) * 100));
+        setPromos({ count: data.count ?? data.data.length, maxPercent: Math.max(0, ...percents) });
+      })
+      .catch(() => {});
     fetch(`${API_URL}/boutiques`)
       .then((response) => response.json())
       .then((data) => { if (data.success) setBoutiques(data.data); })
       .catch(() => setBoutiques([]));
   }, []);
+
+  const regions = regionsFromBoutiques(boutiques);
 
   const goToCategory = (categoryId) => {
     setSelectedCategoryId?.(categoryId);
@@ -599,6 +635,29 @@ function HomeView({ navigate, language = 'fr', user, cartCount = 0, setSelectedC
       </section>
       )}
 
+      {/* Bannière promotions — calculée depuis les produits réellement en promo */}
+      {promos.count > 0 && (
+        <section className="max-w-7xl mx-auto px-4 sm:px-6">
+          <button
+            onClick={() => navigate('/catalogue?promo=1')}
+            className="flex w-full flex-col gap-3 rounded-2xl bg-[#1E1B18] p-5 text-left text-white transition hover:bg-[#2A2622] sm:flex-row sm:items-center sm:justify-between sm:p-6"
+          >
+            <div className="flex items-center gap-4">
+              <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#C4532C] text-lg font-black">-{promos.maxPercent}%</span>
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-[#E39B82]">{tr('Promotions en cours', 'تخفيضات جارية')}</p>
+                <p className="mt-0.5 text-base font-extrabold sm:text-lg">
+                  {tr(`Jusqu'à -${promos.maxPercent}% sur ${promos.count} produits`, `حتى -${promos.maxPercent}% على ${promos.count} منتجات`)}
+                </p>
+              </div>
+            </div>
+            <span className="inline-flex items-center gap-1.5 self-start rounded-xl bg-white px-4 py-2.5 text-xs font-bold text-[#1E1B18] sm:self-auto">
+              {tr('Voir les promotions', 'شاهد التخفيضات')} <ArrowRight size={14} className="rtl:rotate-180" />
+            </span>
+          </button>
+        </section>
+      )}
+
       {/* Catégories */}
       {categories.length > 0 && (
         <section className="max-w-7xl mx-auto px-4 sm:px-6">
@@ -654,6 +713,45 @@ function HomeView({ navigate, language = 'fr', user, cartCount = 0, setSelectedC
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
             {nouveautes.map((product) => (
               <ProductCard key={product.id} product={product} language={language} onOpen={onOpenProduct} onAddToCart={onAddToCart} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Meilleures ventes */}
+      {meilleuresVentes.length > 0 && (
+        <section className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="flex items-end justify-between mb-4">
+            <h3 className="text-xl sm:text-2xl font-extrabold text-slate-900">{tr('Meilleures ventes', 'الأكثر مبيعًا')}</h3>
+            <button onClick={() => navigate('/catalogue')} className="text-sm font-bold text-[#C4532C] hover:text-[#994122]">{tr('Voir tout', 'عرض الكل')}</button>
+          </div>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+            {meilleuresVentes.map((product) => (
+              <ProductCard key={product.id} product={product} language={language} onOpen={onOpenProduct} onAddToCart={onAddToCart} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Acheter par région */}
+      {regions.length > 0 && (
+        <section className="max-w-7xl mx-auto px-4 sm:px-6">
+          <h3 className="mb-4 text-xl sm:text-2xl font-extrabold text-slate-900">{tr('Acheter par région', 'تسوق حسب الجهة')}</h3>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            {regions.map((region) => (
+              <button
+                key={region.id}
+                onClick={() => navigate(`/catalogue?region=${region.id}`)}
+                className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-[#C4532C]"
+              >
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#F8E4DE] text-[#C4532C]"><MapPin size={18} /></span>
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-extrabold text-slate-900">{(isAr && region.nomAr) || region.nom}</span>
+                  <span className="block text-[11px] text-slate-500">
+                    {tr(`${region.produits} produits · ${region.boutiques} boutique${region.boutiques > 1 ? 's' : ''}`, `${region.produits} منتج · ${region.boutiques} متجر`)}
+                  </span>
+                </span>
+              </button>
             ))}
           </div>
         </section>
@@ -757,6 +855,7 @@ function MainShell({
   performAuthSubmit, setAuthError,
 }) {
   const navigate = useNavigate();
+  const theme = useTheme();
   const isAr = language === 'ar';
   const tr = (fr, ar) => (isAr ? ar : fr);
 
@@ -801,6 +900,14 @@ function MainShell({
               className="px-3 py-2 rounded-xl border border-slate-200 hover:bg-[#F8E4DE]"
             >
               FR | العربية
+            </button>
+            <button
+              onClick={theme.toggle}
+              aria-label={theme.dark ? tr('Passer en mode clair', 'الوضع الفاتح') : tr('Passer en mode sombre', 'الوضع الداكن')}
+              title={theme.dark ? tr('Mode clair', 'الوضع الفاتح') : tr('Mode sombre', 'الوضع الداكن')}
+              className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 hover:bg-[#F8E4DE]"
+            >
+              {theme.dark ? <Sun size={16} /> : <Moon size={16} />}
             </button>
 
             {user ? (
@@ -883,6 +990,9 @@ function MainShell({
               <button onClick={() => { navigate('/messages'); setShowMobileMenu(false); }} className="block w-full text-left py-2">{tr('Messagerie', 'المراسلة')}</button>
             )}
             <button onClick={() => { setLanguage(language === 'fr' ? 'ar' : 'fr'); }} className="block w-full text-left py-2">FR | العربية</button>
+            <button onClick={theme.toggle} className="flex w-full items-center gap-2 py-2 text-left">
+              {theme.dark ? <Sun size={16} /> : <Moon size={16} />} {theme.dark ? tr('Mode clair', 'الوضع الفاتح') : tr('Mode sombre', 'الوضع الداكن')}
+            </button>
             <div className="pt-2 border-t border-slate-200 flex gap-2">
               {user ? (
                 <button onClick={() => { handleLogout(); setShowMobileMenu(false); }} className="w-full text-center py-2 text-red-600 bg-red-50 rounded-xl">{tr('Déconnexion', 'تسجيل الخروج')}</button>
@@ -941,6 +1051,7 @@ function MainShell({
           <div className="space-y-3">
             <h4 className="font-bold text-white text-sm">{tr('À propos de BuyHere', 'حول BuyHere')}</h4>
             <p>{tr('La première plateforme e-commerce tunisienne bilingue avec gestion de stock avancée, logistique intégrée et paiement sandbox.', 'أول منصة تجارة إلكترونية تونسية ثنائية اللغة مع إدارة مخزون متقدمة ولوجستيك متكامل ودفع تجريبي.')}</p>
+            <button onClick={() => navigate('/a-propos')} className="block text-left font-bold text-[#E39B82] hover:text-white">{tr('Qui sommes-nous ?', 'من نحن؟')}</button>
           </div>
           <div className="space-y-2">
             <h4 className="font-bold text-white text-sm">{tr('Liens Utiles', 'روابط مفيدة')}</h4>
@@ -950,6 +1061,7 @@ function MainShell({
             <button onClick={() => navigate('/livreur/connexion')} className="block hover:text-white">{tr('Espace Livreur', 'فضاء الموصّل')}</button>
             {user && <button onClick={() => navigate('/messages')} className="block hover:text-white">{tr('Messagerie', 'المراسلة')}</button>}
             <button onClick={() => navigate('/legal/cgu')} className="block text-left hover:text-[#E39B82]">{tr('Conditions générales', 'الشروط العامة')}</button>
+            <button onClick={() => navigate('/legal/cgv')} className="block text-left hover:text-[#E39B82]">{tr('Conditions de vente', 'شروط البيع')}</button>
             <button onClick={() => navigate('/legal/privacy')} className="block text-left hover:text-[#E39B82]">{tr('Confidentialité', 'الخصوصية')}</button>
             <button onClick={() => navigate('/legal/returns')} className="block text-left hover:text-[#E39B82]">{tr('Retours', 'الإرجاع')}</button>
             <button onClick={() => navigate('/legal/shipping')} className="block text-left hover:text-[#E39B82]">{tr('Livraison', 'التوصيل')}</button>
@@ -957,8 +1069,10 @@ function MainShell({
           </div>
           <div className="space-y-2">
             <h4 className="font-bold text-white text-sm">{tr('Contact & Support', 'التواصل والدعم')}</h4>
-            <p>Email: yassingasmi75@gmail.com</p>
-            <p>{tr('Téléphone', 'الهاتف')}: +216 27 991 953</p>
+            <p>Email: {CONTACT.email}</p>
+            <p>{tr('Téléphone', 'الهاتف')}: {CONTACT.phoneDisplay}</p>
+            <button onClick={() => navigate('/contact')} className="block text-left hover:text-white">{tr('Nous écrire', 'راسلنا')}</button>
+            <button onClick={() => navigate('/aide')} className="block text-left hover:text-white">{tr('Questions fréquentes', 'الأسئلة الشائعة')}</button>
           </div>
         </div>
         <div className="border-t border-slate-800 pt-8 text-center text-xs text-slate-500 font-bold">

@@ -24,12 +24,18 @@ function roundMoney(value) {
   return Math.round((Number(value) + Number.EPSILON) * 1000) / 1000;
 }
 
+// Unités vendues d'un produit : quantités commandées, hors commandes annulées
+// ou retournées. Sert au tri « Meilleures ventes ».
+const SALES_SQL = `(SELECT COALESCE(SUM("LigneCommandes"."quantite"), 0) FROM "LigneCommandes"
+  INNER JOIN "Commandes" ON "Commandes"."id" = "LigneCommandes"."commandeId"
+  WHERE "LigneCommandes"."produitId" = "Produit"."id" AND "Commandes"."statut" NOT IN ('annulee', 'retournee'))`;
+
 export async function getProduits(req, res) {
   try {
     const page = Math.max(Number.parseInt(req.query.page, 10) || 1, 1);
     const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 24, 1), 60);
     const offset = (page - 1) * limit;
-    const { search, categoryId, storeId, minPrice, maxPrice, minRating, inStock, promotion, sort = 'newest' } = req.query;
+    const { search, categoryId, storeId, gouvernoratId, minPrice, maxPrice, minRating, inStock, promotion, sort = 'newest' } = req.query;
     const where = { status: 'actif' };
     const andConditions = [];
 
@@ -66,13 +72,17 @@ export async function getProduits(req, res) {
       : sort === 'rating'
       ? [[literal('(SELECT AVG("note") FROM "Avis" WHERE "Avis"."produitId" = "Produit"."id" AND "Avis"."valide" = true)'), 'DESC']]
       : sort === 'best_sellers'
-      ? [['createdAt', 'ASC']]
+      ? [[literal(SALES_SQL), 'DESC'], ['createdAt', 'DESC']]
       : [['createdAt', 'DESC']];
+
+    // Filtre par région : le gouvernorat de la boutique qui vend le produit.
+    const boutiqueWhere = { statut: 'validee' };
+    if (gouvernoratId) boutiqueWhere.gouvernoratId = Number(gouvernoratId);
 
     const result = await Produit.findAndCountAll({
       where,
       include: [
-        { model: Boutique, as: 'boutique', where: { statut: 'validee' }, attributes: ['id', 'nom', 'logo', 'bannière', 'categorie', 'gouvernoratId', 'description'] },
+        { model: Boutique, as: 'boutique', where: boutiqueWhere, attributes: ['id', 'nom', 'logo', 'bannière', 'categorie', 'gouvernoratId', 'description'] },
         { model: Categorie, as: 'categorie', attributes: ['id', 'nom'] },
         { model: Variante, as: 'variantes' },
       ],
@@ -80,6 +90,7 @@ export async function getProduits(req, res) {
         include: [
           [literal('(SELECT AVG("note") FROM "Avis" WHERE "Avis"."produitId" = "Produit"."id" AND "Avis"."valide" = true)'), 'note'],
           [literal('(SELECT COUNT(*) FROM "Avis" WHERE "Avis"."produitId" = "Produit"."id" AND "Avis"."valide" = true)'), 'nombreAvis'],
+          [literal(SALES_SQL), 'ventes'],
         ],
       },
       order,

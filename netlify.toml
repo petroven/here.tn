@@ -1,0 +1,6 @@
+# The site is hosted as a Claude Artifact (see `npm --prefix client run
+# build:static`), not on Netlify. Exiting 0 from the ignore command tells
+# Netlify to skip every build — production, branch and deploy previews —
+# for any Netlify project still linked to this repo.
+[build]
+  ignore = "exit 0"
