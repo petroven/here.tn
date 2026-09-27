@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "build:static": "VITE_HASH_ROUTER=true vite build --base ./ --outDir dist-static",
+    "build:static": "VITE_HASH_ROUTER=true VITE_DEMO_API=true vite build --base ./ --outDir dist-static",
     "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {
