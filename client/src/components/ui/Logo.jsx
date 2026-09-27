@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTheme } from '../../utils/theme.js';
 
 // Identité BuyHere — un seul composant pour tous les usages du logo, plutôt
 // que des <img> vers client/public/brand/*.svg dispersés dans chaque page
@@ -34,6 +35,10 @@ const VARIANTS = {
 };
 
 export default function Logo({ variant = 'horizontal', tone = 'couleur', className = 'h-9 w-auto' }) {
-  const src = VARIANTS[variant]?.[tone] || VARIANTS.horizontal.couleur;
+  // En mode sombre, la version « couleur » (texte charbon) disparaîtrait sur
+  // le fond : on passe à la version inverse, prévue pour les fonds sombres.
+  const { dark } = useTheme();
+  const shownTone = dark && tone === 'couleur' ? 'inverse' : tone;
+  const src = VARIANTS[variant]?.[shownTone] || VARIANTS.horizontal.couleur;
   return <img src={src} alt="BuyHere" className={className} />;
 }

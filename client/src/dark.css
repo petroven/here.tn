@@ -1,0 +1,85 @@
+/* ============================================================
+   Mode sombre — actif quand <html> porte la classe `dark`
+   (voir src/utils/theme.js). Les pages utilisent directement des
+   classes Tailwind claires (bg-white, text-slate-900…) : plutôt que de
+   modifier chaque page, ces classes sont redéfinies ici vers une palette
+   charbon chaude, cohérente avec l'identité (charbon / chaux / terre).
+   ============================================================ */
+html.dark {
+  --mp-bg: #171411;
+  --mp-surface: #221e1a;
+  --mp-soft: #2c2621;
+  --mp-border: #3a332c;
+  --mp-text: #f4ecdf;
+  --mp-muted: #a79c8f;
+  --mp-primary-light: rgba(196, 83, 44, 0.2);
+  --mp-secondary-light: rgba(196, 83, 44, 0.2);
+  --mp-accent-light: rgba(196, 83, 44, 0.2);
+  --mp-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --mp-shadow-lift: 0 6px 20px -6px rgba(0, 0, 0, 0.6);
+  color-scheme: dark;
+}
+
+html.dark body { background: var(--mp-bg); color: var(--mp-text); }
+
+/* Surfaces */
+html.dark .bg-white,
+html.dark .card,
+html.dark .card-premium,
+html.dark .glass,
+html.dark .input-premium,
+html.dark .btn-secondary-premium { background-color: var(--mp-surface); }
+html.dark .bg-white\/90 { background-color: rgba(34, 30, 26, 0.92); }
+html.dark .bg-slate-50,
+html.dark .bg-\[\#F8FAFC\],
+html.dark .bg-\[\#FBF8F3\],
+html.dark .bg-light-neutral { background-color: var(--mp-bg); }
+html.dark .bg-slate-100,
+html.dark .bg-\[\#F4ECDF\],
+html.dark .bg-cream { background-color: var(--mp-soft); }
+html.dark .bg-slate-200 { background-color: var(--mp-border); }
+html.dark .bg-\[\#F8E4DE\],
+html.dark .bg-terre-50,
+html.dark .bg-terre-100 { background-color: rgba(196, 83, 44, 0.2); }
+
+html.dark .hover\:bg-slate-50:hover,
+html.dark .hover\:bg-slate-100:hover,
+html.dark .btn-secondary-premium:hover { background-color: var(--mp-soft); }
+
+/* Texte */
+html.dark .text-slate-900,
+html.dark .text-slate-800,
+html.dark .text-\[\#1E1B18\],
+html.dark .text-ink { color: #f4ecdf; }
+html.dark .text-slate-700,
+html.dark .text-slate-600,
+html.dark .text-\[\#475569\] { color: #d9cfc2; }
+html.dark .text-slate-500,
+html.dark .text-slate-400 { color: #a79c8f; }
+html.dark .text-slate-300 { color: #6f665c; }
+/* La terre de Nabeul, éclaircie pour rester lisible sur fond sombre. */
+html.dark .text-\[\#C4532C\],
+html.dark .text-terre-700 { color: #e3805c; }
+html.dark .text-\[\#994122\],
+html.dark .hover\:text-\[\#994122\]:hover { color: #e39b82; }
+html.dark .hover\:text-slate-800:hover,
+html.dark .hover\:text-slate-900:hover { color: #ffffff; }
+
+/* Bordures */
+html.dark .border-slate-100,
+html.dark .border-slate-200,
+html.dark .border-slate-300,
+html.dark .border-border-neutral,
+html.dark .ring-\[\#E2D9CB\],
+html.dark .card-premium,
+html.dark .card { border-color: var(--mp-border); }
+html.dark .card-premium:hover { border-color: #52483e; }
+
+/* Champs de formulaire sans classe de fond explicite */
+html.dark input:not([type='checkbox']):not([type='radio']):not([type='range']),
+html.dark select,
+html.dark textarea { background-color: var(--mp-surface); color: var(--mp-text); }
+html.dark ::placeholder { color: #7d7368; }
+
+/* Les blocs déjà sombres (pied de page, bandeaux) se détachent du fond. */
+html.dark .bg-\[\#1E1B18\] { background-color: #0f0d0b; }

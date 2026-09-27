@@ -6,6 +6,7 @@ import {
 import ProductCard from '../components/ProductCard';
 import Avatar from '../components/ui/Avatar';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { returnDays } from '../utils/returnPolicy.js';
 
 const SWATCH_COLORS = {
   noir: '#1E1B18', black: '#1E1B18',
@@ -130,14 +131,7 @@ export default function ProductPage({ productId, language = 'fr', onBack, onOpen
   const rating = Number(product?.note || 0);
   const reviews = product?.Avis || [];
   const hasPromo = product?.prixAvant && product.prixAvant > product.prix;
-  // Le vendeur ne peut que resserrer la fenêtre de retour de sa catégorie,
-  // jamais l'élargir — voir server/src/utils/returnPolicy.js (même règle).
-  const delaiRetourJours = useMemo(() => {
-    if (!product) return null;
-    const base = Number.isFinite(product.categorie?.delaiRetourJours) ? product.categorie.delaiRetourJours : 14;
-    const override = product.delaiRetourJoursOverride;
-    return Number.isFinite(override) ? Math.max(0, Math.min(base, override)) : base;
-  }, [product]);
+  const delaiRetourJours = useMemo(() => returnDays(product), [product]);
 
   if (loading) return <div className="min-h-screen animate-pulse bg-slate-50 p-8"><div className="mx-auto h-96 max-w-6xl rounded-lg bg-slate-200" /></div>;
   if (!product) return <div className="p-10 text-center text-slate-600">{tr('Produit introuvable.', 'المنتج غير موجود.')}</div>;

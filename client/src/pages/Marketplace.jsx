@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Search, Star, ShoppingCart, Store, X, AlertCircle, Sparkles,
-  ChevronDown, SlidersHorizontal, LayoutGrid, List, ChevronLeft, ChevronRight,
+  ChevronDown, SlidersHorizontal, LayoutGrid, List, ChevronLeft, ChevronRight, MapPin, GitCompare,
 } from 'lucide-react';
 import { useTranslation } from '../i18n';
 import ProductCard from '../components/ProductCard';
 import Badge from '../components/ui/Badge';
 import Input from '../components/ui/Input';
+import { useCompare, MAX_COMPARE } from '../utils/compare.js';
+import { regionsFromBoutiques } from '../utils/regions.js';
 
 function FilterSection({ title, open, onToggle, children }) {
   return (
@@ -40,8 +43,17 @@ export function Marketplace({ cartItems = [], onUpdateCart, onStartChat, onViewC
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [categories, setCategories] = useState([]);
-  const [priceRange, setPriceRange] = useState([0, 500]);
+  // Liens depuis l'accueil : /catalogue?promo=1, /catalogue?region=<id>.
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const [minPrice, setMinPrice] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
+  const [inStockOnly, setInStockOnly] = useState(false);
+  const [promoOnly, setPromoOnly] = useState(searchParams.get('promo') === '1');
+  const [regionId, setRegionId] = useState(Number(searchParams.get('region')) || null);
   const [selectedStore, setSelectedStore] = useState(null);
+  const compare = useCompare();
+  const [compareNotice, setCompareNotice] = useState(false);
   const [minRating, setMinRating] = useState(0);
   const [sort, setSort] = useState('newest');
   const [currentPage, setCurrentPage] = useState(1);
@@ -49,14 +61,14 @@ export function Marketplace({ cartItems = [], onUpdateCart, onStartChat, onViewC
   const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'list'
   const [showMobileFilters, setShowMobileFilters] = useState(false);
 
-  const [openSections, setOpenSections] = useState({ category: true, price: true, store: false, rating: true });
+  const [openSections, setOpenSections] = useState({ category: true, price: true, availability: true, region: true, store: false, rating: true });
   const toggleSection = (key) => setOpenSections((s) => ({ ...s, [key]: !s[key] }));
 
   const token = localStorage.getItem('token');
 
   useEffect(() => {
     fetchMarketplaceData();
-  }, [currentPage, searchTerm, selectedStore, priceRange[1], sort, selectedCategory]);
+  }, [currentPage, searchTerm, selectedStore, minPrice, maxPrice, inStockOnly, promoOnly, regionId, sort, selectedCategory]);
 
   useEffect(() => {
     if (token && products.length > 0) fetchWishlistStatus();
@@ -64,7 +76,12 @@ export function Marketplace({ cartItems = [], onUpdateCart, onStartChat, onViewC
 
   const fetchMarketplaceData = async () => {
     try {
-      const params = new URLSearchParams({ page: String(currentPage), limit: '24', maxPrice: String(priceRange[1]), sort });
+      const params = new URLSearchParams({ page: String(currentPage), limit: '24', sort });
+      if (Number(minPrice) > 0) params.set('minPrice', String(Number(minPrice)));
+      if (Number(maxPrice) > 0) params.set('maxPrice', String(Number(maxPrice)));
+      if (inStockOnly) params.set('inStock', 'true');
+      if (promoOnly) params.set('promotion', 'true');
+      if (regionId) params.set('gouvernoratId', String(regionId));
       if (searchTerm.trim()) params.set('search', searchTerm.trim());
       if (selectedCategory?.id) params.set('categoryId', String(selectedCategory.id));
       if (selectedStore) params.set('storeId', String(selectedStore.id));
@@ -151,16 +168,31 @@ export function Marketplace({ cartItems = [], onUpdateCart, onStartChat, onViewC
     });
   };
 
-  const filteredProducts = useMemo(() => products.filter((product) => {
-    const matchesPrice = product.prix >= priceRange[0] && product.prix <= priceRange[1];
-    const matchesRating = minRating === 0 || Number(product.note || 0) >= minRating;
-    return matchesPrice && matchesRating;
-  }), [products, priceRange, minRating]);
+  const filteredProducts = useMemo(() => products.filter((product) => (
+    minRating === 0 || Number(product.note || 0) >= minRating
+  )), [products, minRating]);
+
+  const regions = useMemo(() => regionsFromBoutiques(boutiques), [boutiques]);
+  const selectedRegion = regions.find((region) => region.id === regionId);
+  const regionName = (region) => (isAr && region.nomAr) || region.nom;
+
+  const toggleCompare = (productId) => {
+    if (!compare.toggle(productId)) setCompareNotice(true);
+    else setCompareNotice(false);
+  };
+
+  const priceLabel = [
+    Number(minPrice) > 0 && `≥ ${Number(minPrice)}`,
+    Number(maxPrice) > 0 && `≤ ${Number(maxPrice)}`,
+  ].filter(Boolean).join(' · ');
 
   const activeChips = [
     selectedCategory && { key: 'category', label: selectedCategory.nom, clear: () => setSelectedCategory(null) },
     selectedStore && { key: 'store', label: selectedStore.nom, clear: () => setSelectedStore(null) },
-    priceRange[1] < 500 && { key: 'price', label: `≤ ${priceRange[1]} TND`, clear: () => setPriceRange([0, 500]) },
+    selectedRegion && { key: 'region', label: regionName(selectedRegion), clear: () => setRegionId(null) },
+    priceLabel && { key: 'price', label: `${priceLabel} TND`, clear: () => { setMinPrice(''); setMaxPrice(''); } },
+    inStockOnly && { key: 'stock', label: tr('En stock', 'متوفر'), clear: () => setInStockOnly(false) },
+    promoOnly && { key: 'promo', label: tr('En promotion', 'في التخفيض'), clear: () => setPromoOnly(false) },
     minRating > 0 && { key: 'rating', label: `${minRating}+ ★`, clear: () => setMinRating(0) },
   ].filter(Boolean);
 
@@ -191,19 +223,71 @@ export function Marketplace({ cartItems = [], onUpdateCart, onStartChat, onViewC
       </FilterSection>
 
       <FilterSection title={`${tr('Prix', 'السعر')} (TND)`} open={openSections.price} onToggle={() => toggleSection('price')}>
-        <input
-          type="range"
-          min="0"
-          max="500"
-          value={priceRange[1]}
-          onChange={(e) => { setCurrentPage(1); setPriceRange([priceRange[0], parseInt(e.target.value, 10)]); }}
-          className="w-full cursor-pointer accent-[#C4532C]"
-        />
-        <div className="mt-2 flex justify-between text-xs font-bold text-slate-500">
-          <span>0 TND</span>
-          <span className="text-[#C4532C]">{priceRange[1]} TND</span>
+        <div className="flex items-center gap-2">
+          <label className="flex-1">
+            <span className="mb-1 block text-[11px] font-bold text-slate-400">{tr('Min', 'من')}</span>
+            <input
+              id="filter-min-price"
+              type="number"
+              min="0"
+              inputMode="decimal"
+              placeholder="0"
+              value={minPrice}
+              onChange={(e) => { setCurrentPage(1); setMinPrice(e.target.value); }}
+              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-[#C4532C]"
+            />
+          </label>
+          <label className="flex-1">
+            <span className="mb-1 block text-[11px] font-bold text-slate-400">{tr('Max', 'إلى')}</span>
+            <input
+              id="filter-max-price"
+              type="number"
+              min="0"
+              inputMode="decimal"
+              placeholder={tr('Sans limite', 'بدون حد')}
+              value={maxPrice}
+              onChange={(e) => { setCurrentPage(1); setMaxPrice(e.target.value); }}
+              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-[#C4532C]"
+            />
+          </label>
         </div>
       </FilterSection>
+
+      <FilterSection title={tr('Disponibilité', 'التوفر')} open={openSections.availability} onToggle={() => toggleSection('availability')}>
+        <div className="space-y-2">
+          <label className="flex cursor-pointer items-center gap-2.5 text-xs font-semibold text-slate-600">
+            <input id="filter-in-stock" type="checkbox" checked={inStockOnly} onChange={(e) => { setCurrentPage(1); setInStockOnly(e.target.checked); }} className="h-4 w-4 accent-[#C4532C]" />
+            {tr('En stock uniquement', 'المتوفر فقط')}
+          </label>
+          <label className="flex cursor-pointer items-center gap-2.5 text-xs font-semibold text-slate-600">
+            <input id="filter-promo" type="checkbox" checked={promoOnly} onChange={(e) => { setCurrentPage(1); setPromoOnly(e.target.checked); }} className="h-4 w-4 accent-[#C4532C]" />
+            {tr('En promotion', 'في التخفيض')}
+          </label>
+        </div>
+      </FilterSection>
+
+      {regions.length > 0 && (
+        <FilterSection title={tr('Région', 'الجهة')} open={openSections.region} onToggle={() => toggleSection('region')}>
+          <div className="space-y-1">
+            <button
+              onClick={() => { setCurrentPage(1); setRegionId(null); }}
+              className={`flex w-full items-center gap-2 rounded-xl px-3.5 py-2 text-left text-xs font-semibold transition ${!regionId ? 'bg-[#F8E4DE] font-bold text-[#C4532C]' : 'text-slate-600 hover:bg-slate-50'}`}
+            >
+              <MapPin size={14} /> {tr('Toute la Tunisie', 'كل تونس')}
+            </button>
+            {regions.map((region) => (
+              <button
+                key={region.id}
+                onClick={() => { setCurrentPage(1); setRegionId(region.id); }}
+                className={`flex w-full items-center justify-between gap-2 rounded-xl px-3.5 py-2 text-left text-xs font-semibold transition ${regionId === region.id ? 'bg-[#F8E4DE] font-bold text-[#C4532C]' : 'text-slate-600 hover:bg-slate-50'}`}
+              >
+                <span className="flex items-center gap-2"><MapPin size={14} /> {regionName(region)}</span>
+                <span className="text-[11px] text-slate-400">{region.produits}</span>
+              </button>
+            ))}
+          </div>
+        </FilterSection>
+      )}
 
       <FilterSection title={tr('Note minimale', 'التقييم الأدنى')} open={openSections.rating} onToggle={() => toggleSection('rating')}>
         <div className="flex flex-wrap gap-2">
@@ -371,6 +455,8 @@ export function Marketplace({ cartItems = [], onUpdateCart, onStartChat, onViewC
                       language={language}
                       isFavorite={wishlistIds.includes(product.id)}
                       onToggleFavorite={toggleWishlist}
+                      isCompared={compare.has(product.id)}
+                      onToggleCompare={toggleCompare}
                       onOpen={onViewProduct}
                       onAddToCart={(p) => handleAddToCart(p, null)}
                     />
@@ -424,6 +510,31 @@ export function Marketplace({ cartItems = [], onUpdateCart, onStartChat, onViewC
           </div>
         </div>
       </div>
+
+      {/* Barre de comparaison — visible dès qu'un produit est sélectionné */}
+      {compare.ids.length > 0 && (
+        <div className="fixed inset-x-0 bottom-16 z-40 px-4 md:bottom-4">
+          <div className="mx-auto flex max-w-xl flex-wrap items-center justify-between gap-3 rounded-2xl bg-[#1E1B18] px-4 py-3 text-white shadow-lg">
+            <div className="text-xs">
+              <p className="font-bold">
+                <GitCompare size={14} className="mr-1.5 inline rtl:ml-1.5 rtl:mr-0" />
+                {compare.ids.length}/{MAX_COMPARE} {tr('produits à comparer', 'منتجات للمقارنة')}
+              </p>
+              {compareNotice && <p className="mt-0.5 text-[11px] text-[#E39B82]">{tr(`Maximum ${MAX_COMPARE} produits : retirez-en un d'abord.`, `الحد الأقصى ${MAX_COMPARE} منتجات: احذف واحدًا أولًا.`)}</p>}
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => { compare.clear(); setCompareNotice(false); }} className="rounded-xl border border-white/25 px-3 py-2 text-xs font-bold hover:bg-white/10">{tr('Vider', 'مسح')}</button>
+              <button
+                onClick={() => navigate('/comparer')}
+                disabled={compare.ids.length < 2}
+                className="btn-primary-premium px-4 py-2 text-xs disabled:opacity-50"
+              >
+                {compare.ids.length < 2 ? tr('Choisissez-en un autre', 'اختر منتجًا آخر') : tr('Comparer', 'قارن')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Mobile filters drawer */}
       {showMobileFilters && (

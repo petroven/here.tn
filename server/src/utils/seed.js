@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import { Boutique, Categorie, Produit, Utilisateur, Variante, Livreur } from '../models/index.js';
+import { Boutique, Categorie, Produit, Utilisateur, Variante, Livreur, Gouvernorat } from '../models/index.js';
 
 export const demoProducts = [
   {
@@ -209,6 +209,14 @@ export async function seedDemoAccounts() {
       },
     });
     autresBoutiques.push(boutique);
+  }
+
+  // Rattache chaque boutique de démo au gouvernorat de sa ville (adresse),
+  // pour que le filtre « par région » ait des résultats.
+  for (const boutique of [demoBoutique, ...autresBoutiques].filter(Boolean)) {
+    if (boutique.gouvernoratId || !boutique.adresse) continue;
+    const gouvernorat = await Gouvernorat.findOne({ where: { nom: boutique.adresse } });
+    if (gouvernorat) await boutique.update({ gouvernoratId: gouvernorat.id });
   }
 
   await seedDemoProducts(demoBoutique, autresBoutiques[0], autresBoutiques[1]);

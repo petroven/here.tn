@@ -73,6 +73,7 @@ function listProduits(params) {
   const search = params.get('search')?.toLowerCase();
   const categoryId = Number(params.get('categoryId'));
   const storeId = Number(params.get('storeId'));
+  const gouvernoratId = Number(params.get('gouvernoratId'));
   const minPrice = params.get('minPrice');
   const maxPrice = params.get('maxPrice');
   const minRating = params.get('minRating');
@@ -81,6 +82,7 @@ function listProduits(params) {
     if (search && !`${produit.nom} ${produit.description || ''}`.toLowerCase().includes(search)) return false;
     if (categoryId && !(categoryIds.get(categoryId) || [categoryId]).includes(produit.categorieId)) return false;
     if (storeId && produit.boutiqueId !== storeId) return false;
+    if (gouvernoratId && produit.boutique?.gouvernoratId !== gouvernoratId) return false;
     if (minPrice && produit.prix < Number(minPrice)) return false;
     if (maxPrice && produit.prix > Number(maxPrice)) return false;
     if (params.get('inStock') === 'true' && !(produit.stock > 0)) return false;
@@ -95,7 +97,7 @@ function listProduits(params) {
     price_asc: (a, b) => a.prix - b.prix,
     price_desc: (a, b) => b.prix - a.prix,
     rating: (a, b) => average(b) - average(a),
-    best_sellers: (a, b) => -byDate(a, b),
+    best_sellers: (a, b) => (Number(b.ventes) || 0) - (Number(a.ventes) || 0) || byDate(a, b),
     newest: byDate,
   };
   rows = [...rows].sort(comparators[sort] || byDate);
