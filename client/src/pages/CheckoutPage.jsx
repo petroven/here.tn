@@ -363,7 +363,7 @@ export default function CheckoutPage({ cartItems = [], onOrderPlaced, onClearCar
   if (cartItems.length === 0) {
     return (
       <div className="mx-auto flex min-h-[70vh] max-w-lg flex-col items-center justify-center p-6 text-center font-sans">
-        <img src="/logo-alt-basket.png" alt="" className="mb-6 h-28 w-28 object-contain" />
+        <img src={`${import.meta.env.BASE_URL}logo-alt-basket.png`} alt="" className="mb-6 h-28 w-28 object-contain" />
         <h1 className="text-xl font-black text-slate-900">{tr('Votre panier est vide', 'سلتك فارغة')}</h1>
         <p className="mt-2 text-sm text-slate-500">{tr('Ajoutez des produits pour commencer votre commande.', 'أضف منتجات لبدء طلبك.')}</p>
         <button onClick={onBack} className="btn-primary-premium mt-6 px-6 py-3 text-sm">

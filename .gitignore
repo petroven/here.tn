@@ -7,3 +7,4 @@ server/uploads
 .DS_Store
 npm-debug.log*
 .claude
+client/dist-static

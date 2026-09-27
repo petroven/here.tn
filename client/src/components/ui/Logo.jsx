@@ -9,24 +9,27 @@ import React from 'react';
 //  - symbole    : juste le « b. », pour les badges/avatars minuscules.
 // Chaque forme existe en 4 teintes : couleur (charbon + point terre, sur
 // fond clair), blanc/inverse (sur fond sombre), noir (usage mono).
+// BASE_URL keeps the paths valid when the client is built for a sub-path
+// (e.g. the static preview build with base './').
+const BASE = import.meta.env.BASE_URL;
 const VARIANTS = {
   horizontal: {
-    couleur: '/brand/buyhere-horizontal-couleur.svg',
-    blanc: '/brand/buyhere-horizontal-blanc.svg',
-    noir: '/brand/buyhere-horizontal-noir.svg',
-    inverse: '/brand/buyhere-horizontal-inverse.svg',
+    couleur: `${BASE}brand/buyhere-horizontal-couleur.svg`,
+    blanc: `${BASE}brand/buyhere-horizontal-blanc.svg`,
+    noir: `${BASE}brand/buyhere-horizontal-noir.svg`,
+    inverse: `${BASE}brand/buyhere-horizontal-inverse.svg`,
   },
   compact: {
-    couleur: '/brand/buyhere-compact-couleur.svg',
-    blanc: '/brand/buyhere-compact-blanc.svg',
-    noir: '/brand/buyhere-compact-noir.svg',
-    inverse: '/brand/buyhere-compact-inverse.svg',
+    couleur: `${BASE}brand/buyhere-compact-couleur.svg`,
+    blanc: `${BASE}brand/buyhere-compact-blanc.svg`,
+    noir: `${BASE}brand/buyhere-compact-noir.svg`,
+    inverse: `${BASE}brand/buyhere-compact-inverse.svg`,
   },
   symbole: {
-    couleur: '/brand/buyhere-symbole-b-couleur.svg',
-    blanc: '/brand/buyhere-symbole-b-blanc.svg',
-    noir: '/brand/buyhere-symbole-b-noir.svg',
-    inverse: '/brand/buyhere-symbole-b-inverse.svg',
+    couleur: `${BASE}brand/buyhere-symbole-b-couleur.svg`,
+    blanc: `${BASE}brand/buyhere-symbole-b-blanc.svg`,
+    noir: `${BASE}brand/buyhere-symbole-b-noir.svg`,
+    inverse: `${BASE}brand/buyhere-symbole-b-inverse.svg`,
   },
 };
 
