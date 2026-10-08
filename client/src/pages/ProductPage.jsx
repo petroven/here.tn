@@ -6,6 +6,7 @@ import {
 import ProductCard from '../components/ProductCard';
 import Avatar from '../components/ui/Avatar';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { API_URL } from '../config/api.js';
 
 const SWATCH_COLORS = {
   noir: '#1E1B18', black: '#1E1B18',
@@ -53,7 +54,7 @@ export default function ProductPage({ productId, language = 'fr', onBack, onOpen
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/produits/${productId}`)
+    fetch(`${API_URL}/produits/${productId}`)
       .then((response) => response.json())
       .then((data) => {
         if (data.success) {
@@ -71,7 +72,7 @@ export default function ProductPage({ productId, language = 'fr', onBack, onOpen
   }, [productId]);
 
   useEffect(() => {
-    fetch('/api/gouvernorats')
+    fetch(`${API_URL}/gouvernorats`)
       .then((response) => response.json())
       .then((data) => { if (data.success) setGouvernorats(data.data); })
       .catch(() => setGouvernorats([]));
@@ -79,7 +80,7 @@ export default function ProductPage({ productId, language = 'fr', onBack, onOpen
 
   useEffect(() => {
     if (!product?.categorie?.id) return;
-    fetch(`/api/produits?categoryId=${product.categorie.id}&limit=8`)
+    fetch(`${API_URL}/produits?categoryId=${product.categorie.id}&limit=8`)
       .then((response) => response.json())
       .then((data) => { if (data.success) setSimilar(data.data.filter((p) => p.id !== product.id)); })
       .catch(() => setSimilar([]));
@@ -174,7 +175,7 @@ export default function ProductPage({ productId, language = 'fr', onBack, onOpen
                     onClick={() => setImageIndex(index)}
                     className={`h-16 w-16 shrink-0 overflow-hidden rounded-xl border-2 transition-colors ${index === imageIndex ? 'border-[#C4532C]' : 'border-transparent hover:border-slate-200'}`}
                   >
-                    <img src={image} alt="" className="h-full w-full object-cover" />
+                    <img loading="lazy" decoding="async" src={image} alt="" className="h-full w-full object-cover" />
                   </button>
                 ))}
               </div>
@@ -399,7 +400,7 @@ export default function ProductPage({ productId, language = 'fr', onBack, onOpen
                           {minFee === maxFee ? `${minFee.toFixed(3)} TND` : `${minFee.toFixed(3)} - ${maxFee.toFixed(3)} TND`} {tr('selon votre gouvernorat · livraison sous 24-72h', 'حسب ولايتك · التوصيل خلال 24-72 ساعة')}
                         </p>
                       )}
-                      <select
+                      <select aria-label={tr('Gouvernorat de livraison', 'ولاية التوصيل')}
                         value={selectedGouvernoratId}
                         onChange={(e) => setSelectedGouvernoratId(e.target.value)}
                         className="input-premium mt-2 w-full px-2.5 py-2 text-xs font-semibold text-slate-700 outline-none"
@@ -433,7 +434,7 @@ export default function ProductPage({ productId, language = 'fr', onBack, onOpen
         <aside className="space-y-3 rounded-lg border border-slate-200 bg-white p-5 shadow-soft">
           <div className="flex items-center gap-3">
             <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#F8E4DE] text-sm font-black text-[#C4532C]">
-              {product.boutique?.logo ? <img src={product.boutique.logo} alt="" className="h-full w-full object-cover" /> : (product.boutique?.nom || 'B').slice(0, 1)}
+              {product.boutique?.logo ? <img loading="lazy" decoding="async" src={product.boutique.logo} alt="" className="h-full w-full object-cover" /> : (product.boutique?.nom || 'B').slice(0, 1)}
             </span>
             <div className="min-w-0">
               <h3 className="truncate text-sm font-extrabold text-slate-900">{product.boutique?.nom || tr('Boutique locale', 'متجر محلي')}</h3>

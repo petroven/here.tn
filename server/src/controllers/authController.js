@@ -1,6 +1,10 @@
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
-import { Utilisateur, PasswordResetToken, Gouvernorat, Delegation } from '../models/index.js';
+import { Op } from 'sequelize';
+import {
+  Utilisateur, PasswordResetToken, Gouvernorat, Delegation, Commande, Retour, Wishlist, Notification, PushToken, Panier,
+} from '../models/index.js';
+import { marquerCompteSupprime } from '../utils/comptesSupprimes.js';
 import { generateToken } from '../middleware/auth.js';
 import { sendEmail, emailResetPassword } from '../utils/email.js';
 
@@ -165,6 +169,91 @@ export async function changePassword(req, res) {
     await user.update({ password: hash });
 
     return res.json({ success: true, message: 'Mot de passe modifié avec succès.' });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+// Statuts d'une commande encore « vivante » : on ne peut pas effacer le
+// client tant qu'il faut le livrer, l'encaisser ou traiter son retour.
+const COMMANDES_EN_COURS = ['en_attente', 'payee', 'preparation', 'expediee', 'en_cours_livraison', 'retour', 'litige'];
+
+/**
+ * Suppression du compte par son titulaire (exigée par Google Play et l'App
+ * Store). Les commandes et factures sont conservées (obligations
+ * comptables) mais anonymisées : nom, email, téléphone, adresse et photo
+ * sont effacés ; favoris, panier, notifications et appareils aussi. Les
+ * sessions ouvertes sont immédiatement refusées. Comptes vendeur, livreur et
+ * admin : fermeture via le support (boutique, soldes et courses à solder).
+ */
+export async function deleteMe(req, res) {
+  try {
+    const user = await Utilisateur.findByPk(req.user.id);
+    if (!user || user.compteSupprime) return res.status(404).json({ success: false, message: 'Utilisateur introuvable.' });
+
+    if (user.role !== 'client') {
+      return res.status(409).json({
+        success: false,
+        message: 'Les comptes vendeur, livreur et administrateur se ferment via le support (boutique, soldes ou courses à solder).',
+      });
+    }
+
+    // Compte classique : le mot de passe confirme que c'est bien son titulaire.
+    if (!user.provider || user.provider === 'local') {
+      const valid = req.body.password && await bcrypt.compare(req.body.password, user.password);
+      if (!valid) return res.status(401).json({ success: false, message: 'Mot de passe incorrect.' });
+    } else if (req.body.confirmation !== 'SUPPRIMER') {
+      return res.status(400).json({ success: false, message: 'Tapez SUPPRIMER pour confirmer la suppression.' });
+    }
+
+    const enCours = await Commande.count({ where: { clientId: user.id, statut: { [Op.in]: COMMANDES_EN_COURS } } });
+    const retoursOuverts = await Retour.count({ where: { clientId: user.id, statut: { [Op.in]: ['demande', 'approuve', 'litige'] } } });
+    if (enCours > 0 || retoursOuverts > 0) {
+      return res.status(409).json({
+        success: false,
+        message: 'Vous avez des commandes ou des retours en cours : attendez leur fin (ou annulez-les) avant de supprimer votre compte.',
+      });
+    }
+    if (Number(user.soldeWallet || 0) > 0.0005) {
+      return res.status(409).json({
+        success: false,
+        message: `Il reste ${Number(user.soldeWallet).toFixed(3)} DT sur votre solde : utilisez-le avant de supprimer votre compte, ou contactez le support.`,
+      });
+    }
+
+    const transaction = await Utilisateur.sequelize.transaction();
+    try {
+      const where = { utilisateurId: user.id };
+      await Promise.all([
+        Wishlist.destroy({ where, transaction }),
+        Notification.destroy({ where, transaction }),
+        PushToken.destroy({ where, transaction }),
+        Panier.destroy({ where, transaction }),
+        PasswordResetToken.destroy({ where, transaction }).catch(() => undefined),
+      ]);
+      await user.update({
+        nom: 'supprimé',
+        prenom: 'Compte',
+        email: `supprime-${user.id}-${Date.now()}@comptes-supprimes.invalid`,
+        telephone: null,
+        adresse: null,
+        photo: null,
+        gouvernoratId: null,
+        delegationId: null,
+        provider: 'local',
+        providerId: null,
+        // Hash d'un secret aléatoire jamais conservé : plus aucune connexion possible.
+        password: await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10),
+        compteSupprime: true,
+      }, { transaction });
+      await transaction.commit();
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+
+    marquerCompteSupprime(user.id);
+    return res.json({ success: true, message: 'Votre compte a été supprimé.' });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }

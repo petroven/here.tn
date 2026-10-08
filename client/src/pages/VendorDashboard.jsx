@@ -13,13 +13,22 @@ import {
   RefreshCw,
   X,
   FileSpreadsheet,
+  ImagePlus,
 } from 'lucide-react';
 import { useTranslation } from '../i18n';
 import { API_URL } from '../config/api.js';
 import ProductImportModal from '../components/vendor/ProductImportModal.jsx';
+import QuickAddModal from '../components/vendor/QuickAddModal.jsx';
 import ChatWidget from '../components/ChatWidget.jsx';
-import ToastHost from '../components/ui/Toast.jsx';
+import ToastHost, { toast } from '../components/ui/Toast.jsx';
 import Logo from '../components/ui/Logo.jsx';
+import VendorStatsPanel from '../components/vendor/VendorStatsPanel.jsx';
+import NotificationBell from '../components/NotificationBell.jsx';
+import { STATUT_LABELS, STATUT_TONES } from '../utils/orderStatus.js';
+
+// Seuil d'alerte (inclus) — même valeur par défaut que LOW_STOCK_THRESHOLD
+// côté serveur ; remplacé par celui renvoyé par l'API dès le chargement.
+const SEUIL_STOCK_FAIBLE_DEFAUT = 5;
 
 export function VendorDashboard({ language = 'fr', setLanguage = () => {} }) {
   const { t } = useTranslation(language);
@@ -34,9 +43,13 @@ export function VendorDashboard({ language = 'fr', setLanguage = () => {} }) {
   const [showProductForm, setShowProductForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null); // product object when editing
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [showWithdrawalForm, setShowWithdrawalForm] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
+  // Filtre de l'onglet produits : 'tous' | 'faible' | 'rupture'
+  const [filtreStock, setFiltreStock] = useState('tous');
+  const [seuilStockFaible, setSeuilStockFaible] = useState(SEUIL_STOCK_FAIBLE_DEFAUT);
 
   // Product Form State
   const [productForm, setProductForm] = useState({
@@ -122,6 +135,7 @@ export function VendorDashboard({ language = 'fr', setLanguage = () => {} }) {
       const data = await response.json();
       if (data.success) {
         setProducts(data.data);
+        if (Number.isInteger(data.lowStockThreshold)) setSeuilStockFaible(data.lowStockThreshold);
       }
     } catch (error) {
       console.error('Error fetching products:', error);
@@ -306,6 +320,7 @@ export function VendorDashboard({ language = 'fr', setLanguage = () => {} }) {
       }
     } catch (error) {
       console.error('Error saving product:', error);
+      setProductFormError('Connexion impossible. Vérifiez votre réseau et réessayez.');
     }
   };
 
@@ -338,9 +353,14 @@ export function VendorDashboard({ language = 'fr', setLanguage = () => {} }) {
 
       if (response.ok) {
         setProducts(products.filter(p => p.id !== productId));
+        toast.success('Produit supprimé.');
+      } else {
+        const data = await response.json().catch(() => ({}));
+        toast.error(data.message || 'Suppression impossible.');
       }
     } catch (error) {
       console.error('Error deleting product:', error);
+      toast.error('Connexion impossible. Réessayez.');
     }
   };
 
@@ -400,7 +420,7 @@ export function VendorDashboard({ language = 'fr', setLanguage = () => {} }) {
       });
       const data = await response.json();
       if (data.success) {
-        alert(tr(`Statut de livraison mis à jour : ${newStatut}`, `تم تحديث حالة التوصيل: ${newStatut}`));
+        alert(tr('Statut de livraison mis à jour.', 'تم تحديث حالة التوصيل.'));
         fetchVendorData(vendorId);
       } else {
         alert(data.message);
@@ -473,9 +493,14 @@ export function VendorDashboard({ language = 'fr', setLanguage = () => {} }) {
         setWithdrawalData({ montant: '', iban: '' });
         setShowWithdrawalForm(false);
         fetchVendorData(vendorId);
+        toast.success('Demande de retrait envoyée.');
+      } else {
+        // Minimum non atteint, solde insuffisant, IBAN invalide… : le serveur explique.
+        toast.error(data.message || 'Demande de retrait refusée.');
       }
     } catch (error) {
       console.error('Error requesting withdrawal:', error);
+      toast.error('Connexion impossible. Réessayez.');
     }
   };
 
@@ -516,17 +541,38 @@ export function VendorDashboard({ language = 'fr', setLanguage = () => {} }) {
               <p className="text-slate-300 text-sm mt-1">{vendorData.boutique.nom} — {vendorData.boutique.adresse || tr('Tunisie', 'تونس')}</p>
             )}
           </div>
-          <button
-            onClick={() => setLanguage(language === 'fr' ? 'ar' : 'fr')}
-            className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-xl font-bold text-xs transition"
-          >
-            {language === 'fr' ? 'عربي' : 'Français'}
-          </button>
+          <div className="flex items-center gap-2">
+            <NotificationBell
+              language={language}
+              tone="sombre"
+              onOuvrirLien={(lien) => {
+                // Liens d'app des notifications vendeur → onglet correspondant.
+                if (lien.startsWith('vendeur/produits')) { setFiltreStock('faible'); setActiveTab('products'); }
+                else if (lien.startsWith('vendeur/retours')) setActiveTab('returns');
+                else if (lien.startsWith('vendeur/retraits')) setActiveTab('withdrawals');
+                else if (lien.startsWith('vendeur/kyc')) setActiveTab('kyc');
+                else if (lien.startsWith('messages')) setActiveTab('messages');
+                else setActiveTab('overview');
+              }}
+            />
+            <button
+              onClick={() => setLanguage(language === 'fr' ? 'ar' : 'fr')}
+              className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-xl font-bold text-xs transition"
+            >
+              {language === 'fr' ? 'عربي' : 'Français'}
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto p-6">
+        <VendorStatsPanel
+          vendorId={vendorId}
+          token={token}
+          language={language}
+          onVoirStockFaible={() => { setFiltreStock('faible'); setActiveTab('products'); }}
+        />
 
         {/* Finances — chaque chiffre découle du même calcul serveur (voir
             server/src/utils/finance.js), donc Ventes brutes − Commission =
@@ -628,8 +674,8 @@ export function VendorDashboard({ language = 'fr', setLanguage = () => {} }) {
                           <p className="mt-0.5 text-[10px] font-semibold text-emerald-600">{tr('Net', 'صافي')} : {Number(order.montantVendeur ?? 0).toFixed(3)} TND</p>
                         </td>
                         <td className="py-4 px-4">
-                          <span className="bg-slate-100 text-slate-700 px-2.5 py-1 rounded-full uppercase text-[10px]">
-                            {order.statut}
+                          <span className={`px-2.5 py-1 rounded-full uppercase text-[10px] font-bold ${STATUT_TONES[order.statut] || 'bg-slate-100 text-slate-700'}`}>
+                            {STATUT_LABELS[order.statut] ? tr(STATUT_LABELS[order.statut].fr, STATUT_LABELS[order.statut].ar) : order.statut}
                           </span>
                           {order.confirmationStatut === 'en_attente' && (
                             <p className="mt-1 text-[10px] font-bold text-amber-600 uppercase">{tr('Attente confirmation client', 'بانتظار تأكيد العميل')}</p>
@@ -666,21 +712,33 @@ export function VendorDashboard({ language = 'fr', setLanguage = () => {} }) {
                             )}
 
                             {/* Delivery Status Update controls */}
-                            {order.livraison && order.livraison.statut !== 'livre' && order.livraison.statut !== 'retourne' && (
-                              <select
-                                onChange={(e) => handleUpdateShipping(order.id, e.target.value)}
-                                defaultValue=""
-                                className="border border-slate-200 bg-white px-2 py-1.5 rounded-xl font-bold text-slate-600"
-                              >
-                                <option value="" disabled>{tr('Changer statut livraison', 'تغيير حالة التوصيل')}</option>
-                                <option value="expedie" disabled={order.confirmationStatut === 'en_attente'}>
-                                  {order.confirmationStatut === 'en_attente' ? tr('Expédié (confirmation client requise)', 'تم الشحن (يتطلب تأكيد العميل)') : t('shipped')}
-                                </option>
-                                <option value="en_cours_livraison">{tr('En cours', 'قيد التنفيذ')}</option>
-                                <option value="livre">{tr('Livré (Payé COD)', 'تم التسليم (دفع عند الاستلام)')}</option>
-                                <option value="retourne">{tr('Retourné', 'مرتجع')}</option>
-                              </select>
-                            )}
+                            {/* Seules les étapes suivantes sont proposées — la machine
+                                d'états serveur refuse de toute façon un retour en arrière. */}
+                            {order.livraison && ['en_attente', 'payee', 'preparation', 'expediee', 'en_cours_livraison'].includes(order.statut) && (() => {
+                              const rang = ['en_attente', 'payee', 'preparation', 'expediee', 'en_cours_livraison'].indexOf(order.statut);
+                              const enAttenteConfirmation = order.confirmationStatut === 'en_attente';
+                              const nonPayee = order.statut === 'en_attente' && order.paiement && order.paiement.methode !== 'cod' && order.paiement.statut !== 'valide';
+                              return (
+                                <select aria-label="Étape de livraison"
+                                  key={order.statut}
+                                  onChange={(e) => handleUpdateShipping(order.id, e.target.value)}
+                                  defaultValue=""
+                                  disabled={nonPayee}
+                                  title={nonPayee ? tr('En attente du paiement', 'بانتظار الدفع') : undefined}
+                                  className="border border-slate-200 bg-white px-2 py-1.5 rounded-xl font-bold text-slate-600 disabled:opacity-50"
+                                >
+                                  <option value="" disabled>{nonPayee ? tr('En attente du paiement', 'بانتظار الدفع') : tr('Faire avancer', 'تقديم الحالة')}</option>
+                                  {rang < 2 && <option value="en_preparation">{tr('En préparation', 'قيد التحضير')}</option>}
+                                  {rang < 3 && (
+                                    <option value="expedie" disabled={enAttenteConfirmation}>
+                                      {enAttenteConfirmation ? tr('Expédié (confirmation client requise)', 'تم الشحن (يتطلب تأكيد العميل)') : t('shipped')}
+                                    </option>
+                                  )}
+                                  {rang < 4 && <option value="en_cours_livraison">{tr('En cours de livraison', 'في الطريق')}</option>}
+                                  <option value="livre">{order.paiement?.methode === 'cod' ? tr('Livré (payé à la livraison)', 'تم التسليم (دفع عند الاستلام)') : tr('Livré', 'تم التسليم')}</option>
+                                </select>
+                              );
+                            })()}
 
                             {order.statut === 'livree' && (
                               <button
@@ -708,9 +766,36 @@ export function VendorDashboard({ language = 'fr', setLanguage = () => {} }) {
             <div className="flex justify-between items-center mb-6">
               <div>
                 <h2 className="text-xl font-black text-slate-800">{tr('Mes produits à la vente', 'منتجاتي المعروضة للبيع')}</h2>
-                <p className="mt-1 text-xs font-semibold text-slate-500">{products.filter((product) => product.stock <= 5).length} {tr('produit(s) en stock faible', 'منتج (منتجات) بمخزون منخفض')}</p>
+                <p className="mt-1 text-xs font-semibold text-slate-500">
+                  {products.filter((product) => product.stock <= seuilStockFaible).length} {tr('produit(s) en stock faible', 'منتج (منتجات) بمخزون منخفض')}
+                  {' · '}{products.filter((product) => product.stock === 0).length} {tr('en rupture', 'نفد مخزونها')}
+                </p>
+                <div className="mt-3 flex rounded-xl border border-slate-200 bg-white p-0.5 text-[11px] font-bold w-fit" role="group" aria-label={tr('Filtrer par stock', 'تصفية حسب المخزون')}>
+                  {[
+                    ['tous', tr('Tous', 'الكل')],
+                    ['faible', tr(`Stock faible (≤ ${seuilStockFaible})`, `مخزون منخفض (≤ ${seuilStockFaible})`)],
+                    ['rupture', tr('Rupture', 'نفاد')],
+                  ].map(([valeur, libelle]) => (
+                    <button
+                      key={valeur}
+                      type="button"
+                      onClick={() => setFiltreStock(valeur)}
+                      aria-pressed={filtreStock === valeur}
+                      className={`rounded-lg px-3 py-1 transition ${filtreStock === valeur ? 'bg-[#1E1B18] text-white' : 'text-slate-500 hover:text-slate-800'}`}
+                    >
+                      {libelle}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => setShowQuickAdd(true)}
+                  className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-5 py-3 rounded-2xl flex items-center gap-2 font-bold text-xs shadow-soft transition"
+                >
+                  <ImagePlus size={16} />
+                  {tr('Ajout rapide (photos)', 'إضافة سريعة (صور)')}
+                </button>
                 <button
                   onClick={() => setShowImportModal(true)}
                   className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-5 py-3 rounded-2xl flex items-center gap-2 font-bold text-xs shadow-soft transition"
@@ -733,6 +818,17 @@ export function VendorDashboard({ language = 'fr', setLanguage = () => {} }) {
                 </button>
               </div>
             </div>
+
+            {showQuickAdd && (
+              <QuickAddModal
+                vendorId={vendorId}
+                token={token}
+                categories={categories}
+                language={language}
+                onClose={() => setShowQuickAdd(false)}
+                onCreated={() => fetchProducts(vendorId)}
+              />
+            )}
 
             {showImportModal && (
               <ProductImportModal
@@ -764,7 +860,7 @@ export function VendorDashboard({ language = 'fr', setLanguage = () => {} }) {
                   )}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <input
+                    <input aria-label={tr('Nom du produit', 'اسم المنتج')}
                       type="text"
                       placeholder={tr('Nom du produit', 'اسم المنتج')}
                       value={productForm.nom}
@@ -772,7 +868,7 @@ export function VendorDashboard({ language = 'fr', setLanguage = () => {} }) {
                       className="border border-slate-200 rounded-xl p-3 text-sm bg-slate-50/50 outline-none focus:ring-2 focus:ring-terre-700 focus:border-transparent transition"
                       required
                     />
-                    <input
+                    <input aria-label={tr('Prix de base (TND)', 'السعر الأساسي (د.ت)')}
                       type="number"
                       placeholder={tr('Prix de base (TND)', 'السعر الأساسي (د.ت)')}
                       value={productForm.prix}
@@ -785,7 +881,7 @@ export function VendorDashboard({ language = 'fr', setLanguage = () => {} }) {
 
                   {editingProduct && (
                     <div>
-                      <input
+                      <input aria-label={tr('Prix barré / avant promo (TND, optionnel)', 'السعر قبل التخفيض (د.ت، اختياري)')}
                         type="number"
                         placeholder={tr('Prix barré / avant promo (TND, optionnel)', 'السعر قبل التخفيض (د.ت، اختياري)')}
                         value={productForm.prixAvant}
@@ -802,7 +898,7 @@ export function VendorDashboard({ language = 'fr', setLanguage = () => {} }) {
                     </div>
                   )}
 
-                  <textarea
+                  <textarea aria-label={tr('Description du produit', 'وصف المنتج')}
                     placeholder={tr('Description du produit', 'وصف المنتج')}
                     value={productForm.description}
                     onChange={(e) => setProductForm({ ...productForm, description: e.target.value })}
@@ -813,7 +909,7 @@ export function VendorDashboard({ language = 'fr', setLanguage = () => {} }) {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
                     {/* Category — univers + sous-catégories réels (voir fetchCategories) */}
-                    <select
+                    <select aria-label="Catégorie"
                       value={productForm.categorieId}
                       onChange={(e) => setProductForm({ ...productForm, categorieId: e.target.value })}
                       className="border border-slate-200 rounded-xl p-3 text-sm bg-slate-50/50 focus:ring-2 focus:ring-terre-700"
@@ -830,7 +926,7 @@ export function VendorDashboard({ language = 'fr', setLanguage = () => {} }) {
                     </select>
 
                     <div>
-                      <input
+                      <input aria-label={tr('Délai de retour (jours) — laisser vide = défaut catégorie', 'مهلة الإرجاع (أيام) — اتركه فارغًا لاستخدام الافتراضي')}
                         type="number"
                         min="0"
                         placeholder={tr('Délai de retour (jours) — laisser vide = défaut catégorie', 'مهلة الإرجاع (أيام) — اتركه فارغًا لاستخدام الافتراضي')}
@@ -860,7 +956,7 @@ export function VendorDashboard({ language = 'fr', setLanguage = () => {} }) {
                       </label>
                       {productForm.image && (
                         <span className="w-12 h-12 rounded-lg overflow-hidden border bg-slate-100 flex-shrink-0">
-                          <img src={productForm.image} alt="Preview" className="w-full h-full object-cover" />
+                          <img loading="lazy" decoding="async" src={productForm.image} alt="Preview" className="w-full h-full object-cover" />
                         </span>
                       )}
                     </div>
@@ -868,7 +964,7 @@ export function VendorDashboard({ language = 'fr', setLanguage = () => {} }) {
                     <div className="flex flex-wrap gap-2">
                       {productForm.images.map((url, i) => (
                         <span key={i} className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
-                          <img src={url} alt="" className="h-full w-full object-cover" />
+                          <img loading="lazy" decoding="async" src={url} alt="" className="h-full w-full object-cover" />
                           <button
                             type="button"
                             onClick={() => removeAdditionalImage(i)}
@@ -895,7 +991,7 @@ export function VendorDashboard({ language = 'fr', setLanguage = () => {} }) {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
                         <div className="space-y-1">
                           <label className="text-xs text-slate-400 font-semibold">{tr('Stock physique global', 'المخزون الإجمالي')}</label>
-                          <input
+                          <input aria-label={tr('Ex: 50', 'مثال: 50')}
                             type="number"
                             placeholder={tr('Ex: 50', 'مثال: 50')}
                             value={productForm.stock}
@@ -935,35 +1031,35 @@ export function VendorDashboard({ language = 'fr', setLanguage = () => {} }) {
                     <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 mt-4 space-y-3">
                       <p className="text-xs font-bold text-slate-600">{tr('Ajouter une déclinaison de produit', 'إضافة خيار للمنتج')}</p>
                       <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
-                        <input
+                        <input aria-label={tr('Taille (Ex: M)', 'المقاس (مثال: M)')}
                           type="text"
                           placeholder={tr('Taille (Ex: M)', 'المقاس (مثال: M)')}
                           value={newVariant.taille}
                           onChange={(e) => setNewVariant({ ...newVariant, taille: e.target.value })}
                           className="border p-2 rounded-xl text-xs outline-none bg-white"
                         />
-                        <input
+                        <input aria-label={tr('Couleur (Ex: Noir)', 'اللون (مثال: أسود)')}
                           type="text"
                           placeholder={tr('Couleur (Ex: Noir)', 'اللون (مثال: أسود)')}
                           value={newVariant.couleur}
                           onChange={(e) => setNewVariant({ ...newVariant, couleur: e.target.value })}
                           className="border p-2 rounded-xl text-xs outline-none bg-white"
                         />
-                        <input
+                        <input aria-label={tr('Pointure (Ex: 42)', 'القياس (مثال: 42)')}
                           type="text"
                           placeholder={tr('Pointure (Ex: 42)', 'القياس (مثال: 42)')}
                           value={newVariant.pointure}
                           onChange={(e) => setNewVariant({ ...newVariant, pointure: e.target.value })}
                           className="border p-2 rounded-xl text-xs outline-none bg-white"
                         />
-                        <input
+                        <input aria-label={tr('Stock', 'المخزون')}
                           type="number"
                           placeholder={tr('Stock', 'المخزون')}
                           value={newVariant.stock}
                           onChange={(e) => setNewVariant({ ...newVariant, stock: e.target.value })}
                           className="border p-2 rounded-xl text-xs outline-none bg-white"
                         />
-                        <input
+                        <input aria-label={tr('+ TND (Optionnel)', '+ د.ت (اختياري)')}
                           type="number"
                           placeholder={tr('+ TND (Optionnel)', '+ د.ت (اختياري)')}
                           value={newVariant.prixSupplement}
@@ -1006,10 +1102,13 @@ export function VendorDashboard({ language = 'fr', setLanguage = () => {} }) {
 
             {/* Products grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {products.map((product) => (
-                <div key={product.id} className="bg-white rounded-lg border border-slate-200 shadow-soft overflow-hidden hover:-translate-y-1 transition duration-200">
+              {products
+                .filter((product) => (filtreStock === 'faible' ? product.stock <= seuilStockFaible : filtreStock === 'rupture' ? product.stock === 0 : true))
+                .sort((a, b) => (filtreStock === 'tous' ? 0 : a.stock - b.stock))
+                .map((product) => (
+                <div key={product.id} className={`bg-white rounded-lg border shadow-soft overflow-hidden hover:-translate-y-1 transition duration-200 ${product.stock === 0 ? 'border-rose-200' : product.stock <= seuilStockFaible ? 'border-amber-200' : 'border-slate-200'}`}>
                   {product.image && (
-                    <img src={product.image} alt={product.nom} className="w-full h-40 object-cover" />
+                    <img loading="lazy" decoding="async" src={product.image} alt={product.nom} className="w-full h-40 object-cover" />
                   )}
                   <div className="p-5">
                     <h3 className="font-bold text-slate-800 text-sm">{product.nom}</h3>
@@ -1036,7 +1135,9 @@ export function VendorDashboard({ language = 'fr', setLanguage = () => {} }) {
                     <div className="mb-4 rounded-2xl border border-slate-100 bg-slate-50 p-3">
                       <div className="mb-2 flex items-center justify-between text-xs font-bold text-slate-600">
                         <span>{tr('Gestion rapide du stock', 'إدارة سريعة للمخزون')}</span>
-                        <span className={product.stock <= 5 ? 'text-red-600' : 'text-emerald-700'}>{product.stock <= 5 ? tr('Stock faible', 'مخزون منخفض') : t('inStock')}</span>
+                        <span className={product.stock === 0 ? 'text-rose-700' : product.stock <= seuilStockFaible ? 'text-amber-700' : 'text-emerald-700'}>
+                          {product.stock === 0 ? tr('Rupture de stock', 'نفاد المخزون') : product.stock <= seuilStockFaible ? tr('Stock faible', 'مخزون منخفض') : t('inStock')}
+                        </span>
                       </div>
                       <div className="flex gap-2">
                         <button onClick={() => handleStockAdjustment(product, 10)} className="flex-1 rounded-xl bg-emerald-50 px-2 py-2 text-[11px] font-bold text-emerald-700 hover:bg-emerald-100">+10</button>
@@ -1154,7 +1255,7 @@ export function VendorDashboard({ language = 'fr', setLanguage = () => {} }) {
                 <p className="mb-4 rounded-xl bg-[#F8E4DE] px-3 py-2 text-xs font-semibold text-[#994122]">{tr('Seuil minimum de retrait : 50.000 TND', 'الحد الأدنى للسحب: 50.000 د.ت')}</p>
                 <form onSubmit={handleWithdrawal} className="space-y-4">
                   <div className="space-y-3">
-                    <input
+                    <input aria-label={t('withdrawalAmount')}
                       type="number"
                       placeholder={t('withdrawalAmount')}
                       value={withdrawalData.montant}
@@ -1166,7 +1267,7 @@ export function VendorDashboard({ language = 'fr', setLanguage = () => {} }) {
                       min="50"
                       title={tr('Le retrait minimum est de 50 TND', 'الحد الأدنى للسحب هو 50 د.ت')}
                     />
-                    <input
+                    <input aria-label={tr('IBAN tunisien (RIB)', 'IBAN تونسي (RIB)')}
                       type="text"
                       placeholder={tr('IBAN tunisien (RIB)', 'IBAN تونسي (RIB)')}
                       value={withdrawalData.iban}
@@ -1254,7 +1355,7 @@ export function VendorDashboard({ language = 'fr', setLanguage = () => {} }) {
                 <p className="text-sm font-bold text-emerald-700">{tr('✓ Votre identité est vérifiée. Le badge "boutique vérifiée" est actif sur votre page.', '✓ تم التحقق من هويتكم. شارة "متجر موثّق" مفعّلة على صفحتكم.')}</p>
               ) : (
                 <form onSubmit={handleKycSubmit} className="space-y-3">
-                  <input
+                  <input aria-label={tr('Numéro de CIN', 'رقم بطاقة التعريف')}
                     type="text"
                     placeholder={tr('Numéro de CIN', 'رقم بطاقة التعريف')}
                     value={kycForm.kycCin}
@@ -1268,7 +1369,7 @@ export function VendorDashboard({ language = 'fr', setLanguage = () => {} }) {
                     <input type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => setKycForm({ ...kycForm, documentCin: e.target.files[0] })} />
                   </label>
 
-                  <input
+                  <input aria-label={tr('Numéro de RIB', 'رقم RIB')}
                     type="text"
                     placeholder={tr('Numéro de RIB', 'رقم RIB')}
                     value={kycForm.kycRib}

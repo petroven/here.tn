@@ -1,9 +1,9 @@
 import { useEffect } from 'react';
-import { Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
-import { Check } from 'lucide-react-native';
+import { Check, Landmark } from 'lucide-react-native';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { useOrder } from '@/hooks/queries';
@@ -16,24 +16,32 @@ export function OrderConfirmationScreen({ route, navigation }: RootScreenProps<'
   const { t } = useTranslation();
   const lang = useSettingsStore((s) => s.language);
   const { data: order } = useOrder(route.params.orderId);
+  const bank = route.params.bankTransfer;
   const scale = useSharedValue(0);
 
   useEffect(() => {
     scale.value = withSpring(1, { damping: 9, stiffness: 120 });
   }, [scale]);
 
-  const badge = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  const badge = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
 
   return (
     <SafeAreaView className="flex-1 bg-white dark:bg-surface-dark">
-      <View className="flex-1 items-center justify-center px-8">
-        <Animated.View style={badge} className="mb-8 h-28 w-28 items-center justify-center rounded-full bg-primary-50 dark:bg-primary-900/30">
+      <ScrollView contentContainerClassName="flex-grow items-center justify-center px-8 py-6">
+        <Animated.View
+          style={badge}
+          className="mb-8 h-28 w-28 items-center justify-center rounded-full bg-primary-50 dark:bg-primary-900/30"
+        >
           <View className="h-20 w-20 items-center justify-center rounded-full bg-primary">
             <Check size={44} color="#fff" strokeWidth={3} />
           </View>
         </Animated.View>
 
-        <Text className="text-center text-2xl font-extrabold text-ink dark:text-gray-100">{t('confirmation.title')}</Text>
+        <Text className="text-center text-2xl font-extrabold text-ink dark:text-gray-100">
+          {t('confirmation.title')}
+        </Text>
         {order ? (
           <>
             <Text className="mt-3 text-center text-base leading-6 text-ink-muted dark:text-gray-400">
@@ -43,14 +51,42 @@ export function OrderConfirmationScreen({ route, navigation }: RootScreenProps<'
               {order.paymentStatus === 'PAID'
                 ? t('confirmation.paidText')
                 : order.paymentMethod === 'CASH_ON_DELIVERY'
-                  ? t('confirmation.codText', { amount: formatPrice(order.total, lang) })
+                  ? t('confirmation.codText', {
+                      amount: formatPrice(order.total, lang),
+                    })
                   : t('checkout.paymentPending')}
             </Text>
           </>
         ) : (
           <Skeleton className="mt-4 h-12 w-64" />
         )}
-      </View>
+
+        {bank ? (
+          <View className="mt-6 w-full rounded-2xl border border-primary-100 bg-primary-50 p-4 dark:border-primary-900 dark:bg-primary-900/20">
+            <View className="mb-2 flex-row items-center gap-2">
+              <Landmark size={18} color="#C4532C" />
+              <Text className="font-bold text-ink dark:text-gray-100">{t('confirmation.bankTitle')}</Text>
+            </View>
+            {[
+              [t('confirmation.bankHolder'), bank.holder],
+              [t('confirmation.bankName'), bank.bank],
+              [t('confirmation.bankRib'), bank.rib],
+              [t('confirmation.bankAmount'), formatPrice(bank.amount, lang)],
+              [t('confirmation.bankReference'), bank.reference],
+            ].map(([label, value]) => (
+              <View key={label} className="flex-row justify-between gap-3 py-1">
+                <Text className="text-sm text-ink-muted dark:text-gray-400">{label}</Text>
+                <Text className="flex-1 text-right text-sm font-semibold text-ink dark:text-gray-100" selectable>
+                  {value}
+                </Text>
+              </View>
+            ))}
+            <Text className="mt-2 text-xs leading-5 text-ink-muted dark:text-gray-400">
+              {t('confirmation.bankNote')}
+            </Text>
+          </View>
+        ) : null}
+      </ScrollView>
 
       <View className="gap-3 px-6 pb-6">
         <Button
@@ -62,7 +98,12 @@ export function OrderConfirmationScreen({ route, navigation }: RootScreenProps<'
           title={t('confirmation.continue')}
           variant="outline"
           size="lg"
-          onPress={() => navigation.reset({ index: 0, routes: [{ name: 'Main', params: { screen: 'Home' } }] })}
+          onPress={() =>
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'Main', params: { screen: 'Home' } }],
+            })
+          }
         />
       </View>
     </SafeAreaView>

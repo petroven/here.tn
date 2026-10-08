@@ -3,7 +3,7 @@ import multer from 'multer';
 import path from 'path';
 import { randomUUID } from 'crypto';
 import { Op } from 'sequelize';
-import { Boutique, Commande, Commission, Retrait, LigneCommande, Produit, Variante, Utilisateur, MouvementStock, Categorie } from '../models/index.js';
+import { Boutique, Commande, Commission, Retrait, LigneCommande, Produit, Variante, Utilisateur, MouvementStock, Categorie, Livraison, Paiement } from '../models/index.js';
 import { authMiddleware, requireRole } from '../middleware/auth.js';
 import { validerPrixAvant, enregistrerChangementPrix } from '../utils/promoGuard.js';
 import { emailBienvenueVendeur } from '../utils/email.js';
@@ -18,6 +18,10 @@ import {
   buildImportPreview,
 } from '../utils/productImport.js';
 import { createImport, getImport, discardImport } from '../utils/importStore.js';
+import { onceByKey } from '../utils/idempotency.js';
+import { calculerStatsVendeur } from '../utils/vendorStats.js';
+import { whereStockFaible } from '../utils/stock.js';
+import { marketplaceConfig } from '../config/marketplace.js';
 
 const router = express.Router();
 const uploadKyc = multer({ dest: 'uploads/temp/' });
@@ -45,12 +49,19 @@ router.get('/vendor/dashboard/:vendeurId', authMiddleware, boutiqueAdminMiddlewa
     }
 
     // Get vendor's orders
+    // Client, livraison et paiement sont nécessaires au tableau « Suivi des
+    // commandes » (nom/téléphone du client, AWB, sélecteur de statut de
+    // livraison) — sans eux le vendeur ne pouvait pas expédier depuis le site.
     const commandes = await Commande.findAll({
       where: { boutiqueId: boutique.id },
       include: [
         { model: LigneCommande, as: 'lignes', include: [{ model: Produit, as: 'produit' }] },
         { model: Commission },
+        { model: Utilisateur, as: 'client', attributes: ['id', 'nom', 'prenom', 'telephone'] },
+        { model: Livraison, as: 'livraison' },
+        { model: Paiement, as: 'paiement', attributes: ['id', 'methode', 'statut'] },
       ],
+      order: [['createdAt', 'DESC']],
     });
 
     // Source unique de vérité pour les finances de la boutique — évite que
@@ -77,6 +88,23 @@ router.get('/vendor/dashboard/:vendeurId', authMiddleware, boutiqueAdminMiddlewa
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Statistiques du tableau de bord : CA jour/semaine/mois, panier moyen,
+// taux de retour, solde, séquestre et série quotidienne pour le graphique.
+router.get('/vendor/stats/:vendeurId', authMiddleware, boutiqueAdminMiddleware, async (req, res) => {
+  try {
+    const { vendeurId } = req.params;
+    if (!canManageVendor(req, vendeurId)) return res.status(403).json({ success: false, message: 'Accès à cette boutique refusé.' });
+    const boutique = await Boutique.findOne({ where: { vendeurId } });
+    if (!boutique) return res.status(404).json({ success: false, message: 'Boutique non trouvée.' });
+
+    const jours = [7, 30].includes(Number(req.query.jours)) ? Number(req.query.jours) : 7;
+    const stats = await calculerStatsVendeur(boutique.id, { jours });
+    return res.json({ success: true, data: stats });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
   }
 });
 
@@ -272,13 +300,18 @@ router.get('/vendor/products/:vendeurId', authMiddleware, boutiqueAdminMiddlewar
       return res.status(404).json({ success: false, message: 'Boutique non trouvée.' });
     }
 
+    // ?stock=faible (seuil d'alerte, rupture comprise) | ?stock=rupture
+    const where = { boutiqueId: boutique.id };
+    if (req.query.stock === 'faible') Object.assign(where, whereStockFaible());
+    if (req.query.stock === 'rupture') where.stock = 0;
+
     const produits = await Produit.findAll({
-      where: { boutiqueId: boutique.id },
+      where,
       include: [{ model: Variante, as: 'variantes' }],
-      order: [['createdAt', 'DESC']],
+      order: req.query.stock ? [['stock', 'ASC'], ['nom', 'ASC']] : [['createdAt', 'DESC']],
     });
 
-    res.json({ success: true, data: produits });
+    res.json({ success: true, data: produits, lowStockThreshold: marketplaceConfig.lowStockThreshold });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -445,6 +478,32 @@ router.delete('/vendor/products/import/:importId', authMiddleware, boutiqueAdmin
 });
 
 // Create product with optional variants
+// Valeurs numériques d'un produit (création et modification) : un prix
+// négatif ou non numérique, ou un stock négatif, fausserait commandes,
+// totaux et stock. Renvoie le message d'erreur, ou null.
+function erreurValeursProduit({ prix, stock, variantes }, prixDeBase = null) {
+  if (prix !== undefined && prix !== '') {
+    const p = Number(prix);
+    if (!Number.isFinite(p) || p <= 0 || p > 1000000) return 'Prix invalide : il doit être un nombre positif.';
+  }
+  if (stock !== undefined && stock !== '') {
+    const q = Number(stock);
+    if (!Number.isInteger(q) || q < 0) return 'Stock invalide : il doit être un nombre entier positif ou nul.';
+  }
+  if (Array.isArray(variantes)) {
+    const base = Number(prix !== undefined && prix !== '' ? prix : prixDeBase);
+    for (const v of variantes) {
+      const q = Number(v.stock ?? 0);
+      if (!Number.isInteger(q) || q < 0) return 'Stock de variante invalide : nombre entier positif ou nul attendu.';
+      const supplement = Number(v.prixSupplement ?? 0);
+      if (!Number.isFinite(supplement) || (Number.isFinite(base) && base + supplement <= 0)) {
+        return 'Supplément de prix de variante invalide.';
+      }
+    }
+  }
+  return null;
+}
+
 router.post('/vendor/products/:vendeurId', authMiddleware, boutiqueAdminMiddleware, async (req, res) => {
   try {
     const { vendeurId } = req.params;
@@ -454,6 +513,8 @@ router.post('/vendor/products/:vendeurId', authMiddleware, boutiqueAdminMiddlewa
     if (!nom || !description || !prix) {
       return res.status(400).json({ success: false, message: 'Champs obligatoires manquants.' });
     }
+    const erreurValeurs = erreurValeursProduit({ prix, stock, variantes });
+    if (erreurValeurs) return res.status(400).json({ success: false, message: erreurValeurs });
 
     const boutique = await Boutique.findOne({ where: { vendeurId } });
     if (!boutique) {
@@ -466,46 +527,51 @@ router.post('/vendor/products/:vendeurId', authMiddleware, boutiqueAdminMiddlewa
 
     const categorie = categorieId ? await Categorie.findByPk(categorieId) : null;
 
-    const produit = await Produit.create({
-      nom,
-      description,
-      prix,
-      // Un produit neuf n'a pas d'historique de prix: le prix barré ne peut
-      // être fixé qu'après modification du prix (politique anti-fausses promotions).
-      prixAvant: null,
-      stock: finalStock,
-      image,
-      images: Array.isArray(images) ? images.filter(Boolean) : [],
-      categorieId: categorieId || null,
-      boutiqueId: boutique.id,
-      status,
-      hasVariantes: variantes && variantes.length > 0,
-      delaiRetourJoursOverride: clampDelaiRetourOverride(categorie?.delaiRetourJours, delaiRetourJoursOverride),
-    });
-    await enregistrerChangementPrix(produit.id, prix);
+    // Idempotency-Key : une nouvelle tentative après une réponse perdue
+    // (réseau mobile) renvoie le produit déjà créé au lieu d'un doublon.
+    const { value: produitId, replayed } = await onceByKey(`produit:${boutique.id}`, req.headers['idempotency-key'], async () => {
+      const produit = await Produit.create({
+        nom,
+        description,
+        prix,
+        // Un produit neuf n'a pas d'historique de prix: le prix barré ne peut
+        // être fixé qu'après modification du prix (politique anti-fausses promotions).
+        prixAvant: null,
+        stock: finalStock,
+        image,
+        images: Array.isArray(images) ? images.filter(Boolean) : [],
+        categorieId: categorieId || null,
+        boutiqueId: boutique.id,
+        status,
+        hasVariantes: variantes && variantes.length > 0,
+        delaiRetourJoursOverride: clampDelaiRetourOverride(categorie?.delaiRetourJours, delaiRetourJoursOverride),
+      });
+      await enregistrerChangementPrix(produit.id, prix);
 
-    // Create variants if supplied
-    if (variantes && variantes.length > 0) {
-      for (const v of variantes) {
-        await Variante.create({
-          produitId: produit.id,
-          taille: v.taille || null,
-          couleur: v.couleur || null,
-          pointure: v.pointure || null,
-          sku: v.sku || null,
-          stock: Number(v.stock || 0),
-          prixSupplement: Number(v.prixSupplement || 0),
-          image: v.image || null,
-        });
+      // Create variants if supplied
+      if (variantes && variantes.length > 0) {
+        for (const v of variantes) {
+          await Variante.create({
+            produitId: produit.id,
+            taille: v.taille || null,
+            couleur: v.couleur || null,
+            pointure: v.pointure || null,
+            sku: v.sku || null,
+            stock: Number(v.stock || 0),
+            prixSupplement: Number(v.prixSupplement || 0),
+            image: v.image || null,
+          });
+        }
       }
-    }
+      return produit.id;
+    });
 
     // Reload product with variants
-    const detailedProduct = await Produit.findByPk(produit.id, {
+    const detailedProduct = await Produit.findByPk(produitId, {
       include: [{ model: Variante, as: 'variantes' }],
     });
 
-    res.status(201).json({ success: true, data: detailedProduct });
+    res.status(replayed ? 200 : 201).json({ success: true, data: detailedProduct, replayed });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -523,6 +589,8 @@ router.put('/vendor/products/:produitId', authMiddleware, boutiqueAdminMiddlewar
     }
     const boutique = await Boutique.findByPk(produit.boutiqueId);
     if (!boutique || !canManageVendor(req, boutique.vendeurId)) return res.status(403).json({ success: false, message: 'Accès à ce produit refusé.' });
+    const erreurValeurs = erreurValeursProduit({ prix, stock, variantes }, produit.prix);
+    if (erreurValeurs) return res.status(400).json({ success: false, message: erreurValeurs });
 
     const nouveauPrix = prix !== undefined && prix !== '' ? Number(prix) : produit.prix;
     let prixAvantValide = produit.prixAvant;

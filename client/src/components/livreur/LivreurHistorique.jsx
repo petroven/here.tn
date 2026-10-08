@@ -11,12 +11,12 @@ export default function LivreurHistorique({ historique, loading }) {
 
   return (
     <div className="p-4 space-y-4 max-w-xl mx-auto pb-24">
-      <div className="rounded-2xl bg-amber-600 text-white p-5 flex items-center justify-between shadow-soft">
+      <div className="rounded-2xl bg-terre-700 text-white p-5 flex items-center justify-between shadow-soft">
         <div>
-          <p className="text-xs font-semibold text-amber-100 uppercase tracking-wide">Gains totaux</p>
+          <p className="text-xs font-semibold text-terre-100 uppercase tracking-wide">Gains totaux</p>
           <p className="text-2xl font-black">{gains.toFixed(3)} TND</p>
         </div>
-        <Wallet size={32} className="text-amber-100" />
+        <Wallet size={32} className="text-terre-100" />
       </div>
 
       {courses.length === 0 ? (

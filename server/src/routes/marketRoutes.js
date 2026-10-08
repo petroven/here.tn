@@ -10,6 +10,7 @@ import {
   getCommandeFacture,
   getMesCommandes,
   annulerCommandeParClient,
+  getHistoriqueCommandeEndpoint,
   updateLivraisonStatut,
   assignDeliveryManually,
   getTracking,
@@ -53,6 +54,11 @@ router.get('/config/payment-methods', (_req, res) => {
     data: {
       virementDisponible,
       platformBank: virementDisponible ? platformBank : null,
+      // Récapitulatif du panier (site et app) : TVA comprise et timbre par commande.
+      // Mode test des paiements en ligne : le site l'indique au client (aucun débit réel).
+      paiementTest: (process.env.PAYMENT_MODE || (process.env.NODE_ENV === 'production' ? 'production' : 'sandbox')) === 'sandbox',
+      tvaTaux: marketplaceConfig.fiscal.tvaRate,
+      timbreFiscal: marketplaceConfig.fiscal.timbreFiscal,
     },
   });
 });
@@ -71,7 +77,7 @@ router.get('/categories', async (_req, res) => {
   try {
     const categories = await Categorie.findAll({
       where: { parentId: null },
-      include: [{ model: Categorie, as: 'sousCategories', attributes: ['id', 'nom', 'slug', 'icone', 'parentId'] }],
+      include: [{ model: Categorie, as: 'sousCategories', attributes: ['id', 'nom', 'slug', 'icone', 'image', 'parentId'] }],
       order: [['nom', 'ASC']],
     });
     res.json({ success: true, data: categories, count: categories.length });
@@ -108,6 +114,7 @@ router.post('/commandes', optionalAuthMiddleware, createCommande);
 router.post('/paiements/confirm', authMiddleware, confirmPayment);
 router.get('/commandes/mes-commandes', authMiddleware, getMesCommandes);
 router.put('/commandes/:id/annuler', authMiddleware, annulerCommandeParClient);
+router.get('/commandes/:id/historique', authMiddleware, getHistoriqueCommandeEndpoint);
 router.get('/commandes/:id/facture', authMiddleware, getCommandeFacture);
 router.put('/commandes/:commandeId/livraison', authMiddleware, updateLivraisonStatut);
 router.post('/orders/:id/assign-delivery', authMiddleware, requireRole('vendeur', 'admin_boutique', 'administrateur', 'super_admin'), assignDeliveryManually);

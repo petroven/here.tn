@@ -1,15 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { ShoppingBag, FileDown, MessageSquare, RefreshCw, Star, AlertCircle, CheckCircle, Wallet, ChevronDown, ChevronUp, XCircle, BadgeCheck } from 'lucide-react';
 import { API_URL } from '../config/api.js';
-
-const STATUT_LABELS = {
-  en_attente: { fr: 'En attente', ar: 'قيد الانتظار' },
-  payee: { fr: 'Payée', ar: 'مدفوعة' },
-  expediee: { fr: 'Expédiée', ar: 'تم الشحن' },
-  livree: { fr: 'Livrée', ar: 'تم التسليم' },
-  annulee: { fr: 'Annulée', ar: 'ملغاة' },
-  retournee: { fr: 'Retournée', ar: 'مرتجعة' },
-};
+import OrderTimeline from '../components/OrderTimeline.jsx';
+import OrderMap from '../components/OrderMap.jsx';
+import { STATUT_LABELS, STATUT_TONES } from '../utils/orderStatus.js';
+import { useDialog } from '../hooks/useDialog.js';
 
 export default function ClientOrdersPage({ onStartChat, language = 'fr' }) {
   const isAr = language === 'ar';
@@ -34,6 +29,8 @@ export default function ClientOrdersPage({ onStartChat, language = 'fr' }) {
   const [reviewStatus, setReviewStatus] = useState({ type: '', message: '' });
 
   const token = localStorage.getItem('token');
+  const rmaDialog = useDialog(showRmaModal, () => setShowRmaModal(false), 'rma-dialog-title');
+  const reviewDialog = useDialog(showReviewModal, () => setShowReviewModal(false), 'review-dialog-title');
 
   useEffect(() => {
     if (token) {
@@ -42,6 +39,14 @@ export default function ClientOrdersPage({ onStartChat, language = 'fr' }) {
       fetchMesAvis();
     }
   }, [token]);
+
+  // Livreur en route : position (carte) et heure d'arrivée relues toutes les 30 s.
+  const livraisonEnCours = commandes.some((c) => c.suiviLivreur);
+  useEffect(() => {
+    if (!token || !livraisonEnCours) return undefined;
+    const id = setInterval(fetchMyOrders, 30000);
+    return () => clearInterval(id);
+  }, [token, livraisonEnCours]);
 
   const fetchMesAvis = async () => {
     try {
@@ -273,7 +278,7 @@ export default function ClientOrdersPage({ onStartChat, language = 'fr' }) {
           {commandes.map((order) => {
             const isDelivered = order.statut === 'livree';
             const statutLabel = STATUT_LABELS[order.statut];
-            const canCancel = ['en_attente', 'payee'].includes(order.statut)
+            const canCancel = ['en_attente', 'payee', 'preparation'].includes(order.statut)
               && (!order.livraison || order.livraison.statut === 'en_preparation');
 
             return (
@@ -289,7 +294,7 @@ export default function ClientOrdersPage({ onStartChat, language = 'fr' }) {
                   </div>
 
                   <div className="flex flex-wrap items-center gap-3">
-                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase text-slate-700">
+                    <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase ${STATUT_TONES[order.statut] || 'bg-slate-100 text-slate-700'}`}>
                       {statutLabel ? tr(statutLabel.fr, statutLabel.ar) : order.statut}
                     </span>
                     {order.confirmationStatut === 'en_attente' && (
@@ -339,6 +344,12 @@ export default function ClientOrdersPage({ onStartChat, language = 'fr' }) {
                   </div>
                 </div>
 
+                <OrderTimeline order={order} language={language} />
+
+                {order.carte && ['en_attente', 'payee', 'preparation', 'expediee', 'en_cours_livraison'].includes(order.statut) && (
+                  <OrderMap carte={order.carte} language={language} />
+                )}
+
                 {/* Items */}
                 <div className="mb-4 divide-y divide-slate-100">
                   {order.lignes?.map((ligne) => {
@@ -348,7 +359,7 @@ export default function ClientOrdersPage({ onStartChat, language = 'fr' }) {
                         <div className="flex min-w-0 flex-1 items-center gap-3">
                           <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-100 text-slate-400">
                             {product.image ? (
-                              <img src={product.image} alt={product.nom} className="h-full w-full object-cover" />
+                              <img loading="lazy" decoding="async" src={product.image} alt={product.nom} className="h-full w-full object-cover" />
                             ) : (
                               <ShoppingBag size={18} />
                             )}
@@ -397,11 +408,17 @@ export default function ClientOrdersPage({ onStartChat, language = 'fr' }) {
                     {order.walletUtilise > 0 && (
                       <p className="text-amber-700">{tr('Solde utilisé', 'الرصيد المستخدم')} : -{order.walletUtilise.toFixed(3)} TND</p>
                     )}
+                    {order.timbreFiscal > 0 && (
+                      <p>{tr('Timbre fiscal', 'الطابع الجبائي')} : <span className="font-semibold text-slate-700">{order.timbreFiscal.toFixed(3)} TND</span></p>
+                    )}
+                    {order.montantTva != null && (
+                      <p>{tr('Dont TVA', 'منها الأداء على القيمة المضافة')} : <span className="font-semibold text-slate-700">{order.montantTva.toFixed(3)} TND</span></p>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-4 text-right">
                     <div>
-                      <p className="text-[10px] text-slate-400">{tr('Total payé', 'المجموع المدفوع')}</p>
+                      <p className="text-[10px] text-slate-400">{tr('Total TTC', 'المجموع')}</p>
                       <p className="text-base font-black text-[#C4532C]">{order.total.toFixed(3)} TND</p>
                     </div>
 
@@ -425,8 +442,8 @@ export default function ClientOrdersPage({ onStartChat, language = 'fr' }) {
       {/* RMA / Return Request Modal */}
       {showRmaModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-          <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-lg border border-slate-200 bg-white p-6 shadow-soft">
-            <h2 className="mb-2 text-xl font-black text-slate-900">{tr('Demander un retour (RMA)', 'طلب إرجاع')}</h2>
+          <div {...rmaDialog} className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-lg border border-slate-200 bg-white p-6 shadow-soft">
+            <h2 id="rma-dialog-title" className="mb-2 text-xl font-black text-slate-900">{tr('Demander un retour (RMA)', 'طلب إرجاع')}</h2>
             <p className="mb-6 text-xs text-slate-500">
               {tr('Votre réclamation sera transmise au vendeur pour validation, dans la fenêtre de retour propre à ce produit. Remboursement crédité rapidement sur votre solde here.tn.', 'سيتم إرسال طلبك إلى البائع للمراجعة، ضمن مهلة الإرجاع الخاصة بهذا المنتج. سيُضاف المبلغ المسترد بسرعة إلى رصيدكم على here.tn.')}
             </p>
@@ -445,7 +462,7 @@ export default function ClientOrdersPage({ onStartChat, language = 'fr' }) {
             <form onSubmit={handleSubmitRma} className="space-y-4">
               <div>
                 <label className="mb-1 block text-xs font-bold text-slate-500">{tr('Type de motif', 'نوع السبب')}</label>
-                <select
+                <select aria-label={tr('Motif du retour', 'سبب الإرجاع')}
                   value={rmaForm.motifCategorie}
                   onChange={(e) => setRmaForm({ ...rmaForm, motifCategorie: e.target.value })}
                   className="w-full rounded-xl border border-slate-200 bg-slate-50/50 p-3 text-xs outline-none focus:border-transparent focus:ring-2 focus:ring-terre-500"
@@ -463,7 +480,7 @@ export default function ClientOrdersPage({ onStartChat, language = 'fr' }) {
 
               <div>
                 <label className="mb-1 block text-xs font-bold text-slate-500">{tr('Motif détaillé du retour', 'سبب الإرجاع بالتفصيل')}</label>
-                <textarea
+                <textarea aria-label={tr('Décrivez précisément la raison du retour (ex: mauvaise taille, article endommagé, non conforme...)', 'صف سبب الإرجاع بدقة (مثال: مقاس خاطئ، منتج تالف...)')}
                   placeholder={tr('Décrivez précisément la raison du retour (ex: mauvaise taille, article endommagé, non conforme...)', 'صف سبب الإرجاع بدقة (مثال: مقاس خاطئ، منتج تالف...)')}
                   value={rmaForm.motif}
                   onChange={(e) => setRmaForm({ ...rmaForm, motif: e.target.value })}
@@ -511,8 +528,8 @@ export default function ClientOrdersPage({ onStartChat, language = 'fr' }) {
       {/* Leave Review Modal */}
       {showReviewModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-          <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-lg border border-slate-200 bg-white p-6 shadow-soft">
-            <h2 className="mb-2 text-xl font-black text-slate-900">{tr('Donner votre avis', 'أضف تقييمك')}</h2>
+          <div {...reviewDialog} className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-lg border border-slate-200 bg-white p-6 shadow-soft">
+            <h2 id="review-dialog-title" className="mb-2 text-xl font-black text-slate-900">{tr('Donner votre avis', 'أضف تقييمك')}</h2>
             <p className="mb-6 text-xs text-slate-500">
               {tr('Votre avis aide les autres membres de la communauté tunisienne à acheter en toute confiance.', 'تقييمك يساعد بقية الأعضاء على الشراء بثقة أكبر.')}
             </p>
@@ -547,7 +564,7 @@ export default function ClientOrdersPage({ onStartChat, language = 'fr' }) {
 
               <div>
                 <label className="mb-1 block text-xs font-bold text-slate-500">{tr('Commentaire', 'التعليق')}</label>
-                <textarea
+                <textarea aria-label={tr('Décrivez votre expérience avec ce produit...', 'صف تجربتك مع هذا المنتج...')}
                   placeholder={tr('Décrivez votre expérience avec ce produit...', 'صف تجربتك مع هذا المنتج...')}
                   value={reviewForm.commentaire}
                   onChange={(e) => setReviewForm({ ...reviewForm, commentaire: e.target.value })}

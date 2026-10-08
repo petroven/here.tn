@@ -1,10 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import {
   User, Phone, MapPin, Lock, ShoppingBag, Heart, Tag, Truck, Wallet,
-  Pencil, Check, X, ShieldCheck, ChevronRight,
+  Pencil, Check, X, ShieldCheck, ChevronRight, Camera,
 } from 'lucide-react';
 import Input from '../components/ui/Input';
-import { API_URL } from '../config/api.js';
+import { API_URL, absoluteImageUrl } from '../config/api.js';
+import Avatar from '../components/ui/Avatar';
+import { passwordError } from '../utils/password.js';
+import DeleteAccountSection from '../components/DeleteAccountSection.jsx';
 
 // Hub "Mon compte" (/compte) — profil éditable + accès rapide aux espaces déjà
 // existants (commandes/retours, favoris, coupons, suivi). Volontairement ne
@@ -29,6 +32,35 @@ export default function AccountPage({ language = 'fr', navigate }) {
   const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [passwordStatus, setPasswordStatus] = useState({ type: '', message: '' });
   const [savingPassword, setSavingPassword] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [photoError, setPhotoError] = useState('');
+
+  // Photo de profil : envoyée aussitôt choisie (JPEG/PNG/WebP, 5 Mo maximum).
+  const handlePhoto = async (file) => {
+    if (!file) return;
+    setPhotoError('');
+    if (file.size > 5 * 1024 * 1024) {
+      setPhotoError(tr('Image trop lourde (5 Mo maximum).', 'الصورة كبيرة جدًا (5 ميغابايت كحد أقصى).'));
+      return;
+    }
+    setUploadingPhoto(true);
+    try {
+      const body = new FormData();
+      body.append('photo', file);
+      const response = await fetch(`${API_URL}/users/me/photo`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        body,
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.message);
+      setProfile((p) => ({ ...p, photo: data.data.photo }));
+    } catch (err) {
+      setPhotoError(err.message || tr('Envoi de la photo impossible.', 'تعذر إرسال الصورة.'));
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
 
   useEffect(() => {
     if (!token) return;
@@ -100,8 +132,9 @@ export default function AccountPage({ language = 'fr', navigate }) {
   const handleChangePassword = async (e) => {
     e.preventDefault();
     setPasswordStatus({ type: '', message: '' });
-    if (passwordForm.newPassword.length < 6) {
-      setPasswordStatus({ type: 'error', message: tr('Le nouveau mot de passe doit contenir au moins 6 caractères.', 'يجب أن تتكون كلمة المرور الجديدة من 6 أحرف على الأقل.') });
+    const pwdError = passwordError(passwordForm.newPassword, language);
+    if (pwdError) {
+      setPasswordStatus({ type: 'error', message: pwdError });
       return;
     }
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
@@ -169,9 +202,26 @@ export default function AccountPage({ language = 'fr', navigate }) {
 
       {/* Résumé + portefeuille */}
       <div className="mb-5 flex items-center justify-between rounded-lg border border-slate-200 bg-white p-5 shadow-soft">
-        <div>
-          <p className="text-lg font-black text-slate-900">{profile.prenom} {profile.nom}</p>
-          <p className="text-sm text-slate-500">{profile.email}</p>
+        <div className="flex items-center gap-4">
+          <label className="group relative cursor-pointer" title={tr('Changer la photo', 'تغيير الصورة')}>
+            <Avatar nom={profile.nom} prenom={profile.prenom} photo={absoluteImageUrl(profile.photo)} className="h-14 w-14" />
+            <span className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-slate-900 text-white">
+              <Camera size={12} aria-hidden="true" />
+            </span>
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="sr-only"
+              aria-label={tr('Changer la photo de profil', 'تغيير صورة الملف الشخصي')}
+              disabled={uploadingPhoto}
+              onChange={(e) => { handlePhoto(e.target.files?.[0]); e.target.value = ''; }}
+            />
+          </label>
+          <div>
+            <p className="text-lg font-black text-slate-900">{profile.prenom} {profile.nom}</p>
+            <p className="text-sm text-slate-500">{profile.email}</p>
+            {photoError && <p role="alert" className="text-xs font-semibold text-rose-600">{photoError}</p>}
+          </div>
         </div>
         <div className="flex items-center gap-2 rounded-xl bg-amber-50 px-3 py-2 text-amber-700">
           <Wallet size={16} />
@@ -204,11 +254,11 @@ export default function AccountPage({ language = 'fr', navigate }) {
             </div>
             <Input icon={Phone} placeholder={tr('Téléphone (ex: 20123456)', 'الهاتف')} value={form.telephone} onChange={updateField('telephone')} />
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <select value={form.gouvernoratId} onChange={updateField('gouvernoratId')} className="input-premium p-3 text-sm outline-none">
+              <select aria-label={tr('Gouvernorat', 'الولاية')} value={form.gouvernoratId} onChange={updateField('gouvernoratId')} className="input-premium p-3 text-sm outline-none">
                 <option value="">{tr('Gouvernorat', 'الولاية')}</option>
                 {gouvernorats.map((g) => <option key={g.id} value={g.id}>{isAr ? g.nomAr : g.nom}</option>)}
               </select>
-              <select value={form.delegationId} onChange={updateField('delegationId')} className="input-premium p-3 text-sm outline-none disabled:opacity-50" disabled={!form.gouvernoratId}>
+              <select aria-label={tr('Délégation', 'المعتمدية')} value={form.delegationId} onChange={updateField('delegationId')} className="input-premium p-3 text-sm outline-none disabled:opacity-50" disabled={!form.gouvernoratId}>
                 <option value="">{tr('Délégation', 'المعتمدية')}</option>
                 {delegations.map((d) => <option key={d.id} value={d.id}>{d.nom}</option>)}
               </select>
@@ -319,6 +369,8 @@ export default function AccountPage({ language = 'fr', navigate }) {
           <ShieldCheck size={13} /> {tr('Vos informations ne sont jamais partagées avec des tiers.', 'معلوماتك لا تُشارك أبدًا مع أطراف ثالثة.')}
         </p>
       )}
+
+      {profile.role === 'client' && <DeleteAccountSection language={language} />}
     </div>
   );
 }

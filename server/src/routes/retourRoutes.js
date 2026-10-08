@@ -7,6 +7,10 @@ import { envoyerRemboursementCredite } from '../utils/email.js';
 import { uploadImage } from '../utils/upload.js';
 import { marketplaceConfig } from '../config/marketplace.js';
 import { resolveDelaiRetourCommande, dateLimiteRetour, fraisRetourParDefaut } from '../utils/returnPolicy.js';
+import { changerStatutCommande, synchroniserStatutCommande } from '../utils/orderStatus.js';
+import { restaurerStockCommande } from '../utils/stock.js';
+import { notifier, notifierVendeur } from '../utils/notifications.js';
+import { journaliserSiAdmin } from '../utils/audit.js';
 
 const router = express.Router();
 const upload = multer({ dest: 'uploads/temp/' });
@@ -17,11 +21,14 @@ const ADMIN_ROLES = ['administrateur', 'super_admin'];
 // escaladée à la médiation admin — vérifié paresseusement à chaque lecture
 // (même schéma que les notifications livreur : pas de tâche planifiée
 // séparée à maintenir).
-function escaladerSiExpire(retour) {
+async function escaladerSiExpire(retour) {
   if (retour.statut === 'demande' && retour.dateLimiteReponseVendeur && new Date(retour.dateLimiteReponseVendeur) < new Date()) {
-    return retour.update({ statut: 'litige' });
+    await retour.update({ statut: 'litige' });
+    await synchroniserStatutCommande(retour.commandeId, 'litige', {
+      commentaire: 'Sans réponse du vendeur sous 48h — médiation admin',
+    });
   }
-  return Promise.resolve(retour);
+  return retour;
 }
 
 // 1. Client creates a return request (RMA) — motif catégorisé + au moins une
@@ -84,16 +91,37 @@ router.post('/retours', authMiddleware, upload.array('photos', 5), async (req, r
 
     const dateLimiteReponseVendeur = new Date(Date.now() + marketplaceConfig.returnPolicy.vendorResponseHours * 60 * 60 * 1000);
 
-    const retour = await Retour.create({
-      commandeId,
-      clientId,
-      boutiqueId: commande.boutiqueId,
-      motif,
-      motifCategorie,
-      photos,
-      statut: 'demande',
-      montantRemboursement: commande.total,
-      dateLimiteReponseVendeur,
+    const transaction = await Retour.sequelize.transaction();
+    let retour;
+    try {
+      retour = await Retour.create({
+        commandeId,
+        clientId,
+        boutiqueId: commande.boutiqueId,
+        motif,
+        motifCategorie,
+        photos,
+        statut: 'demande',
+        montantRemboursement: commande.total,
+        dateLimiteReponseVendeur,
+      }, { transaction });
+      await changerStatutCommande(commande, 'retour', {
+        utilisateurId: clientId,
+        commentaire: `Retour demandé : ${motif}`.slice(0, 250),
+        transaction,
+      });
+      await transaction.commit();
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+
+    notifierVendeur(commande.boutiqueId, {
+      type: 'nouveau_retour',
+      titre: 'Nouvelle demande de retour',
+      message: `Commande ${commande.numeroCommande} — réponse attendue sous ${marketplaceConfig.returnPolicy.vendorResponseHours}h.`,
+      lien: 'vendeur/retours',
+      data: { retourId: retour.id, commandeId: commande.id },
     });
 
     return res.status(201).json({ success: true, data: retour, message: 'Demande de retour enregistrée.' });
@@ -174,6 +202,11 @@ router.put('/retours/:id/statut', authMiddleware, async (req, res) => {
       return res.status(403).json({ success: false, message: 'Accès réservé aux vendeurs et administrateurs.' });
     }
 
+    if (['rembourse', 'refuse'].includes(retour.statut)) {
+      return res.status(409).json({ success: false, message: 'Cette demande de retour est déjà clôturée.' });
+    }
+
+    const avant = retour.toJSON();
     const updates = {
       statut,
       commentaireVendeur: commentaireVendeur || retour.commentaireVendeur,
@@ -181,21 +214,54 @@ router.put('/retours/:id/statut', authMiddleware, async (req, res) => {
       fraisRetourALaCharge: fraisRetourALaCharge || retour.fraisRetourALaCharge || fraisRetourParDefaut(retour.motifCategorie),
     };
 
-    await retour.update(updates);
+    const transaction = await Retour.sequelize.transaction();
+    try {
+      await retour.update(updates, { transaction });
+      // Refus : la commande redevient 'livree'. Remboursement : 'retournee',
+      // et le stock revient en boutique. Approbation : la commande reste en
+      // 'retour' jusqu'au remboursement effectif.
+      if (statut === 'refuse') {
+        await synchroniserStatutCommande(retour.commandeId, 'livree', {
+          utilisateurId: userId, commentaire: 'Retour refusé', transaction, notifierClient: false,
+        });
+      }
+      if (statut === 'rembourse') {
+        // Retours ouverts avant l'introduction du statut 'retour' : leur
+        // commande est encore 'livree' — on la fait d'abord passer en retour.
+        await synchroniserStatutCommande(retour.commandeId, 'retour', {
+          utilisateurId: userId, commentaire: 'Retour en cours', transaction, notifierClient: false,
+        });
+        await changerStatutCommande(retour.commandeId, 'retournee', {
+          utilisateurId: userId, commentaire: 'Retour remboursé en solde site', transaction,
+        });
+        await restaurerStockCommande(retour.Commande?.lignes, {
+          motif: 'retour', commandeId: retour.commandeId, utilisateurId: userId, transaction,
+        });
+      }
+      await transaction.commit();
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+
+    await journaliserSiAdmin(req, {
+      action: `retour.${statut}`, entite: 'Retour', entiteId: retour.id, avant, apres: retour,
+      champs: ['statut', 'commentaireVendeur', 'fraisRetourALaCharge', 'montantRemboursement'],
+    });
+
+    if (statut === 'approuve' || statut === 'refuse') {
+      notifier(retour.clientId, {
+        type: statut === 'approuve' ? 'retour_accepte' : 'retour_refuse',
+        titre: statut === 'approuve' ? 'Retour accepté' : 'Retour refusé',
+        message: statut === 'approuve'
+          ? 'Votre demande de retour a été acceptée. Renvoyez le produit pour être remboursé.'
+          : `Votre demande de retour a été refusée.${commentaireVendeur ? ` Motif : ${commentaireVendeur}` : ''}`,
+        lien: `commande/${retour.commandeId}`,
+        data: { retourId: retour.id, commandeId: retour.commandeId },
+      });
+    }
 
     if (statut === 'rembourse') {
-      await Commande.update({ statut: 'retournee' }, { where: { id: retour.commandeId } });
-
-      for (const ligne of retour.Commande?.lignes || []) {
-        if (ligne.varianteId) {
-          const varItem = await Variante.findByPk(ligne.varianteId);
-          if (varItem) await varItem.update({ stock: varItem.stock + ligne.quantite });
-        } else {
-          const prodItem = await Produit.findByPk(ligne.produitId);
-          if (prodItem) await prodItem.update({ stock: prodItem.stock + ligne.quantite });
-        }
-      }
-
       // Remboursement versé en solde site (jamais vers le moyen de paiement
       // d'origine) — conformément au contrat de retour envoyé au client.
       await crediterRemboursement(retour);
@@ -207,7 +273,7 @@ router.put('/retours/:id/statut', authMiddleware, async (req, res) => {
     return res.json({ success: true, data: retour, message: `Demande de retour mise à jour : ${statut}` });
   } catch (error) {
     console.error('[RMA] Erreur traitement retour:', error);
-    return res.status(500).json({ success: false, message: error.message });
+    return res.status(error.status || 500).json({ success: false, message: error.message });
   }
 });
 

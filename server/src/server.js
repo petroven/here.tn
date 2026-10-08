@@ -24,6 +24,8 @@ import retourRoutes from './routes/retourRoutes.js';
 import paymentRoutes from './routes/paymentRoutes.js';
 import walletRoutes from './routes/walletRoutes.js';
 import oauthRoutes from './routes/oauthRoutes.js';
+import notificationRoutes from './routes/notificationRoutes.js';
+import appLinkRoutes from './routes/appLinkRoutes.js';
 import passport from './config/passport.js';
 
 dotenv.config();
@@ -59,11 +61,29 @@ const authLimiter = rateLimit({
 
 app.use('/api/auth', authLimiter);
 
+// Devinette de mots de passe : 10 échecs de connexion par IP et par quart
+// d'heure (les connexions réussies ne comptent pas). Inscriptions livreur
+// limitées aussi, comme celles de /api/auth.
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  skipSuccessfulRequests: true,
+  skip: () => process.env.NODE_ENV === 'test',
+  message: { success: false, message: 'Trop de tentatives de connexion. Réessayez dans 15 minutes.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use(['/api/auth/login', '/api/livreur/auth/login'], loginLimiter);
+app.use('/api/livreur/register', authLimiter);
+
 // Rate limiting for payment routes — blunt protection against brute-forcing
 // idempotency keys / spamming payment initiation or webhook endpoints.
 const paymentLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 60,
+  // Les tests automatisés enchaînent des dizaines de scénarios de paiement
+  // depuis la même IP locale.
+  skip: () => process.env.NODE_ENV === 'test',
   message: { success: false, message: 'Trop de requêtes de paiement depuis cette IP, réessayez plus tard.' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -85,6 +105,10 @@ app.use('/api', retourRoutes);
 app.use('/api', paymentRoutes);
 app.use('/api', walletRoutes);
 app.use('/api', oauthRoutes);
+app.use('/api', notificationRoutes);
+// Fichiers de vérification Android App Links / iOS Universal Links (à la
+// racine du domaine, hors /api) — voir routes/appLinkRoutes.js.
+app.use(appLinkRoutes);
 
 // Sert le build client (client/dist) quand il existe, pour un déploiement en
 // un seul service (ex: Railway/Render) — API + site sur la même URL, pas de
@@ -105,9 +129,22 @@ if (fs.existsSync(clientDistPath)) {
   console.warn('[SERVER] Aucun build client trouvé à', clientDistPath, '— la racine ne servira que l\'API. Vérifiez que "npm run build" a bien tourné avant "npm start".');
 }
 
+// Route d'API inconnue : réponse JSON (les clients lisent toujours { success, message }).
+app.use('/api', (_req, res) => {
+  res.status(404).json({ success: false, message: 'Route introuvable.' });
+});
+
 app.use((error, _req, res, _next) => {
+  // Erreurs client portant leur propre statut (JSON mal formé, corps trop gros, fichier refusé…).
+  const status = Number(error.status || error.statusCode);
+  if (status >= 400 && status < 500) {
+    return res.status(status).json({
+      success: false,
+      message: error.type === 'entity.parse.failed' ? 'Requête invalide (JSON mal formé).' : error.message,
+    });
+  }
   console.error('[SERVER] Error:', error);
-  res.status(500).json({ success: false, message: 'Erreur interne du serveur.' });
+  return res.status(500).json({ success: false, message: 'Erreur interne du serveur.' });
 });
 
 const startServer = async () => {

@@ -13,3 +13,7 @@ export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/ap
 export const SERVER_ORIGIN = /^https?:\/\//.test(API_URL)
   ? API_URL.replace(/\/api\/?$/, '')
   : window.location.origin;
+
+// Image envoyée sur le serveur ('/uploads/...') → URL absolue ; URL externe
+// (Cloudinary, Unsplash) inchangée.
+export const absoluteImageUrl = (image) => (image && image.startsWith('/') ? `${SERVER_ORIGIN}${image}` : image);

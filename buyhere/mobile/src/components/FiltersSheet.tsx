@@ -39,6 +39,8 @@ export function FiltersSheet({ visible, value, onClose, onApply, hideCategory }:
   // Réinitialise le brouillon à chaque ouverture (prix saisis en DT, envoyés en millimes).
   useEffect(() => {
     if (!visible) return;
+    // Repart des filtres appliqués à chaque ouverture de la feuille.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setDraft(value);
     setMinPrice(value.minPrice ? String(value.minPrice / 1000) : '');
     setMaxPrice(value.maxPrice ? String(value.maxPrice / 1000) : '');

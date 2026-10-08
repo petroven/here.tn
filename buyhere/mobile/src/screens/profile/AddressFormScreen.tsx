@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { FlatList, Modal, Pressable, ScrollView, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
@@ -53,11 +53,13 @@ export function AddressFormScreen({ navigation, route }: RootScreenProps<'Addres
   const [apiError, setApiError] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
 
-  useEffect(() => {
-    if (existing) {
-      setForm({ ...existing, phone: formatPhone(existing.phone), postalCode: existing.postalCode ?? '' });
-    }
-  }, [existing]);
+  // Remplit le formulaire une seule fois par adresse : un rechargement de la
+  // liste en arrière-plan n'efface pas ce que l'utilisateur est en train de taper.
+  const [filledFor, setFilledFor] = useState<string | null>(null);
+  if (existing && filledFor !== existing.id) {
+    setFilledFor(existing.id);
+    setForm({ ...existing, phone: formatPhone(existing.phone), postalCode: existing.postalCode ?? '' });
+  }
 
   const set = <K extends keyof AddressInput>(key: K, value: AddressInput[K]) => setForm((f) => ({ ...f, [key]: value }));
   const governorates = useQuery({ queryKey: ['governorates'], queryFn: geoApi.governorates, staleTime: Infinity });

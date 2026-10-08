@@ -11,8 +11,12 @@
       "supportsTablet": false,
       "bundleIdentifier": "tn.buyhere.app",
       "infoPlist": {
-        "NSPhotoLibraryUsageDescription": "BuyHere utilise vos photos pour votre photo de profil."
-      }
+        "NSPhotoLibraryUsageDescription": "BuyHere utilise vos photos pour vos produits, vos retours et vos preuves de livraison."
+      },
+      "associatedDomains": [
+        "applinks:buyhere.tn",
+        "applinks:www.buyhere.tn"
+      ]
     },
     "android": {
       "package": "tn.buyhere.app",
@@ -22,7 +26,69 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "buyhere.tn",
+              "pathPrefix": "/produits/"
+            },
+            {
+              "scheme": "https",
+              "host": "buyhere.tn",
+              "pathPrefix": "/boutiques/"
+            },
+            {
+              "scheme": "https",
+              "host": "buyhere.tn",
+              "pathPrefix": "/commandes"
+            },
+            {
+              "scheme": "https",
+              "host": "buyhere.tn",
+              "pathPrefix": "/promotion/"
+            },
+            {
+              "scheme": "https",
+              "host": "buyhere.tn",
+              "pathPrefix": "/coupons/"
+            },
+            {
+              "scheme": "https",
+              "host": "www.buyhere.tn",
+              "pathPrefix": "/produits/"
+            },
+            {
+              "scheme": "https",
+              "host": "www.buyhere.tn",
+              "pathPrefix": "/boutiques/"
+            },
+            {
+              "scheme": "https",
+              "host": "www.buyhere.tn",
+              "pathPrefix": "/commandes"
+            },
+            {
+              "scheme": "https",
+              "host": "www.buyhere.tn",
+              "pathPrefix": "/promotion/"
+            },
+            {
+              "scheme": "https",
+              "host": "www.buyhere.tn",
+              "pathPrefix": "/coupons/"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -58,7 +124,23 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "BuyHere utilise vos photos pour votre photo de profil."
+          "photosPermission": "BuyHere utilise vos photos pour vos produits, vos retours et vos preuves de livraison.",
+          "cameraPermission": "BuyHere utilise l’appareil photo pour vos produits et vos preuves de livraison."
+        }
+      ],
+      "expo-sharing",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "BuyHere utilise votre position pendant votre service de livreur pour vous proposer les courses proches."
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
         }
       ]
     ]

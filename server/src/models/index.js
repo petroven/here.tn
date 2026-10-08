@@ -14,6 +14,10 @@ import NotificationLivreur from './NotificationLivreur.js';
 import Transaction from './Transaction.js';
 import PaymentLog from './PaymentLog.js';
 import WalletTransaction from './WalletTransaction.js';
+import HistoriqueCommande from './HistoriqueCommande.js';
+import Notification from './Notification.js';
+import PushToken from './PushToken.js';
+import AuditLog from './AuditLog.js';
 
 export const Utilisateur = sequelize.define('Utilisateur', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
@@ -46,6 +50,9 @@ export const Utilisateur = sequelize.define('Utilisateur', {
   // retour) à l'inscription — bloquée côté serveur dans authController.js,
   // pas seulement côté client.
   accepteConditions: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+  // Compte supprimé à la demande de l'utilisateur : données personnelles
+  // effacées, commandes conservées (obligations comptables), connexion impossible.
+  compteSupprime: { type: DataTypes.BOOLEAN, allowNull: true, defaultValue: false },
 });
 
 export const Boutique = sequelize.define('Boutique', {
@@ -93,6 +100,9 @@ export const Categorie = sequelize.define('Categorie', {
   description: { type: DataTypes.TEXT, allowNull: true },
   slug: { type: DataTypes.STRING, allowNull: true, unique: true },
   icone: { type: DataTypes.STRING, allowNull: true },
+  // Photo de la catégorie (pastilles de l'accueil, site et app). Modifiable
+  // par l'admin ; à défaut, les clients affichent la photo d'un produit.
+  image: { type: DataTypes.STRING, allowNull: true },
   parentId: { type: DataTypes.INTEGER, allowNull: true },
   // Fenêtre de retour par défaut pour tout produit de cette catégorie, en
   // jours après livraison. NULL = non configurée (le produit retombe sur le
@@ -134,10 +144,20 @@ export const Commande = sequelize.define('Commande', {
   sousTotal: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 0 },
   fraisLivraison: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 0 },
   remiseCoupon: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 0 },
+  // TVA comprise dans le total (prix TTC), détaillée sur la facture, et
+  // timbre fiscal ajouté au total. NULL sur les commandes antérieures.
+  montantTva: { type: DataTypes.FLOAT, allowNull: true },
+  timbreFiscal: { type: DataTypes.FLOAT, allowNull: true },
   montantCommission: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 0 },
   montantVendeur: { type: DataTypes.FLOAT, allowNull: false, defaultValue: 0 },
+  // Transitions autorisées centralisées dans utils/orderStatus.js — ne
+  // jamais écrire ce champ directement. 'retournee' = retour remboursé
+  // (affiché « Remboursée »), 'retour' = demande de retour en cours.
   statut: {
-    type: DataTypes.ENUM('en_attente', 'payee', 'expediee', 'livree', 'annulee', 'retournee'),
+    type: DataTypes.ENUM(
+      'en_attente', 'payee', 'preparation', 'expediee', 'en_cours_livraison', 'livree',
+      'annulee', 'retour', 'litige', 'retournee',
+    ),
     defaultValue: 'en_attente',
   },
   adresseLivraison: { type: DataTypes.STRING, allowNull: false },
@@ -372,6 +392,17 @@ PasswordResetToken.belongsTo(Utilisateur, { foreignKey: 'utilisateurId' });
 Produit.hasMany(PrixHistorique, { foreignKey: 'produitId', as: 'historiquePrix' });
 PrixHistorique.belongsTo(Produit, { foreignKey: 'produitId' });
 
+Commande.hasMany(HistoriqueCommande, { foreignKey: 'commandeId', as: 'historique' });
+HistoriqueCommande.belongsTo(Commande, { foreignKey: 'commandeId' });
+HistoriqueCommande.belongsTo(Utilisateur, { foreignKey: 'utilisateurId', as: 'utilisateur' });
+
+Utilisateur.hasMany(Notification, { foreignKey: 'utilisateurId', as: 'notifications' });
+Notification.belongsTo(Utilisateur, { foreignKey: 'utilisateurId' });
+Utilisateur.hasMany(PushToken, { foreignKey: 'utilisateurId', as: 'pushTokens' });
+PushToken.belongsTo(Utilisateur, { foreignKey: 'utilisateurId' });
+
+AuditLog.belongsTo(Utilisateur, { foreignKey: 'acteurId', as: 'acteur', constraints: false });
+
 export {
   Gouvernorat,
   Delegation,
@@ -387,6 +418,10 @@ export {
   Transaction,
   PaymentLog,
   WalletTransaction,
+  HistoriqueCommande,
+  Notification,
+  PushToken,
+  AuditLog,
 };
 
 export default sequelize;

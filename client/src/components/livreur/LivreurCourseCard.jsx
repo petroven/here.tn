@@ -2,7 +2,7 @@ import React from 'react';
 import { MapPin, Navigation, Wallet } from 'lucide-react';
 
 const STATUS_LABELS = {
-  en_attente: { label: 'Disponible', className: 'bg-amber-100 text-amber-700' },
+  en_attente: { label: 'Disponible', className: 'bg-terre-100 text-terre-800' },
   assignee: { label: 'À récupérer', className: 'bg-terre-100 text-terre-700' },
   en_cours: { label: 'En livraison', className: 'bg-terre-100 text-terre-700' },
   livree: { label: 'Livrée', className: 'bg-emerald-100 text-emerald-700' },
@@ -29,7 +29,7 @@ export default function LivreurCourseCard({ course, onOpen, onAccepter }) {
 
       <div className="space-y-1.5 text-xs text-slate-600">
         <div className="flex items-start gap-1.5">
-          <MapPin size={14} className="text-amber-600 shrink-0 mt-0.5" />
+          <MapPin size={14} className="text-terre-700 shrink-0 mt-0.5" />
           <span><strong className="text-slate-800">Retrait :</strong> {boutique.nom || 'Boutique'} — {boutique.adresse || 'Adresse non renseignée'}</span>
         </div>
         <div className="flex items-start gap-1.5">
@@ -46,7 +46,7 @@ export default function LivreurCourseCard({ course, onOpen, onAccepter }) {
         {course.statutAssignation === 'en_attente' ? (
           <button
             onClick={() => onAccepter(course.id)}
-            className="rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-4 py-2 transition"
+            className="rounded-xl bg-terre-700 hover:bg-terre-800 text-white text-xs font-bold px-4 py-2 transition"
           >
             Accepter
           </button>

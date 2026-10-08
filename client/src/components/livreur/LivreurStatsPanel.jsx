@@ -22,7 +22,7 @@ export default function LivreurStatsPanel({ stats, loading, onLogout }) {
           const Icon = tile.icon;
           return (
             <div key={tile.label} className="bg-white rounded-2xl border border-slate-200 p-4 shadow-soft">
-              <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center mb-2">
+              <div className="w-9 h-9 rounded-xl bg-terre-50 text-terre-700 flex items-center justify-center mb-2">
                 <Icon size={18} />
               </div>
               <p className="text-lg font-black text-slate-900">{tile.value}</p>

@@ -55,6 +55,8 @@ export type Store = {
   productCount: number;
   verified: boolean;
   seller: { firstName: string; lastName: string; photoUrl: string | null } | null;
+  /** Compte du vendeur : destinataire des messages « Contacter la boutique ». */
+  vendorId: string | null;
 };
 
 export type StoreReview = {
@@ -87,7 +89,7 @@ export type ProductCard = {
   flashEndsAt: string | null;
   category: { slug: string; name: string };
   isFavorite: boolean;
-  store: { id: string; name: string } | null;
+  store: { id: string; name: string; vendorId?: string | null } | null;
 };
 
 export type ProductVariant = {
@@ -199,7 +201,45 @@ export type Address = {
 
 export type AddressInput = Omit<Address, 'id' | 'postalCode'> & { postalCode?: string };
 
-export type OrderStatus = 'PENDING' | 'CONFIRMED' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED';
+/**
+ * Statuts affichés — miroir de la machine d'états du site
+ * (server/src/utils/orderStatus.js) : en_attente → payee/confirmée →
+ * preparation → expediee → en_cours_livraison → livree, puis retour /
+ * remboursement, ou annulation.
+ */
+export type OrderStatus =
+  | 'PENDING'
+  | 'CONFIRMED'
+  | 'PREPARING'
+  | 'SHIPPED'
+  | 'OUT_FOR_DELIVERY'
+  | 'DELIVERED'
+  | 'RETURN_REQUESTED'
+  | 'REFUNDED'
+  | 'CANCELLED';
+
+/** Livreur assigné à la commande, visible par le client pendant la course. */
+export type Courier = {
+  name: string;
+  phone: string | null;
+  vehicle: 'moto' | 'voiture' | 'velo' | 'camionnette' | null;
+  rating: number | null;
+  position: { latitude: number; longitude: number; updatedAt: string | null } | null;
+  distanceKm: number | null;
+  etaMinutes: number | null;
+  /** 'assignee' = récupère le colis, 'en_cours' = en route vers le client */
+  stage: 'assignee' | 'en_cours';
+};
+/** Précision d'un point géocodé : l'adresse exacte, ou à défaut le centre de la zone. */
+export type MapPrecision = 'adresse' | 'delegation' | 'gouvernorat';
+export type MapPoint = { latitude: number; longitude: number; precision?: MapPrecision };
+/** Carte de suivi d'une commande (points absents tant qu'ils ne sont pas connus). */
+export type OrderMap = {
+  pickup: MapPoint | null;
+  dropoff: MapPoint | null;
+  courier: MapPoint | null;
+  storeName: string | null;
+};
 export type PaymentMethod = 'CASH_ON_DELIVERY' | 'KONNECT' | 'FLOUCI' | 'CARD' | 'BANK_TRANSFER';
 export type PaymentStatus = 'UNPAID' | 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED';
 
@@ -212,10 +252,14 @@ export type Order = {
   subtotal: number;
   discount: number;
   shippingFee: number;
+  /** TVA comprise (prix TTC) ; null sur les commandes antérieures à son enregistrement. */
+  vat: number | null;
+  /** Timbre fiscal ajouté au total (0 sur les anciennes commandes). */
+  stampDuty: number;
   total: number;
   couponCode: string | null;
   trackingId: string | null;
-  store: { id: string; name: string } | null;
+  store: { id: string; name: string; vendorId: string | null } | null;
   shippingAddress: { fullName: string; phone: string; governorate: string; city: string; street: string };
   items: {
     id: string;
@@ -230,6 +274,8 @@ export type Order = {
   }[];
   itemCount: number;
   history: { status: OrderStatus; note: string | null; at: string }[];
+  courier: Courier | null;
+  map: OrderMap | null;
   createdAt: string;
 };
 
@@ -238,7 +284,8 @@ export type AppNotification = {
   type: 'ORDER' | 'PROMO' | 'SYSTEM';
   title: string;
   body: string;
-  data: { orderId?: string } | null;
+  /** link : chemin d'app (ex. 'commande/12') ouvert au toucher via le deep linking. */
+  data: { orderId?: string; link?: string | null } | null;
   readAt: string | null;
   createdAt: string;
 };
@@ -248,3 +295,62 @@ export type ApiErrorBody = { success: false; message?: string };
 
 export type Governorate = { id: number; name: string; nameAr: string | null; shippingFee: number };
 export type Delegation = { id: number; name: string; nameAr: string | null };
+
+export type Conversation = {
+  id: string;
+  subject: string | null;
+  lastMessage: string | null;
+  lastMessageAt: string | null;
+  /** L'autre participant : la boutique côté client. */
+  peer: { userId: string; name: string; logoUrl: string | null };
+};
+
+export type ChatMessage = {
+  id: string;
+  body: string;
+  sentAt: string;
+  mine: boolean;
+  read: boolean;
+};
+
+export type ReturnReason = 'defaut' | 'non_conforme' | 'changement_avis';
+export type ReturnStatus = 'demande' | 'approuve' | 'refuse' | 'rembourse' | 'litige';
+
+export type ReturnRequest = {
+  id: string;
+  orderId: string;
+  orderNumber: string;
+  storeName: string | null;
+  /** Renseigné pour le vendeur (le client voit sa propre demande). */
+  customerName: string | null;
+  reason: string;
+  reasonCategory: ReturnReason;
+  status: ReturnStatus;
+  photos: string[];
+  refundAmount: number | null;
+  sellerComment: string | null;
+  vendorDeadline: string | null;
+  createdAt: string;
+  processedAt: string | null;
+};
+
+export type WalletEntry = {
+  id: string;
+  amount: number;
+  type: 'credit' | 'debit';
+  reason: string;
+  orderNumber: string | null;
+  createdAt: string;
+};
+
+export type Wallet = { balance: number; entries: WalletEntry[] };
+
+export type Coupon = {
+  code: string;
+  type: 'pourcentage' | 'montant_fixe';
+  value: number;
+  minimum: number;
+  expiresAt: string;
+};
+
+export type BankTransferInfo = { holder: string; rib: string; bank: string; amount: number; reference: string };

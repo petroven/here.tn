@@ -3,6 +3,7 @@ import { Livraison, Livreur, Commande, Boutique, NotificationLivreur } from '../
 import { calculateDistanceKm } from './geo.js';
 import { marketplaceConfig } from '../config/marketplace.js';
 import { getIo } from '../realtime/io.js';
+import { pousser } from './notifications.js';
 
 // Cascade state lost on server restart (documented MVP limitation — see plan).
 // Map<livraisonId, { candidates: [{livreurId, distanceKm}], index: number }>
@@ -86,6 +87,18 @@ async function notifyNextCandidate(livraisonId, candidates, index) {
     console.error('[MATCHING] Socket.io non initialisé, notification créée sans push:', error.message);
   }
 
+  // Push Expo pour l'app mobile (sans socket, ou en arrière-plan) : le toucher
+  // ouvre l'espace livreur, qui relit l'offre via /livreur/notifications/pending.
+  const livreur = await Livreur.findByPk(candidate.livreurId, { attributes: ['id', 'utilisateurId'] });
+  const frais = Number(livraison?.fraisLivraison || 0).toFixed(3);
+  pousser(livreur?.utilisateurId, {
+    type: 'course_proposee',
+    titre: 'Nouvelle course',
+    message: `${frais} TND — ${livraison?.Commande?.adresseLivraison || 'adresse à consulter'}. Répondez vite !`,
+    lien: 'livreur',
+    data: { livraisonId, notificationId: notification.id },
+  });
+
   const timer = setTimeout(() => {
     handleNotificationTimeout(notification.id).catch((err) =>
       console.error('[MATCHING] Erreur lors du cascade/timeout:', err),
@@ -162,4 +175,11 @@ export async function matchAndNotifyCourierForLivraison(livraisonId) {
 
   await notifyNextCandidate(livraisonId, candidates, 0);
   return { notified: true, reason: 'notification_envoyee' };
+}
+
+/** Annule toutes les cascades en cours (arrêt propre du serveur, tests). */
+export function arreterCascades() {
+  for (const timer of activeTimers.values()) clearTimeout(timer);
+  activeTimers.clear();
+  cascadeState.clear();
 }

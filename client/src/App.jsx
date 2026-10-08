@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { Routes, Route, Navigate, Outlet, useNavigate, useLocation, useParams } from 'react-router-dom';
 import {
   Menu,
@@ -16,31 +16,32 @@ import {
   X,
   ArrowRight,
   Mail,
+  LayoutGrid,
 } from 'lucide-react';
 import CheckoutPage from './pages/CheckoutPage';
-import AdminDashboard from './pages/AdminDashboard';
-import VendorDashboard from './pages/VendorDashboard';
-import VendorRegistration from './pages/VendorRegistration';
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+const VendorDashboard = lazy(() => import('./pages/VendorDashboard'));
+const VendorRegistration = lazy(() => import('./pages/VendorRegistration'));
 import Marketplace from './pages/Marketplace';
-import TrackingPage from './pages/TrackingPage';
-import ResetPasswordPage from './pages/ResetPasswordPage';
-import ClientOrdersPage from './pages/ClientOrdersPage';
-import AccountPage from './pages/AccountPage';
+const TrackingPage = lazy(() => import('./pages/TrackingPage'));
+const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'));
+const ClientOrdersPage = lazy(() => import('./pages/ClientOrdersPage'));
+const AccountPage = lazy(() => import('./pages/AccountPage'));
 import StoresPage from './pages/StoresPage';
 import StorePage from './pages/StorePage';
 import ProductPage from './pages/ProductPage';
-import LegalPage from './pages/LegalPage';
-import HelpCenterPage from './pages/HelpCenterPage';
-import ConfirmOrderPage from './pages/ConfirmOrderPage';
-import LivreurLoginPage from './pages/LivreurLoginPage';
-import LivreurRegistrationPage from './pages/LivreurRegistrationPage';
-import LivreurDashboardPage from './pages/LivreurDashboardPage';
+const LegalPage = lazy(() => import('./pages/LegalPage'));
+const HelpCenterPage = lazy(() => import('./pages/HelpCenterPage'));
+const ConfirmOrderPage = lazy(() => import('./pages/ConfirmOrderPage'));
+const LivreurLoginPage = lazy(() => import('./pages/LivreurLoginPage'));
+const LivreurRegistrationPage = lazy(() => import('./pages/LivreurRegistrationPage'));
+const LivreurDashboardPage = lazy(() => import('./pages/LivreurDashboardPage'));
 import FavoritesPage from './pages/FavoritesPage';
-import CouponsPage from './pages/CouponsPage';
-import OAuthCallbackPage from './pages/OAuthCallbackPage';
-import PaymentReturnPage from './pages/PaymentReturnPage';
+const CouponsPage = lazy(() => import('./pages/CouponsPage'));
+const OAuthCallbackPage = lazy(() => import('./pages/OAuthCallbackPage'));
+const PaymentReturnPage = lazy(() => import('./pages/PaymentReturnPage'));
 import ChatWidget from './components/ChatWidget';
-import MessagesPage from './pages/MessagesPage';
+const MessagesPage = lazy(() => import('./pages/MessagesPage'));
 import PolicyConsentModal from './components/PolicyConsentModal';
 import CategoryDrawer from './components/CategoryDrawer';
 import HomeDashboard from './components/home/HomeDashboard.jsx';
@@ -49,9 +50,14 @@ import BoutiqueCard from './components/BoutiqueCard';
 import Avatar from './components/ui/Avatar';
 import Logo from './components/ui/Logo.jsx';
 import ToastHost from './components/ui/Toast.jsx';
+import NotificationBell from './components/NotificationBell.jsx';
 import { iconForCategory } from './utils/categoryIcons.js';
 import { useTranslation } from './i18n';
-import { API_URL } from './config/api.js';
+import { API_URL, absoluteImageUrl } from './config/api.js';
+import NotFoundPage from './pages/NotFoundPage.jsx';
+import IntroAnimation from './components/IntroAnimation.jsx';
+import { useDialog } from './hooks/useDialog.js';
+import { passwordError } from './utils/password.js';
 
 // --- Petits wrappers de route : lisent le paramètre d'URL et le passent en
 // prop aux pages existantes, qui n'ont pas besoin de connaître react-router.
@@ -75,10 +81,38 @@ function LegalRoute(props) {
   return <LegalPage type={type || 'cgu'} {...props} />;
 }
 
+// Espaces chargés à la demande (admin, vendeur, livreur, compte…) : le
+// visiteur du catalogue ne télécharge pas leur code.
+function PageLoader() {
+  return (
+    <div className="flex min-h-[50vh] items-center justify-center" role="status" aria-live="polite">
+      <span className="h-8 w-8 animate-spin rounded-full border-2 border-[#C4532C] border-t-transparent" />
+      <span className="sr-only">Chargement…</span>
+    </div>
+  );
+}
+
 function App() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [language, setLanguage] = useState('fr');
+  // Langue mémorisée entre les visites ; <html lang/dir> suit, pour les
+  // lecteurs d'écran et les fenêtres rendues hors du conteneur principal.
+  const [language, setLanguage] = useState(() => {
+    try {
+      return localStorage.getItem('language') === 'ar' ? 'ar' : 'fr';
+    } catch {
+      return 'fr';
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem('language', language);
+    } catch {
+      // stockage indisponible (navigation privée) : la langue n'est pas mémorisée
+    }
+    document.documentElement.lang = language;
+    document.documentElement.dir = language === 'ar' ? 'rtl' : 'ltr';
+  }, [language]);
   const { t } = useTranslation(language);
   const tr = (fr, ar) => (language === 'ar' ? ar : fr);
 
@@ -148,6 +182,11 @@ function App() {
     e.preventDefault();
     setAuthError('');
     if (authForm.isRegister) {
+      const pwdError = passwordError(authForm.password, language);
+      if (pwdError) {
+        setAuthError(pwdError);
+        return;
+      }
       // L'inscription ne peut pas se soumettre directement — les conditions
       // de vente/retour doivent d'abord être explicitement acceptées via
       // l'alerte dédiée (refuser bloque totalement l'inscription).
@@ -257,7 +296,10 @@ function App() {
   }
 
   return (
-    <Routes>
+    <>
+      <IntroAnimation />
+      <Suspense fallback={<PageLoader />}>
+      <Routes>
       <Route path="/admin" element={<AdminDashboard onLogout={handleLogout} language={language} setLanguage={setLanguage} />} />
 
       <Route
@@ -479,10 +521,11 @@ function App() {
         <Route path="/suivi" element={<TrackingPage language={language} />} />
         <Route path="/compte" element={<AccountPage language={language} navigate={navigate} />} />
         <Route path="/commandes" element={<ClientOrdersPage onStartChat={handleStartChat} language={language} />} />
+        <Route path="*" element={<NotFoundPage language={language} navigate={navigate} />} />
       </Route>
-
-      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </Suspense>
+    </>
   );
 }
 
@@ -505,10 +548,11 @@ function HomeView({ navigate, language = 'fr', user, cartCount = 0, setSelectedC
       .then(async (data) => {
         if (!data.success) return;
         setCategories(data.data);
-        // Une vraie photo produit par catégorie (déjà en base, aucune
-        // recherche externe nécessaire) plutôt qu'une icône générique.
+        // Photo de la catégorie (choisie par l'admin), sinon une vraie photo
+        // produit de la catégorie plutôt qu'une icône générique.
         const entries = await Promise.all(
           data.data.slice(0, 12).map(async (cat) => {
+            if (cat.image) return [cat.id, absoluteImageUrl(cat.image)];
             try {
               const res = await fetch(`${API_URL}/produits?categoryId=${cat.id}&limit=1`);
               const productData = await res.json();
@@ -614,7 +658,7 @@ function HomeView({ navigate, language = 'fr', user, cartCount = 0, setSelectedC
                 <button key={cat.id} onClick={() => goToCategory(cat.id)} className="flex flex-col items-center gap-2 text-center">
                   <span className="h-16 w-16 overflow-hidden rounded-full border-2 border-white shadow-soft ring-1 ring-[#E2D9CB] sm:h-20 sm:w-20">
                     {photo ? (
-                      <img src={photo} alt="" className="h-full w-full object-cover transition duration-300 hover:scale-110" />
+                      <img loading="lazy" decoding="async" src={photo} alt="" className="h-full w-full object-cover transition duration-300 hover:scale-110" />
                     ) : (
                       <span className="flex h-full w-full items-center justify-center bg-[#F8E4DE] text-[#C4532C]">
                         <Icon size={26} />
@@ -695,7 +739,7 @@ function HomeView({ navigate, language = 'fr', user, cartCount = 0, setSelectedC
       <section className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           {[
-            { icon: ShieldCheck, title: tr('Paiement sécurisé', 'دفع آمن'), text: tr('COD, Konnect et Flouci (sandbox) avec vérification des commandes.', 'الدفع عند الاستلام، Konnect و Flouci (تجريبي) مع التحقق من الطلبات.') },
+            { icon: ShieldCheck, title: tr('Paiement sécurisé', 'دفع آمن'), text: tr('Paiement à la livraison, Konnect, Flouci ou virement, avec confirmation de chaque commande.', 'الدفع عند الاستلام أو Konnect أو Flouci أو التحويل البنكي، مع تأكيد كل طلب.') },
             { icon: PackageCheck, title: tr('Protection acheteur', 'حماية المشتري'), text: tr('Retours et suivi des colis avec historique transparent.', 'إرجاع وتتبع الطرود بسجل شفاف.') },
             { icon: Store, title: tr('Boutiques vérifiées', 'متاجر موثّقة'), text: tr('Validation des vendeurs et contrôle des boutiques.', 'التحقق من البائعين ومراقبة المتاجر.') },
             { icon: Truck, title: tr('Livraison nationale', 'توصيل وطني'), text: tr('Couverture des 24 gouvernorats avec frais lisibles.', 'تغطية الولايات الـ24 بأسعار واضحة.') },
@@ -726,7 +770,7 @@ function HomeView({ navigate, language = 'fr', user, cartCount = 0, setSelectedC
             <form onSubmit={handleNewsletterSubmit} className="mx-auto mt-5 flex max-w-md flex-col gap-2.5 sm:flex-row">
               <div className="relative flex-1">
                 <Mail className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                <input
+                <input aria-label={tr('Votre email', 'بريدكم الإلكتروني')}
                   type="email"
                   required
                   value={newsletterEmail}
@@ -759,6 +803,7 @@ function MainShell({
   const navigate = useNavigate();
   const isAr = language === 'ar';
   const tr = (fr, ar) => (isAr ? ar : fr);
+  const loginDialog = useDialog(showLoginModal, () => setShowLoginModal(false), 'login-dialog-title');
 
   return (
     <div dir={isAr ? 'rtl' : 'ltr'} className={`marketplace-shell min-h-screen flex flex-col justify-between font-sans ${isAr ? 'rtl' : 'ltr'}`}>
@@ -769,10 +814,11 @@ function MainShell({
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowCategoryDrawer(true)}
-              aria-label={tr('Ouvrir le menu', 'فتح القائمة')}
+              aria-label={tr('Toutes les catégories', 'كل الفئات')}
+              title={tr('Toutes les catégories', 'كل الفئات')}
               className="rounded-xl p-2 text-slate-700 hover:bg-[#F8E4DE] hover:text-[#C4532C]"
             >
-              <Menu size={22} />
+              <LayoutGrid size={22} />
             </button>
             <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/')}>
               <Logo variant="horizontal" className="h-9 sm:h-10 w-auto" />
@@ -782,7 +828,7 @@ function MainShell({
 
           <div className="hidden lg:flex flex-1 max-w-xl relative">
             <Search className="absolute left-3 top-3.5 text-slate-500" size={16} />
-            <input
+            <input aria-label={tr('Que recherchez-vous ?', 'ماذا تبحث؟')}
               type="text"
               readOnly
               onClick={() => navigate('/catalogue')}
@@ -805,6 +851,14 @@ function MainShell({
 
             {user ? (
               <>
+                <NotificationBell
+                  language={language}
+                  onOuvrirLien={(lien) => {
+                    if (lien.startsWith('messages')) navigate('/messages');
+                    else if (lien.startsWith('vendeur')) navigate('/vendeur');
+                    else navigate('/commandes');
+                  }}
+                />
                 {user.role === 'client' && (
                   <button
                     onClick={() => navigate('/compte')}
@@ -910,7 +964,7 @@ function MainShell({
           </button>
           <button onClick={() => navigate('/catalogue')} className="flex flex-col items-center py-1.5 hover:text-[#C4532C]">
             <Search size={16} />
-            <span>{tr('Categories', 'الفئات')}</span>
+            <span>{tr('Catégories', 'الفئات')}</span>
           </button>
           <button onClick={() => navigate('/catalogue')} className="flex flex-col items-center py-1.5 hover:text-[#C4532C]">
             <Store size={16} />
@@ -940,7 +994,7 @@ function MainShell({
         <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-3 gap-8 mb-8 text-xs font-medium text-slate-400">
           <div className="space-y-3">
             <h4 className="font-bold text-white text-sm">{tr('À propos de BuyHere', 'حول BuyHere')}</h4>
-            <p>{tr('La première plateforme e-commerce tunisienne bilingue avec gestion de stock avancée, logistique intégrée et paiement sandbox.', 'أول منصة تجارة إلكترونية تونسية ثنائية اللغة مع إدارة مخزون متقدمة ولوجستيك متكامل ودفع تجريبي.')}</p>
+            <p>{tr('La marketplace tunisienne bilingue : boutiques locales, livraison dans les 24 gouvernorats, paiement à la livraison et retours simplifiés.', 'السوق التونسية ثنائية اللغة: متاجر محلية، توصيل إلى الولايات الـ24، دفع عند الاستلام وإرجاع مبسّط.')}</p>
           </div>
           <div className="space-y-2">
             <h4 className="font-bold text-white text-sm">{tr('Liens Utiles', 'روابط مفيدة')}</h4>
@@ -1001,10 +1055,14 @@ function MainShell({
 
       {/* Login & Register Modal */}
       {showLoginModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 animate-fadeIn">
-          <div className="relative grid max-h-[90vh] w-full max-w-3xl overflow-y-auto overflow-x-hidden rounded-lg bg-white shadow-soft md:grid-cols-2">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 animate-fadeIn"
+          onMouseDown={(e) => { if (e.target === e.currentTarget) setShowLoginModal(false); }}
+        >
+          <div {...loginDialog} className="relative grid max-h-[90vh] w-full max-w-3xl overflow-y-auto overflow-x-hidden rounded-lg bg-white shadow-soft md:grid-cols-2">
             <button
               onClick={() => setShowLoginModal(false)}
+              aria-label={tr('Fermer', 'إغلاق')}
               className="absolute right-4 top-4 z-10 rounded-full bg-white/80 p-1.5 text-slate-400 backdrop-blur transition hover:text-slate-600 rtl:right-auto rtl:left-4"
             >
               <X size={20} />
@@ -1013,7 +1071,7 @@ function MainShell({
             {/* Form side */}
             <div className="p-6 sm:p-8 font-sans">
               <Logo variant="symbole" className="mb-4 h-10 w-10 md:hidden" />
-              <h2 className="mb-2 text-2xl font-black text-slate-900">
+              <h2 id="login-dialog-title" className="mb-2 text-2xl font-black text-slate-900">
                 {authForm.isRegister ? tr('Créer un compte', 'إنشاء حساب') : tr('Bienvenue chez BuyHere', 'مرحبًا بكم في BuyHere')}
               </h2>
               <p className="mb-6 text-xs text-slate-500">
@@ -1032,7 +1090,7 @@ function MainShell({
               <form onSubmit={handleLoginSubmit} className="space-y-3.5">
                 {authForm.isRegister && (
                   <div className="grid grid-cols-2 gap-2">
-                    <input
+                    <input aria-label={tr('Prénom', 'الاسم')}
                       type="text"
                       placeholder={tr('Prénom', 'الاسم')}
                       value={authForm.prenom}
@@ -1040,7 +1098,7 @@ function MainShell({
                       className="input-premium p-3 text-xs outline-none"
                       required
                     />
-                    <input
+                    <input aria-label={tr('Nom', 'اللقب')}
                       type="text"
                       placeholder={tr('Nom', 'اللقب')}
                       value={authForm.nom}
@@ -1051,7 +1109,7 @@ function MainShell({
                   </div>
                 )}
 
-                <input
+                <input aria-label={tr('Adresse email', 'البريد الإلكتروني')}
                   type="email"
                   placeholder={tr('Adresse email', 'البريد الإلكتروني')}
                   value={authForm.email}
@@ -1061,7 +1119,7 @@ function MainShell({
                 />
 
                 {authForm.isRegister && (
-                  <input
+                  <input aria-label={tr('Téléphone tunisien', 'الهاتف التونسي')}
                     type="text"
                     placeholder={tr('Téléphone tunisien', 'الهاتف التونسي')}
                     value={authForm.telephone}
@@ -1071,7 +1129,7 @@ function MainShell({
                   />
                 )}
 
-                <input
+                <input aria-label={tr('Mot de passe', 'كلمة المرور')}
                   type="password"
                   placeholder={tr('Mot de passe', 'كلمة المرور')}
                   value={authForm.password}

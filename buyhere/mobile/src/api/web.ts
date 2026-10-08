@@ -1,7 +1,10 @@
 import { API_ORIGIN } from '@/config';
 import type {
+  AppNotification,
+  Courier,
   Category,
   Governorate,
+  MapPrecision,
   Order,
   OrderStatus,
   PaymentMethod,
@@ -46,6 +49,8 @@ export type WebCategory = {
   nom: string;
   slug: string | null;
   icone: string | null;
+  /** Photo choisie par l'admin (null : photo d'un produit de la catégorie). */
+  image?: string | null;
   sousCategories?: WebCategory[];
 };
 
@@ -59,6 +64,7 @@ export type WebStore = {
   adresse?: string | null;
   kycStatut?: string;
   nombreProduits?: number;
+  vendeurId?: number | null;
   Gouvernorat?: { nom: string; nomAr: string | null } | null;
   vendeur?: { nom: string; prenom: string; photo: string | null } | null;
   Produits?: WebProduct[];
@@ -90,7 +96,7 @@ export type WebProduct = {
   image: string | null;
   images: string[] | null;
   boutiqueId: number;
-  boutique?: { id: number; nom: string } | null;
+  boutique?: { id: number; nom: string; vendeurId?: number | null } | null;
   categorie?: { id: number; nom: string } | null;
   variantes?: WebVariant[];
   note?: number | string | null;
@@ -109,10 +115,23 @@ export type WebReview = {
 export type WebOrder = {
   id: number;
   numeroCommande: string | null;
-  statut: 'en_attente' | 'payee' | 'expediee' | 'livree' | 'annulee' | 'retournee';
+  statut:
+    | 'en_attente'
+    | 'payee'
+    | 'preparation'
+    | 'expediee'
+    | 'en_cours_livraison'
+    | 'livree'
+    | 'annulee'
+    | 'retour'
+    | 'litige'
+    | 'retournee';
   sousTotal: number;
   fraisLivraison: number;
   remiseCoupon: number;
+  /** TVA comprise dans le total ; null sur les commandes antérieures. */
+  montantTva?: number | null;
+  timbreFiscal?: number | null;
   walletUtilise: number;
   total: number;
   couponCode: string | null;
@@ -122,7 +141,7 @@ export type WebOrder = {
   confirmationDate?: string | null;
   createdAt: string;
   updatedAt: string;
-  boutique?: { id: number; nom: string } | null;
+  boutique?: { id: number; nom: string; vendeurId?: number | null } | null;
   paiement?: { methode: string; statut: string } | null;
   livraison?: {
     trackingId: string;
@@ -137,7 +156,34 @@ export type WebOrder = {
     prixUnitaire: number;
     produit?: { nom: string; image: string | null } | null;
   }[];
+  /** Chronologie complète (machine d'états du site), du plus ancien au plus récent. */
+  historique?: {
+    id: number;
+    ancienStatut: string | null;
+    nouveauStatut: string;
+    commentaire: string | null;
+    createdAt: string;
+  }[];
+  suiviLivreur?: {
+    nom: string;
+    telephone: string | null;
+    vehicule: Courier['vehicle'];
+    noteMoyenne: number | null;
+    position: { latitude: number; longitude: number; misAJour: string | null } | null;
+    distanceKm: number | null;
+    etaMinutes: number | null;
+    statut: 'assignee' | 'en_cours';
+  } | null;
+  /** Carte de suivi : départ (boutique), arrivée géocodée, position du livreur. */
+  carte?: {
+    depart: WebMapPoint | null;
+    arrivee: WebMapPoint | null;
+    livreur: { latitude: number; longitude: number; misAJour: string | null } | null;
+    boutique: string | null;
+  } | null;
 };
+
+type WebMapPoint = { latitude: number; longitude: number; precision: MapPrecision };
 
 export type WebGovernorate = { id: number; nom: string; nomAr: string | null; fraisLivraison: number };
 
@@ -183,7 +229,7 @@ export function mapCategory(c: WebCategory): Category {
     id: String(c.id),
     slug: String(c.id),
     name: c.nom,
-    imageUrl: null,
+    imageUrl: imageUrl(c.image),
     icon: c.icone ?? categoryIcon(c.nom),
     children: (c.sousCategories ?? []).map(mapCategory),
   };
@@ -203,6 +249,7 @@ export function mapStore(s: WebStore): Store {
     seller: s.vendeur
       ? { firstName: s.vendeur.prenom, lastName: s.vendeur.nom, photoUrl: imageUrl(s.vendeur.photo) }
       : null,
+    vendorId: s.vendeurId ? String(s.vendeurId) : null,
   };
 }
 
@@ -212,7 +259,7 @@ export function mapStoreDetail(s: WebStore): StoreDetail {
     ...mapStore(s),
     address: s.adresse || null,
     // La page boutique du site n'inclut ni la boutique ni les variantes dans chaque produit.
-    products: (s.Produits ?? []).map((p) => mapProductCard({ ...p, boutique: { id: s.id, nom: s.nom } })),
+    products: (s.Produits ?? []).map((p) => mapProductCard({ ...p, boutique: { id: s.id, nom: s.nom, vendeurId: s.vendeurId } })),
     rating: {
       average: avis.moyenne,
       count: avis.nombre,
@@ -244,7 +291,9 @@ export function mapProductCard(p: WebProduct, favoriteIds?: Set<string>): Produc
     flashEndsAt: null,
     category: { slug: String(p.categorie?.id ?? ''), name: p.categorie?.nom ?? '' },
     isFavorite: favoriteIds?.has(String(p.id)) ?? false,
-    store: p.boutique ? { id: String(p.boutique.id), name: p.boutique.nom } : null,
+    store: p.boutique
+      ? { id: String(p.boutique.id), name: p.boutique.nom, vendorId: p.boutique.vendeurId ? String(p.boutique.vendeurId) : null }
+      : null,
   };
 }
 
@@ -302,27 +351,62 @@ const PAYMENT_STATUS: Record<string, PaymentStatus> = {
   echec: 'FAILED',
 };
 
+const STATUT_WEB: Record<WebOrder['statut'], OrderStatus> = {
+  en_attente: 'PENDING',
+  payee: 'CONFIRMED',
+  preparation: 'PREPARING',
+  expediee: 'SHIPPED',
+  en_cours_livraison: 'OUT_FOR_DELIVERY',
+  livree: 'DELIVERED',
+  annulee: 'CANCELLED',
+  retour: 'RETURN_REQUESTED',
+  litige: 'RETURN_REQUESTED',
+  retournee: 'REFUNDED',
+};
+
 /**
- * Statut affiché : la livraison fait foi une fois le colis parti (une commande
- * COD livrée repasse en « payee » côté web au moment de l'encaissement).
+ * Statut affiché, lu sur la machine d'états du site. Une commande COD n'est
+ * jamais « payée » avant la livraison : confirmée par le client, elle
+ * s'affiche « Confirmée ». Repli sur le statut transporteur pour les
+ * commandes antérieures à la machine d'états.
  */
 function orderStatus(o: WebOrder): OrderStatus {
-  if (o.statut === 'annulee' || o.statut === 'retournee') return 'CANCELLED';
+  const status = STATUT_WEB[o.statut] ?? 'PENDING';
+  if (status !== 'PENDING') return status;
   const shipping = o.livraison?.statut;
-  if (o.statut === 'livree' || shipping === 'livre') return 'DELIVERED';
-  if (o.statut === 'expediee' || shipping === 'expedie' || shipping === 'en_cours_livraison') return 'SHIPPED';
-  if (o.statut === 'payee' || o.confirmationStatut === 'confirmee') return 'CONFIRMED';
+  if (shipping === 'livre') return 'DELIVERED';
+  if (shipping === 'en_cours_livraison') return 'OUT_FOR_DELIVERY';
+  if (shipping === 'expedie') return 'SHIPPED';
+  if (o.confirmationStatut === 'confirmee') return 'CONFIRMED';
   return 'PENDING';
 }
 
 function orderHistory(o: WebOrder, status: OrderStatus): Order['history'] {
+  // Chronologie serveur disponible : chaque transition devient une étape
+  // datée ; la confirmation COD par le client compte comme « Confirmée ».
+  if (o.historique?.length) {
+    const history: Order['history'] = [];
+    for (const h of o.historique) {
+      const confirmation = h.ancienStatut === h.nouveauStatut && /confirm/i.test(h.commentaire ?? '');
+      const mapped: OrderStatus | undefined = confirmation
+        ? 'CONFIRMED'
+        : h.ancienStatut === h.nouveauStatut && h.ancienStatut !== null
+          ? undefined
+          : STATUT_WEB[h.nouveauStatut as WebOrder['statut']];
+      if (mapped) history.push({ status: mapped, note: h.commentaire, at: h.createdAt });
+    }
+    return history;
+  }
+
   const history: Order['history'] = [{ status: 'PENDING', note: null, at: o.createdAt }];
   const add = (s: OrderStatus, at: string) => {
     if (!history.some((h) => h.status === s)) history.push({ status: s, note: null, at });
   };
   if (status !== 'PENDING' && status !== 'CANCELLED') add('CONFIRMED', o.confirmationDate ?? o.createdAt);
   for (const h of o.livraison?.historiqueStatuts ?? []) {
-    if (h.statut === 'expedie' || h.statut === 'en_cours_livraison') add('SHIPPED', h.date);
+    if (h.statut === 'en_preparation' && status !== 'PENDING') add('PREPARING', h.date);
+    if (h.statut === 'expedie') add('SHIPPED', h.date);
+    if (h.statut === 'en_cours_livraison') add('OUT_FOR_DELIVERY', h.date);
     if (h.statut === 'livre') add('DELIVERED', h.date);
   }
   if (status === 'CANCELLED') add('CANCELLED', o.updatedAt);
@@ -353,11 +437,15 @@ export function mapOrder(o: WebOrder, ctx: { governorates: Governorate[] }): Ord
     paymentStatus: PAYMENT_STATUS[o.paiement?.statut ?? ''] ?? (o.statut === 'payee' ? 'PAID' : 'UNPAID'),
     subtotal: toMillimes(o.sousTotal),
     discount: toMillimes(o.remiseCoupon + (o.walletUtilise || 0)),
+    vat: o.montantTva != null ? toMillimes(o.montantTva) : null,
+    stampDuty: toMillimes(o.timbreFiscal),
     shippingFee: toMillimes(o.fraisLivraison),
     total: toMillimes(o.total),
     couponCode: o.couponCode,
     trackingId: o.livraison?.trackingId ?? null,
-    store: o.boutique ? { id: String(o.boutique.id), name: o.boutique.nom } : null,
+    store: o.boutique
+      ? { id: String(o.boutique.id), name: o.boutique.nom, vendorId: o.boutique.vendeurId ? String(o.boutique.vendeurId) : null }
+      : null,
     // Le site stocke l'adresse en un seul texte (nom et téléphone inclus quand elle vient de l'app).
     shippingAddress: {
       fullName: '',
@@ -369,7 +457,60 @@ export function mapOrder(o: WebOrder, ctx: { governorates: Governorate[] }): Ord
     items,
     itemCount: items.reduce((sum, i) => sum + i.quantity, 0),
     history: orderHistory(o, status),
+    courier: o.suiviLivreur
+      ? {
+          name: o.suiviLivreur.nom,
+          phone: o.suiviLivreur.telephone,
+          vehicle: o.suiviLivreur.vehicule,
+          rating: o.suiviLivreur.noteMoyenne,
+          position: o.suiviLivreur.position
+            ? {
+                latitude: o.suiviLivreur.position.latitude,
+                longitude: o.suiviLivreur.position.longitude,
+                updatedAt: o.suiviLivreur.position.misAJour,
+              }
+            : null,
+          distanceKm: o.suiviLivreur.distanceKm,
+          etaMinutes: o.suiviLivreur.etaMinutes,
+          stage: o.suiviLivreur.statut,
+        }
+      : null,
+    map: o.carte
+      ? {
+          pickup: o.carte.depart,
+          dropoff: o.carte.arrivee,
+          courier: o.carte.livreur
+            ? { latitude: o.carte.livreur.latitude, longitude: o.carte.livreur.longitude }
+            : null,
+          storeName: o.carte.boutique,
+        }
+      : null,
     createdAt: o.createdAt,
+  };
+}
+
+export type WebNotification = {
+  id: number;
+  type: string;
+  titre: string;
+  message: string;
+  lien: string | null;
+  data: { commandeId?: number } | null;
+  lu: boolean;
+  createdAt: string;
+};
+
+export function mapNotification(n: WebNotification): AppNotification {
+  const commandeId = n.data?.commandeId;
+  return {
+    id: String(n.id),
+    type: /promo|coupon/.test(n.type) ? 'PROMO' : commandeId || /commande|paiement|livr|retour|rembours/.test(n.type) ? 'ORDER' : 'SYSTEM',
+    title: n.titre,
+    body: n.message,
+    data: { orderId: commandeId ? String(commandeId) : undefined, link: n.lien },
+    // L'API ne date pas la lecture : une notification lue est marquée lue « à sa création ».
+    readAt: n.lu ? n.createdAt : null,
+    createdAt: n.createdAt,
   };
 }
 

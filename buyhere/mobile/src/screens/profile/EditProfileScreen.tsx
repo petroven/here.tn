@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'expo-image';
 import { useTranslation } from 'react-i18next';
 import { useMutation } from '@tanstack/react-query';
-import { Lock, Phone, User } from 'lucide-react-native';
+import { Camera, Lock, Phone, User } from 'lucide-react-native';
 import { meApi } from '@/api/endpoints';
 import { errorMessage } from '@/api/client';
 import { Button } from '@/components/ui/Button';
@@ -28,6 +29,27 @@ export function EditProfileScreen({ navigation }: RootScreenProps<'EditProfile'>
   const [firstName, setFirstName] = useState(user.firstName);
   const [lastName, setLastName] = useState(user.lastName);
   const [phone, setPhone] = useState(formatPhone(user.phone));
+
+  // Photo de profil : choisie dans la galerie (recadrée en carré), envoyée aussitôt.
+  const photo = useMutation({
+    mutationFn: async () => {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.7,
+      });
+      if (result.canceled) return null;
+      await meApi.uploadPhoto(result.assets[0].uri);
+      return meApi.get();
+    },
+    onSuccess: async (fresh) => {
+      if (!fresh) return;
+      await setUser(fresh);
+      toast(t('profile.photoUpdated'));
+    },
+    onError: (err) => toast(errorMessage(err, t('common.networkError'))),
+  });
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -65,6 +87,12 @@ export function EditProfileScreen({ navigation }: RootScreenProps<'EditProfile'>
       <ScrollView contentContainerClassName="px-4 pb-10 pt-5" keyboardShouldPersistTaps="handled">
         {/* Photo (celle du compte Google/Facebook le cas échéant) */}
         <View className="mb-6 items-center">
+          <Pressable
+            onPress={() => photo.mutate()}
+            disabled={photo.isPending}
+            accessibilityRole="button"
+            accessibilityLabel={t('profile.changePhoto')}
+          >
             {user.avatarUrl ? (
               <Image source={{ uri: user.avatarUrl }} style={{ width: 96, height: 96, borderRadius: 48 }} />
             ) : (
@@ -72,6 +100,11 @@ export function EditProfileScreen({ navigation }: RootScreenProps<'EditProfile'>
                 <Text className="text-3xl font-bold text-white">{user.firstName.charAt(0)}</Text>
               </View>
             )}
+            <View className="absolute bottom-0 end-0 h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-ink dark:border-surface-dark">
+              {photo.isPending ? <ActivityIndicator size="small" color="#fff" /> : <Camera size={15} color="#fff" />}
+            </View>
+          </Pressable>
+          <Text className="mt-2 text-xs text-ink-muted dark:text-gray-400">{t('profile.changePhoto')}</Text>
         </View>
 
         <View className="gap-4">

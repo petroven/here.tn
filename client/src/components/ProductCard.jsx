@@ -15,7 +15,7 @@ export default function ProductCard({ product, isFavorite, onToggleFavorite, onO
       <button onClick={() => onOpen(product.id)} className="block w-full text-left">
         <div className="relative aspect-square overflow-hidden bg-slate-100">
           {product.image ? (
-            <img
+            <img loading="lazy" decoding="async"
               src={product.image}
               alt={product.nom}
               className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"

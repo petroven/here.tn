@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import {
   Produit, Boutique, Categorie, Variante, Commande, LigneCommande,
   Paiement, Commission, Livraison, Livreur, Coupon, Utilisateur, Gouvernorat, Delegation, Avis,
-  WalletTransaction,
+  WalletTransaction, HistoriqueCommande,
 } from '../models/index.js';
 import { Op, literal } from 'sequelize';
 import { genererNumeroCommande, genererTrackingId, genererAwbNumber } from '../utils/shipping.js';
@@ -12,9 +12,17 @@ import { smsStatutLivraison, smsConfirmationCommande } from '../utils/sms.js';
 
 const DUREE_CONFIRMATION_HEURES = 48;
 import { generateInvoicePDF } from '../utils/pdf.js';
-import { calculateCommission, calculateShipping, marketplaceConfig } from '../config/marketplace.js';
+import { calculateCommission, calculateShipping, calculateTvaIncluse, marketplaceConfig } from '../config/marketplace.js';
 import { matchAndNotifyCourierForLivraison } from '../utils/courierMatching.js';
+import { calculateDistanceKm } from '../utils/geo.js';
+import { carteCommande, planifierGeocodage } from '../utils/geocode.js';
 import { crediterCashback, plafonnerUtilisationWallet, crediterAnnulationCommande } from '../utils/wallet.js';
+import { reserverStock, restaurerStockCommande, StockInsuffisantError } from '../utils/stock.js';
+import {
+  changerStatutCommande, synchroniserStatutCommande, ajouterEvenementCommande, getHistoriqueCommande,
+  verifierPaiementAvantExpedition, STATUT_COMMANDE_PAR_LIVRAISON, LIBELLES_STATUT,
+} from '../utils/orderStatus.js';
+import { notifier, notifierVendeur } from '../utils/notifications.js';
 
 function getCommissionRate() {
   return marketplaceConfig.commissionRate;
@@ -279,7 +287,7 @@ export async function createCommande(req, res) {
         stockDispo = variante.stock;
       }
 
-      if (ligne.quantite > stockDispo) throw new Error(`Stock insuffisant pour ${produit.nom}.`);
+      if (ligne.quantite > stockDispo) throw new StockInsuffisantError(produit.nom);
 
       const totalLigne = prix * ligne.quantite;
       sousTotal += totalLigne;
@@ -342,7 +350,16 @@ export async function createCommande(req, res) {
       const bucket = lignesParBoutique.get(boutiqueId);
       const remisePart = sousTotal > 0 ? (remise * bucket.sousTotal) / sousTotal : 0;
       const walletPart = sousTotal > 0 ? (walletUtiliseTotal * bucket.sousTotal) / sousTotal : 0;
-      const totalCommande = roundMoney(Math.max(0, bucket.sousTotal + fraisLivraisonUnitaire - remisePart - walletPart));
+      // Timbre fiscal : une facture par boutique, donc un timbre par commande.
+      // Comme la livraison, il n'est jamais couvert par le solde (plafond
+      // wallet = produits uniquement).
+      const { timbreFiscal } = marketplaceConfig.fiscal;
+      const totalCommande = roundMoney(
+        Math.max(0, bucket.sousTotal + fraisLivraisonUnitaire - remisePart - walletPart) + timbreFiscal,
+      );
+      // TVA comprise dans les articles (après remise) et la livraison. Le
+      // solde wallet est un moyen de paiement, pas une remise : il ne la réduit pas.
+      const montantTva = calculateTvaIncluse(bucket.sousTotal - remisePart + fraisLivraisonUnitaire);
       const totalDejaCouvert = totalCommande <= 0.001;
       const montantCommission = roundMoney(calculateCommission(bucket.sousTotal));
       const montantVendeur = roundMoney(bucket.sousTotal - montantCommission);
@@ -361,9 +378,14 @@ export async function createCommande(req, res) {
         remiseCoupon: roundMoney(remisePart),
         walletUtilise: roundMoney(walletPart),
         total: totalCommande,
+        montantTva,
+        timbreFiscal,
         montantCommission,
         montantVendeur,
-        statut: totalDejaCouvert ? 'payee' : 'en_attente',
+        // Toujours créée en_attente : le passage éventuel à 'payee' (total
+        // couvert par coupon/solde) passe par la machine d'états ci-dessous,
+        // pour qu'il apparaisse dans l'historique.
+        statut: 'en_attente',
         adresseLivraison,
         gouvernoratId,
         delegationId,
@@ -384,12 +406,33 @@ export async function createCommande(req, res) {
           prixUnitaire: lv.prixUnitaire,
         }, { transaction });
 
-        if (lv.varianteId) {
-          const variante = await Variante.findByPk(lv.varianteId, { transaction });
-          await variante.update({ stock: variante.stock - lv.quantite }, { transaction });
-        } else {
-          await lv.produit.update({ stock: lv.produit.stock - lv.quantite }, { transaction });
-        }
+        // Décrément atomique : la vérification de stock plus haut n'est
+        // qu'indicative, c'est ce UPDATE conditionnel qui garantit qu'un
+        // dernier article ne peut pas être vendu deux fois.
+        await reserverStock({
+          produitId: lv.produitId,
+          varianteId: lv.varianteId || null,
+          quantite: lv.quantite,
+          nomProduit: lv.produit.nom,
+          commandeId: commande.id,
+          utilisateurId: clientId,
+          transaction,
+        });
+      }
+
+      await ajouterEvenementCommande(commande, {
+        ancienStatut: null,
+        statut: 'en_attente',
+        utilisateurId: clientId,
+        commentaire: LIBELLES_STATUT.en_attente.fr,
+        transaction,
+      });
+      if (totalDejaCouvert) {
+        await changerStatutCommande(commande, 'payee', {
+          utilisateurId: clientId,
+          commentaire: 'Montant entièrement couvert par coupon et/ou solde',
+          transaction,
+        });
       }
 
       const paiementStatut = totalDejaCouvert
@@ -460,6 +503,11 @@ export async function createCommande(req, res) {
 
     await transaction.commit();
 
+    // Coordonnées de livraison pour la carte de suivi (tâche de fond, ~1 s par adresse).
+    Livraison.findAll({ where: { commandeId: commandesCreees.map((c) => c.id) } })
+      .then(planifierGeocodage)
+      .catch(() => undefined);
+
     const virementInstructions = methodePaiement === 'virement' && !paiementsCrees.every((p) => p.statut === 'valide')
       ? {
         ...marketplaceConfig.platformBank,
@@ -470,6 +518,22 @@ export async function createCommande(req, res) {
 
     for (const commande of commandesCreees) {
       if (commande.statut === 'payee') await crediterCashback(commande.id);
+      if (commande.clientId) {
+        notifier(commande.clientId, {
+          type: 'commande_confirmee',
+          titre: 'Commande confirmée',
+          message: `Votre commande ${commande.numeroCommande} (${commande.total.toFixed(3)} DT) a bien été enregistrée.`,
+          lien: `commande/${commande.id}`,
+          data: { commandeId: commande.id },
+        });
+      }
+      notifierVendeur(commande.boutiqueId, {
+        type: 'nouvelle_commande',
+        titre: 'Nouvelle commande',
+        message: `Commande ${commande.numeroCommande} — ${commande.sousTotal.toFixed(3)} DT d'articles.`,
+        lien: 'vendeur/commandes',
+        data: { commandeId: commande.id },
+      });
     }
 
     const client = clientId ? await Utilisateur.findByPk(clientId) : guestInfo;
@@ -527,7 +591,7 @@ export async function createCommande(req, res) {
     });
   } catch (error) {
     await transaction.rollback();
-    res.status(400).json({ success: false, message: error.message });
+    res.status(error.status === 409 ? 409 : 400).json({ success: false, message: error.message });
   }
 }
 
@@ -560,7 +624,10 @@ export async function confirmPayment(req, res) {
     const result = await confirmSandboxPayment(paymentRef);
 
     await paiement.update({ statut: 'valide', gatewayResponse: result });
-    await Commande.update({ statut: 'payee' }, { where: { id: paiement.commandeId } });
+    await synchroniserStatutCommande(paiement.commandeId, 'payee', {
+      utilisateurId: req.user.id,
+      commentaire: 'Paiement sandbox confirmé',
+    });
     await crediterCashback(paiement.commandeId);
     envoyerRecuPaiement(paiement.commandeId).catch((error) => {
       console.error('[EMAIL] Échec envoi reçu de paiement:', error.message);
@@ -614,13 +681,34 @@ export async function getMesCommandes(req, res) {
         {
           model: Livraison,
           as: 'livraison',
-          include: [{ model: Livreur, as: 'livreur', attributes: ['id', 'utilisateurId'] }],
+          include: [{
+            model: Livreur,
+            as: 'livreur',
+            attributes: ['id', 'utilisateurId', 'vehiculeType', 'latitude', 'longitude', 'dernierePositionMaj', 'noteMoyenne'],
+            include: [{ model: Utilisateur, as: 'utilisateur', attributes: ['nom', 'prenom', 'telephone'] }],
+          }],
         },
-        { model: Boutique, as: 'boutique', attributes: ['id', 'nom'] },
+        // vendeurId : nécessaire au bouton « Contacter la boutique » (messagerie).
+        { model: Boutique, as: 'boutique', attributes: ['id', 'nom', 'vendeurId'] },
+        { model: HistoriqueCommande, as: 'historique' },
       ],
-      order: [['createdAt', 'DESC']],
+      order: [['createdAt', 'DESC'], [{ model: HistoriqueCommande, as: 'historique' }, 'createdAt', 'ASC']],
     });
-    res.json({ success: true, data: commandes });
+    // Chronologie et suivi livreur joints à chaque commande : la page « Mes
+    // commandes » et l'app mobile n'ont pas à faire un appel par commande.
+    const data = commandes.map((commande) => {
+      const json = commande.toJSON();
+      json.suiviLivreur = suiviLivreur(commande.livraison);
+      json.carte = carteCommande(commande, json.suiviLivreur);
+      if (json.livraison?.livreur) delete json.livraison.livreur.utilisateur;
+      return json;
+    });
+    // Commandes encore en cours sans coordonnées (antérieures au géocodage,
+    // ou service indisponible à la création) : géocodées pour la prochaine lecture.
+    planifierGeocodage(commandes
+      .filter((c) => !['livree', 'annulee', 'retournee'].includes(c.statut))
+      .map((c) => c.livraison));
+    res.json({ success: true, data });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -631,6 +719,7 @@ export async function getMesCommandes(req, res) {
 // — une fois le colis remis au transporteur/livreur, seule une demande de
 // retour après livraison reste possible (voir retourRoutes.js).
 export async function annulerCommandeParClient(req, res) {
+  const transaction = await Commande.sequelize.transaction();
   try {
     const { id } = req.params;
     const commande = await Commande.findOne({
@@ -640,34 +729,38 @@ export async function annulerCommandeParClient(req, res) {
         { model: Paiement, as: 'paiement' },
         { model: LigneCommande, as: 'lignes' },
       ],
+      transaction,
     });
 
     if (!commande) {
+      await transaction.rollback();
       return res.status(404).json({ success: false, message: 'Commande introuvable.' });
     }
 
-    if (!['en_attente', 'payee'].includes(commande.statut)) {
-      return res.status(400).json({ success: false, message: 'Cette commande ne peut plus être annulée.' });
-    }
-
     if (commande.livraison && commande.livraison.statut !== 'en_preparation') {
+      await transaction.rollback();
       return res.status(400).json({
         success: false,
         message: 'Votre colis a déjà été pris en charge pour la livraison — l\'annulation n\'est plus possible. Vous pourrez faire une demande de retour une fois la commande livrée.',
       });
     }
 
-    for (const ligne of commande.lignes || []) {
-      if (ligne.varianteId) {
-        const variante = await Variante.findByPk(ligne.varianteId);
-        if (variante) await variante.update({ stock: variante.stock + ligne.quantite });
-      } else {
-        const produit = await Produit.findByPk(ligne.produitId);
-        if (produit) await produit.update({ stock: produit.stock + ligne.quantite });
-      }
-    }
+    // La machine d'états refuse l'annulation au-delà de la préparation
+    // (TransitionInvalideError → 409) ; le stock n'est restitué qu'ensuite,
+    // dans la même transaction.
+    await changerStatutCommande(commande, 'annulee', {
+      utilisateurId: req.user.id,
+      commentaire: 'Annulée par le client',
+      transaction,
+    });
+    await restaurerStockCommande(commande.lignes, {
+      motif: 'annulation',
+      commandeId: commande.id,
+      utilisateurId: req.user.id,
+      transaction,
+    });
+    await transaction.commit();
 
-    await commande.update({ statut: 'annulee' });
     await crediterAnnulationCommande(commande);
 
     const client = await Utilisateur.findByPk(commande.clientId);
@@ -679,43 +772,85 @@ export async function annulerCommandeParClient(req, res) {
 
     res.json({ success: true, data: commande, message: 'Commande annulée avec succès.' });
   } catch (error) {
+    await transaction.rollback();
+    if (error.status === 409) {
+      return res.status(400).json({ success: false, message: 'Cette commande ne peut plus être annulée.' });
+    }
     res.status(500).json({ success: false, message: error.message });
   }
 }
 
+const STATUTS_LIVRAISON_VENDEUR = ['en_preparation', 'expedie', 'en_cours_livraison', 'livre'];
+
 export async function updateLivraisonStatut(req, res) {
   try {
-    const { statut } = req.body;
+    const { statut, commentaire } = req.body;
+    if (!STATUTS_LIVRAISON_VENDEUR.includes(statut)) {
+      return res.status(400).json({ success: false, message: 'Statut de livraison invalide.' });
+    }
+
     const livraison = await Livraison.findOne({
       where: { commandeId: req.params.commandeId },
-      include: [{ model: Commande, include: [{ model: Utilisateur, as: 'client' }, { model: Paiement, as: 'paiement' }] }],
+      include: [{
+        model: Commande,
+        include: [
+          { model: Utilisateur, as: 'client' },
+          { model: Paiement, as: 'paiement' },
+          { model: Boutique, as: 'boutique', attributes: ['id', 'vendeurId'] },
+        ],
+      }],
     });
     if (!livraison) return res.status(404).json({ success: false, message: 'Livraison introuvable.' });
 
-    if (statut === 'expedie' && livraison.Commande?.confirmationStatut === 'en_attente') {
+    // Seul le vendeur de la boutique concernée (ou un admin) peut faire
+    // avancer la livraison — auparavant tout utilisateur connecté le pouvait.
+    const estAdmin = ['administrateur', 'super_admin'].includes(req.user.role);
+    const estVendeur = Number(livraison.Commande?.boutique?.vendeurId) === Number(req.user.id);
+    if (!estAdmin && !estVendeur) {
+      return res.status(403).json({ success: false, message: 'Accès à cette livraison refusé.' });
+    }
+
+    const commande = livraison.Commande;
+    if (statut === 'expedie' && commande?.confirmationStatut === 'en_attente') {
       return res.status(409).json({
         success: false,
         message: 'Le client doit d\'abord confirmer sa commande (lien envoyé par SMS) avant expédition.',
       });
     }
+    const paiementManquant = verifierPaiementAvantExpedition(commande, commande?.paiement);
+    if (paiementManquant) return res.status(409).json({ success: false, message: paiementManquant });
 
-    const historique = [...(livraison.historiqueStatuts || []), { statut, date: new Date().toISOString() }];
-    const updates = { statut, historiqueStatuts: historique };
+    const transaction = await Commande.sequelize.transaction();
+    try {
+      // La commande avance d'abord : si la transition est interdite (ex:
+      // commande annulée), rien n'est écrit sur la livraison non plus.
+      await changerStatutCommande(commande, STATUT_COMMANDE_PAR_LIVRAISON[statut], {
+        utilisateurId: req.user.id,
+        commentaire: commentaire || null,
+        transaction,
+      });
 
-    if (statut === 'expedie') updates.dateExpedition = new Date();
-    if (statut === 'livre') {
-      updates.dateLivraison = new Date();
-      await Commande.update({ statut: 'livree' }, { where: { id: livraison.commandeId } });
-      const paiement = livraison.Commande?.paiement;
+      const historique = [...(livraison.historiqueStatuts || []), { statut, date: new Date().toISOString() }];
+      const updates = { statut, historiqueStatuts: historique };
+      if (statut === 'expedie') updates.dateExpedition = new Date();
+      if (statut === 'livre') updates.dateLivraison = new Date();
+      await livraison.update(updates, { transaction });
+
       // L'encaissement COD est tracé sur le Paiement : la commande reste
       // 'livree', statut requis pour laisser un avis ou demander un retour.
-      if (paiement?.methode === 'cod' && paiement.statut === 'en_attente_livraison') {
-        await paiement.update({ statut: 'paye_livraison' });
-        await crediterCashback(livraison.commandeId);
+      const paiement = commande.paiement;
+      if (statut === 'livre' && paiement?.methode === 'cod' && paiement.statut === 'en_attente_livraison') {
+        await paiement.update({ statut: 'paye_livraison' }, { transaction });
       }
+      await transaction.commit();
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
     }
 
-    await livraison.update(updates);
+    if (statut === 'livre' && commande.paiement?.statut === 'paye_livraison') {
+      await crediterCashback(livraison.commandeId);
+    }
 
     if (statut === 'expedie') {
       matchAndNotifyCourierForLivraison(livraison.id).catch((err) =>
@@ -723,14 +858,12 @@ export async function updateLivraisonStatut(req, res) {
       );
     }
 
-    const client = livraison.Commande?.client;
-    if (client) {
-      if (client.telephone) await smsStatutLivraison(client.telephone, livraison.trackingId, statut);
-    }
+    const client = commande?.client;
+    if (client?.telephone) await smsStatutLivraison(client.telephone, livraison.trackingId, statut);
 
     res.json({ success: true, data: livraison });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(error.status || 500).json({ success: false, message: error.message });
   }
 }
 
@@ -752,8 +885,11 @@ export async function assignDeliveryManually(req, res) {
 
 export async function getTracking(req, res) {
   try {
+    // Route publique (le numéro de suivi suffit) : seulement l'état du colis.
+    // Jamais la position du domicile, la photo de preuve ni le livreur.
     const livraison = await Livraison.findOne({
       where: { trackingId: req.params.trackingId },
+      attributes: ['trackingId', 'awbNumber', 'statut', 'transporteur', 'dateExpedition', 'dateLivraison', 'historiqueStatuts', 'createdAt'],
       include: [{ model: Commande, attributes: ['numeroCommande', 'statut'] }],
     });
     if (!livraison) return res.status(404).json({ success: false, message: 'Tracking introuvable.' });
@@ -813,16 +949,20 @@ export async function repondreConfirmationCommande(req, res) {
     }
 
     if (action === 'annuler') {
-      for (const ligne of commande.lignes) {
-        if (ligne.varianteId) {
-          await Variante.increment('stock', { by: ligne.quantite, where: { id: ligne.varianteId }, transaction });
-        } else {
-          await Produit.increment('stock', { by: ligne.quantite, where: { id: ligne.produitId }, transaction });
-        }
-      }
-      await commande.update({ confirmationStatut: 'refusee', statut: 'annulee', confirmationDate: new Date() }, { transaction });
+      await changerStatutCommande(commande, 'annulee', {
+        utilisateurId: commande.clientId,
+        commentaire: 'Commande refusée par le client (lien de confirmation)',
+        transaction,
+      });
+      await restaurerStockCommande(commande.lignes, { motif: 'annulation', commandeId: commande.id, transaction });
+      await commande.update({ confirmationStatut: 'refusee', confirmationDate: new Date() }, { transaction });
     } else {
       await commande.update({ confirmationStatut: 'confirmee', confirmationDate: new Date() }, { transaction });
+      await ajouterEvenementCommande(commande, {
+        utilisateurId: commande.clientId,
+        commentaire: 'Commande confirmée par le client',
+        transaction,
+      });
     }
 
     await transaction.commit();
@@ -831,4 +971,78 @@ export async function repondreConfirmationCommande(req, res) {
     await transaction.rollback();
     res.status(500).json({ success: false, message: error.message });
   }
+}
+
+// Chronologie d'une commande — visible par le client propriétaire, le
+// vendeur de la boutique et les admins.
+export async function getHistoriqueCommandeEndpoint(req, res) {
+  try {
+    const commande = await Commande.findByPk(req.params.id, {
+      include: [
+        { model: Boutique, as: 'boutique', attributes: ['id', 'nom', 'vendeurId'] },
+        {
+          model: Livraison,
+          as: 'livraison',
+          include: [{
+            model: Livreur,
+            as: 'livreur',
+            attributes: ['id', 'vehiculeType', 'latitude', 'longitude', 'dernierePositionMaj', 'noteMoyenne'],
+            include: [{ model: Utilisateur, as: 'utilisateur', attributes: ['nom', 'prenom', 'telephone'] }],
+          }],
+        },
+      ],
+    });
+    if (!commande) return res.status(404).json({ success: false, message: 'Commande introuvable.' });
+
+    const estProprietaire = Number(commande.clientId) === Number(req.user.id);
+    const estVendeur = Number(commande.boutique?.vendeurId) === Number(req.user.id);
+    const estAdmin = ['administrateur', 'super_admin'].includes(req.user.role);
+    if (!estProprietaire && !estVendeur && !estAdmin) {
+      return res.status(403).json({ success: false, message: 'Accès à cette commande refusé.' });
+    }
+
+    const historique = await getHistoriqueCommande(commande.id);
+    res.json({
+      success: true,
+      data: {
+        commandeId: commande.id,
+        numeroCommande: commande.numeroCommande,
+        statut: commande.statut,
+        historique,
+        livreur: suiviLivreur(commande.livraison),
+        carte: carteCommande(commande, suiviLivreur(commande.livraison)),
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+// Vitesses moyennes urbaines retenues pour l'estimation d'arrivée (km/h).
+const VITESSE_MOYENNE_KMH = { moto: 30, velo: 15, voiture: 25, camionnette: 22 };
+
+/**
+ * Informations livreur exposées au client une fois la course assignée :
+ * identité, véhicule, dernière position connue, distance restante et
+ * estimation d'arrivée (vol d'oiseau / vitesse moyenne du véhicule — une
+ * estimation, pas un calcul d'itinéraire).
+ */
+export function suiviLivreur(livraison) {
+  const livreur = livraison?.livreur;
+  if (!livreur || !['assignee', 'en_cours'].includes(livraison.statutAssignation)) return null;
+
+  const distanceKm = calculateDistanceKm(livreur.latitude, livreur.longitude, livraison.latitudeArrivee, livraison.longitudeArrivee);
+  const vitesse = VITESSE_MOYENNE_KMH[livreur.vehiculeType] || 25;
+  return {
+    nom: [livreur.utilisateur?.prenom, livreur.utilisateur?.nom].filter(Boolean).join(' ') || 'Livreur',
+    telephone: livreur.utilisateur?.telephone || null,
+    vehicule: livreur.vehiculeType,
+    noteMoyenne: livreur.noteMoyenne,
+    position: livreur.latitude !== null && livreur.longitude !== null
+      ? { latitude: livreur.latitude, longitude: livreur.longitude, misAJour: livreur.dernierePositionMaj }
+      : null,
+    distanceKm: distanceKm !== null ? Math.round(distanceKm * 10) / 10 : null,
+    etaMinutes: distanceKm !== null ? Math.max(1, Math.round((distanceKm / vitesse) * 60)) : null,
+    statut: livraison.statutAssignation,
+  };
 }
