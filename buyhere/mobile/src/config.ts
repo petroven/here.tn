@@ -8,9 +8,16 @@ import { Platform } from 'react-native';
  * sinon l'IP de la machine de dev détectée par Expo (fonctionne sur un
  * téléphone réel via Expo Go), sinon localhost / 10.0.2.2 (émulateur Android).
  */
+/** Serveur de production (Render) — utilisé par l'APK et toute build release. */
+const PRODUCTION_API_URL = 'https://buyhere-xffq.onrender.com/api';
+
 function resolveApiUrl(): string {
   const fromEnv = process.env.EXPO_PUBLIC_API_URL;
   if (fromEnv) return fromEnv.replace(/\/$/, '');
+
+  // Une build release (APK) n'a pas de serveur de dev Expo : sans ce repli
+  // elle viserait 10.0.2.2:5000, injoignable depuis un vrai téléphone.
+  if (!__DEV__) return PRODUCTION_API_URL;
 
   const hostUri = Constants.expoConfig?.hostUri; // ex. "192.168.1.20:8081"
   const host = hostUri?.split(':')[0];
