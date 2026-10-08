@@ -8,7 +8,7 @@ import ProductCard from '../components/ProductCard';
 import Badge from '../components/ui/Badge';
 import Input from '../components/ui/Input';
 import { useDialog } from '../hooks/useDialog.js';
-import { API_URL } from '../config/api.js';
+import { API_URL, absoluteImageUrl } from '../config/api.js';
 
 function FilterSection({ title, open, onToggle, children }) {
   return (
@@ -384,7 +384,7 @@ export function Marketplace({ cartItems = [], onUpdateCart, onStartChat, onViewC
                       className="card-premium flex items-center gap-4 p-3 text-left"
                     >
                       <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-slate-100">
-                        {product.image ? <img src={product.image} alt={product.nom} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center text-slate-300"><ShoppingCart size={20} /></div>}
+                        {product.image ? <img src={absoluteImageUrl(product.image)} alt={product.nom} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center text-slate-300"><ShoppingCart size={20} /></div>}
                       </div>
                       <div className="min-w-0 flex-1">
                         <h3 className="truncate text-sm font-bold text-slate-900">{product.nom}</h3>

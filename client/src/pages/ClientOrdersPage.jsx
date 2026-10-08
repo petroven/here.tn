@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ShoppingBag, FileDown, MessageSquare, RefreshCw, Star, AlertCircle, CheckCircle, Wallet, ChevronDown, ChevronUp, XCircle, BadgeCheck } from 'lucide-react';
-import { API_URL } from '../config/api.js';
+import { API_URL, absoluteImageUrl } from '../config/api.js';
 import OrderTimeline from '../components/OrderTimeline.jsx';
 import OrderMap from '../components/OrderMap.jsx';
 import { STATUT_LABELS, STATUT_TONES } from '../utils/orderStatus.js';
@@ -359,7 +359,7 @@ export default function ClientOrdersPage({ onStartChat, language = 'fr' }) {
                         <div className="flex min-w-0 flex-1 items-center gap-3">
                           <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-100 text-slate-400">
                             {product.image ? (
-                              <img loading="lazy" decoding="async" src={product.image} alt={product.nom} className="h-full w-full object-cover" />
+                              <img loading="lazy" decoding="async" src={absoluteImageUrl(product.image)} alt={product.nom} className="h-full w-full object-cover" />
                             ) : (
                               <ShoppingBag size={18} />
                             )}

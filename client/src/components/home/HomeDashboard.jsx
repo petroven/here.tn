@@ -4,7 +4,7 @@ import {
   Wallet, PackageCheck, ChevronRight, CheckCircle2,
 } from 'lucide-react';
 import Avatar from '../ui/Avatar';
-import { API_URL } from '../../config/api.js';
+import { API_URL, absoluteImageUrl } from '../../config/api.js';
 import { STATUT_LABELS } from '../../utils/orderStatus.js';
 
 // Étape atteinte dans la barre de progression d'une commande en cours.
@@ -164,7 +164,7 @@ export default function HomeDashboard({ language = 'fr', navigate, cartCount = 0
                 <button key={p.id} onClick={() => onOpenProduct(p.id)} className="group text-left rtl:text-right">
                   <div className="aspect-square overflow-hidden rounded-xl bg-slate-100">
                     {p.image
-                      ? <img loading="lazy" decoding="async" src={p.image} alt={p.nom} className="h-full w-full object-cover transition duration-300 group-hover:scale-105" />
+                      ? <img loading="lazy" decoding="async" src={absoluteImageUrl(p.image)} alt={p.nom} className="h-full w-full object-cover transition duration-300 group-hover:scale-105" />
                       : <div className="flex h-full items-center justify-center text-slate-300"><ShoppingBag size={20} /></div>}
                   </div>
                   <p className="mt-1.5 truncate text-xs font-bold text-slate-800">{p.nom}</p>

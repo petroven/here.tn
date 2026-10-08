@@ -16,7 +16,7 @@ import {
   ImagePlus,
 } from 'lucide-react';
 import { useTranslation } from '../i18n';
-import { API_URL } from '../config/api.js';
+import { API_URL, absoluteImageUrl } from '../config/api.js';
 import ProductImportModal from '../components/vendor/ProductImportModal.jsx';
 import QuickAddModal from '../components/vendor/QuickAddModal.jsx';
 import ChatWidget from '../components/ChatWidget.jsx';
@@ -1108,7 +1108,7 @@ export function VendorDashboard({ language = 'fr', setLanguage = () => {} }) {
                 .map((product) => (
                 <div key={product.id} className={`bg-white rounded-lg border shadow-soft overflow-hidden hover:-translate-y-1 transition duration-200 ${product.stock === 0 ? 'border-rose-200' : product.stock <= seuilStockFaible ? 'border-amber-200' : 'border-slate-200'}`}>
                   {product.image && (
-                    <img loading="lazy" decoding="async" src={product.image} alt={product.nom} className="w-full h-40 object-cover" />
+                    <img loading="lazy" decoding="async" src={absoluteImageUrl(product.image)} alt={product.nom} className="w-full h-40 object-cover" />
                   )}
                   <div className="p-5">
                     <h3 className="font-bold text-slate-800 text-sm">{product.nom}</h3>

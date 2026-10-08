@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import Input from '../components/ui/Input';
 import Modal from '../components/ui/Modal';
-import { API_URL } from '../config/api.js';
+import { API_URL, absoluteImageUrl } from '../config/api.js';
 
 const STEPS = [
   { key: 'panier', labelFr: 'Panier', labelAr: 'السلة' },
@@ -371,7 +371,7 @@ export default function CheckoutPage({ cartItems = [], onOrderPlaced, onClearCar
   if (cartItems.length === 0) {
     return (
       <div className="mx-auto flex min-h-[70vh] max-w-lg flex-col items-center justify-center p-6 text-center font-sans">
-        <img loading="lazy" decoding="async" src="/logo-alt-basket.png" alt="" className="mb-6 h-28 w-28 object-contain" />
+        <div className="mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-[#F8E4DE] text-[#C4532C]"><ShoppingBag size={40} /></div>
         <h1 className="text-xl font-black text-slate-900">{tr('Votre panier est vide', 'سلتك فارغة')}</h1>
         <p className="mt-2 text-sm text-slate-500">{tr('Ajoutez des produits pour commencer votre commande.', 'أضف منتجات لبدء طلبك.')}</p>
         <button onClick={onBack} className="btn-primary-premium mt-6 px-6 py-3 text-sm">
@@ -414,7 +414,7 @@ export default function CheckoutPage({ cartItems = [], onOrderPlaced, onClearCar
             {cartItems.map((item) => (
               <div key={`${item.boutiqueId}-${item.id}-${item.varianteId || 'base'}`} className="flex items-center gap-3 rounded-2xl border border-slate-100 p-3">
                 <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-slate-100">
-                  {item.image ? <img loading="lazy" decoding="async" src={item.image} alt={item.nom} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center text-slate-300"><ShoppingBag size={20} /></div>}
+                  {item.image ? <img loading="lazy" decoding="async" src={absoluteImageUrl(item.image)} alt={item.nom} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center text-slate-300"><ShoppingBag size={20} /></div>}
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-bold text-slate-800">{item.nom}</p>

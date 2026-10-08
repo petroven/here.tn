@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Heart, ShoppingBag, ArrowLeft, PackageCheck } from 'lucide-react';
-import { API_URL } from '../config/api.js';
+import { API_URL, absoluteImageUrl } from '../config/api.js';
 
 export default function FavoritesPage({ language = 'fr', onBack, onOpenProduct, onAddToCart }) {
   const isAr = language === 'ar';
@@ -67,7 +67,7 @@ export default function FavoritesPage({ language = 'fr', onBack, onOpenProduct, 
                 <button onClick={() => onOpenProduct(produitId)} className="block w-full text-left">
                   <div className="h-40 bg-slate-100">
                     {produit.image ? (
-                      <img loading="lazy" decoding="async" src={produit.image} alt={produit.nom} className="h-full w-full object-cover" />
+                      <img loading="lazy" decoding="async" src={absoluteImageUrl(produit.image)} alt={produit.nom} className="h-full w-full object-cover" />
                     ) : (
                       <div className="flex h-full items-center justify-center text-slate-300"><PackageCheck size={32} /></div>
                     )}
