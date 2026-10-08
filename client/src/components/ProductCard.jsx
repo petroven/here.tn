@@ -2,6 +2,7 @@ import React from 'react';
 import { Star, Heart, ShoppingCart } from 'lucide-react';
 import Card from './ui/Card';
 import Badge from './ui/Badge';
+import { absoluteImageUrl } from '../config/api.js';
 
 export default function ProductCard({ product, isFavorite, onToggleFavorite, onOpen, onAddToCart, language = 'fr' }) {
   const isAr = language === 'ar';
@@ -10,13 +11,13 @@ export default function ProductCard({ product, isFavorite, onToggleFavorite, onO
   const rating = Number(product.note || 0);
 
   return (
-    <Card className="group relative overflow-hidden">
+    <Card className="group relative overflow-hidden max-sm:!rounded-none max-sm:!border-0 max-sm:!bg-transparent max-sm:!shadow-none">
       {/* Image */}
       <button onClick={() => onOpen(product.id)} className="block w-full text-left">
-        <div className="relative aspect-square overflow-hidden bg-slate-100">
+        <div className="relative aspect-square overflow-hidden bg-slate-100 max-sm:aspect-[1/1.15] max-sm:rounded-2xl max-sm:bg-[#F4ECDF]">
           {product.image ? (
-            <img
-              src={product.image}
+            <img loading="lazy" decoding="async"
+              src={absoluteImageUrl(product.image)}
               alt={product.nom}
               className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
             />
@@ -36,28 +37,29 @@ export default function ProductCard({ product, isFavorite, onToggleFavorite, onO
             <button
               onClick={(e) => { e.stopPropagation(); onToggleFavorite(product.id, e); }}
               aria-label="Favoris"
-              className="absolute right-2.5 top-2.5 flex h-8 w-8 items-center justify-center rounded-full glass-badge text-slate-600 transition hover:text-rose-500 rtl:right-auto rtl:left-2.5"
+              className="absolute right-2.5 top-2.5 flex h-8 w-8 items-center justify-center rounded-full glass-badge max-sm:bg-white/90 max-sm:shadow-sm text-slate-600 transition hover:text-rose-500 rtl:right-auto rtl:left-2.5"
             >
               <Heart size={15} className={isFavorite ? 'fill-rose-500 text-rose-500' : ''} />
             </button>
           )}
 
-          {/* Add to cart — hover reveal on desktop, always visible on mobile */}
+          {/* Ajout au panier : barre révélée au survol (PC). Sur téléphone, comme sur PC,
+              la photo reste propre : l'ajout se fait depuis la fiche produit. */}
           <button
             onClick={(e) => { e.stopPropagation(); onAddToCart(product); }}
             disabled={product.stock < 1}
-            className="absolute bottom-2.5 left-2.5 right-2.5 flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-bold text-white btn-primary-premium opacity-100 transition-all duration-300 disabled:opacity-40 sm:translate-y-3 sm:opacity-0 sm:group-hover:translate-y-0 sm:group-hover:opacity-100"
+            className="absolute bottom-2.5 left-2.5 right-2.5 hidden items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-bold text-white btn-primary-premium translate-y-3 opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100 disabled:opacity-40 sm:flex"
           >
             <ShoppingCart size={14} />
             {isAr ? 'أضف للسلة' : 'Ajouter'}
           </button>
         </div>
 
-        <div className="space-y-1.5 p-3.5">
+        <div className="space-y-1 p-3.5 max-sm:px-0.5 max-sm:pb-1 max-sm:pt-2">
           {product.boutique?.nom && (
-            <p className="truncate text-[11px] font-semibold text-slate-400">{product.boutique.nom}</p>
+            <p className="truncate text-[11px] font-semibold text-slate-400 max-sm:hidden">{product.boutique.nom}</p>
           )}
-          <h3 className="truncate text-sm font-bold text-slate-900">{product.nom}</h3>
+          <h3 className="truncate text-sm font-bold text-slate-900 max-sm:line-clamp-2 max-sm:whitespace-normal max-sm:font-medium max-sm:leading-5">{product.nom}</h3>
 
           <div className="flex items-center gap-1 text-xs">
             <Star size={13} className="fill-amber-400 text-amber-400" />

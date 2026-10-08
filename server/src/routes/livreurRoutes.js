@@ -10,6 +10,9 @@ import { calculateDistanceKm } from '../utils/geo.js';
 import { assignCourseToLivreur } from '../utils/courseAssignment.js';
 import { isEffectivelyExpired, refuseNotification, cancelPendingNotificationsForLivraison } from '../utils/courierMatching.js';
 import { crediterCashback } from '../utils/wallet.js';
+import { synchroniserStatutCommande } from '../utils/orderStatus.js';
+import { planifierGeocodage } from '../utils/geocode.js';
+import { validate, livreurRegisterSchema, loginSchema } from '../utils/validation.js';
 
 const router = express.Router();
 const upload = multer({ dest: 'uploads/temp/' });
@@ -26,10 +29,12 @@ async function getLivreurProfile(req) {
 const commandeIncludes = [
   { model: Utilisateur, as: 'client', attributes: ['id', 'nom', 'prenom', 'telephone'] },
   { model: Boutique, as: 'boutique', attributes: ['id', 'nom', 'adresse'] },
+  // Le livreur doit savoir s'il encaisse à la livraison (COD) et combien.
+  { model: Paiement, as: 'paiement', attributes: ['methode', 'statut'] },
 ];
 
 // Inscription publique pour devenir livreur
-router.post('/livreur/register', async (req, res) => {
+router.post('/livreur/register', validate(livreurRegisterSchema), async (req, res) => {
   try {
     const { nom, prenom, email, password, telephone, vehiculeType } = req.body;
 
@@ -63,7 +68,7 @@ router.post('/livreur/register', async (req, res) => {
 });
 
 // Connexion dédiée aux comptes livreur
-router.post('/livreur/auth/login', async (req, res) => {
+router.post('/livreur/auth/login', validate(loginSchema), async (req, res) => {
   try {
     const { email, password } = req.body;
     const user = await Utilisateur.findOne({ where: { email } });
@@ -142,6 +147,9 @@ router.get('/livreur/courses', authMiddleware, livreurOnly, async (req, res) => 
       order: [['dateAssignation', 'ASC']],
     });
 
+    // Distance livreur → client : nécessite l'adresse géocodée.
+    planifierGeocodage([...disponibles, ...enCours]);
+
     const withDistance = (list) => list.map((livraison) => {
       const json = livraison.toJSON();
       json.distanceEstimeeKm = calculateDistanceKm(profil.latitude, profil.longitude, json.latitudeArrivee, json.longitudeArrivee);
@@ -193,6 +201,10 @@ router.patch('/livreur/courses/:id/statut', authMiddleware, livreurOnly, async (
     if (statut === 'en_cours' && ['en_preparation', 'expedie'].includes(livraison.statut)) {
       updates.statut = 'en_cours_livraison';
       updates.historiqueStatuts = [...(livraison.historiqueStatuts || []), { statut: 'en_cours_livraison', date: new Date().toISOString() }];
+      await synchroniserStatutCommande(livraison.commandeId, 'en_cours_livraison', {
+        utilisateurId: req.user.id,
+        commentaire: 'Colis récupéré par le livreur',
+      });
     }
 
     if (statut === 'livree') {
@@ -200,7 +212,10 @@ router.patch('/livreur/courses/:id/statut', authMiddleware, livreurOnly, async (
       updates.dateLivraison = new Date();
       updates.historiqueStatuts = [...(livraison.historiqueStatuts || []), { statut: 'livre', date: new Date().toISOString() }];
 
-      await Commande.update({ statut: 'livree' }, { where: { id: livraison.commandeId } });
+      await synchroniserStatutCommande(livraison.commandeId, 'livree', {
+        utilisateurId: req.user.id,
+        commentaire: 'Livrée par le livreur',
+      });
       const paiement = livraison.Commande?.paiement;
       if (paiement?.methode === 'cod' && paiement.statut === 'en_attente_livraison') {
         // La commande reste 'livree' (avis et retours) : l'encaissement est tracé sur le Paiement.
@@ -216,6 +231,11 @@ router.patch('/livreur/courses/:id/statut', authMiddleware, livreurOnly, async (
 
     if (statut === 'echec') {
       // Remet la course dans le pool pour une nouvelle tentative par un autre livreur
+      await synchroniserStatutCommande(livraison.commandeId, 'expediee', {
+        utilisateurId: req.user.id,
+        commentaire: 'Échec de livraison — nouvelle tentative',
+        notifierClient: false,
+      });
       updates.livreurId = null;
       updates.statutAssignation = 'en_attente';
       await profil.update({ statut: 'disponible' });

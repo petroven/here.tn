@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node --watch-path=./src src/server.js",
     "start": "node src/server.js",
-    "pretest": "node -e \"require('fs').rmSync('data/test.db',{force:true})\"",
+    "pretest": "node -e \"require('fs').mkdirSync('data',{recursive:true})\"",
     "test": "node --test"
   },
   "dependencies": {

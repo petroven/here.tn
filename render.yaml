@@ -20,7 +20,7 @@ services:
         fromDatabase:
           name: here-tn-db
           property: connectionString
-      # Set these to your Render URL (e.g. https://here-tn.onrender.com) or https://here.tn
+      # Set these to your Render URL (e.g. https://here-tn.onrender.com) or https://buyhere.tn
       - key: CLIENT_URL
         sync: false
       - key: FRONTEND_URL

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Bike, ArrowLeft, AlertCircle, Truck, Car, PackageCheck } from 'lucide-react';
 import { API_URL } from '../config/api.js';
+import { passwordError } from '../utils/password.js';
 
 const VEHICULES = [
   { value: 'moto', label: 'Moto', icon: Bike },
@@ -26,8 +27,13 @@ export default function LivreurRegistrationPage({ onBack, onSuccess }) {
       setError('Les mots de passe ne correspondent pas.');
       return;
     }
-    if (form.password.length < 6) {
-      setError('Le mot de passe doit contenir au moins 6 caractères.');
+    const pwdError = passwordError(form.password);
+    if (pwdError) {
+      setError(pwdError);
+      return;
+    }
+    if (!/^(\+216)?[2-9][0-9]{7}$/.test(form.telephone.replace(/\s/g, ''))) {
+      setError('Numéro de téléphone tunisien invalide (8 chiffres).');
       return;
     }
 
@@ -41,7 +47,7 @@ export default function LivreurRegistrationPage({ onBack, onSuccess }) {
           prenom: form.prenom,
           email: form.email,
           password: form.password,
-          telephone: form.telephone,
+          telephone: form.telephone.replace(/\s/g, ''),
           vehiculeType: form.vehiculeType,
         }),
       });
@@ -65,12 +71,12 @@ export default function LivreurRegistrationPage({ onBack, onSuccess }) {
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 font-sans">
       <div className="bg-white rounded-lg border border-slate-200 shadow-soft max-w-md w-full p-8">
-        <button onClick={onBack} className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-amber-600 mb-6">
+        <button onClick={onBack} className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-terre-700 mb-6">
           <ArrowLeft size={14} /> Retour
         </button>
 
         <div className="flex justify-center mb-6">
-          <div className="w-14 h-14 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center">
+          <div className="w-14 h-14 bg-terre-50 text-terre-700 rounded-2xl flex items-center justify-center">
             <Bike size={26} />
           </div>
         </div>
@@ -87,39 +93,39 @@ export default function LivreurRegistrationPage({ onBack, onSuccess }) {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-2">
-            <input
+            <input aria-label="Prénom"
               type="text"
               placeholder="Prénom"
               value={form.prenom}
               onChange={updateField('prenom')}
-              className="border border-slate-200 p-3 rounded-xl text-xs bg-slate-50/50 outline-none focus:ring-2 focus:ring-amber-500"
+              className="border border-slate-200 p-3 rounded-xl text-xs bg-slate-50/50 outline-none focus:ring-2 focus:ring-terre-500"
               required
             />
-            <input
+            <input aria-label="Nom"
               type="text"
               placeholder="Nom"
               value={form.nom}
               onChange={updateField('nom')}
-              className="border border-slate-200 p-3 rounded-xl text-xs bg-slate-50/50 outline-none focus:ring-2 focus:ring-amber-500"
+              className="border border-slate-200 p-3 rounded-xl text-xs bg-slate-50/50 outline-none focus:ring-2 focus:ring-terre-500"
               required
             />
           </div>
 
-          <input
+          <input aria-label="Adresse email"
             type="email"
             placeholder="Adresse email"
             value={form.email}
             onChange={updateField('email')}
-            className="w-full border border-slate-200 p-3 rounded-xl text-xs bg-slate-50/50 outline-none focus:ring-2 focus:ring-amber-500"
+            className="w-full border border-slate-200 p-3 rounded-xl text-xs bg-slate-50/50 outline-none focus:ring-2 focus:ring-terre-500"
             required
           />
 
-          <input
+          <input aria-label="Téléphone tunisien"
             type="text"
             placeholder="Téléphone tunisien"
             value={form.telephone}
             onChange={updateField('telephone')}
-            className="w-full border border-slate-200 p-3 rounded-xl text-xs bg-slate-50/50 outline-none focus:ring-2 focus:ring-amber-500"
+            className="w-full border border-slate-200 p-3 rounded-xl text-xs bg-slate-50/50 outline-none focus:ring-2 focus:ring-terre-500"
             required
           />
 
@@ -135,7 +141,7 @@ export default function LivreurRegistrationPage({ onBack, onSuccess }) {
                     key={v.value}
                     onClick={() => setForm({ ...form, vehiculeType: v.value })}
                     className={`flex flex-col items-center gap-1 rounded-xl border py-2.5 text-[10px] font-bold transition ${
-                      active ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'
+                      active ? 'border-terre-500 bg-terre-50 text-terre-800' : 'border-slate-200 text-slate-500 hover:bg-slate-50'
                     }`}
                   >
                     <Icon size={16} /> {v.label}
@@ -145,28 +151,28 @@ export default function LivreurRegistrationPage({ onBack, onSuccess }) {
             </div>
           </div>
 
-          <input
+          <input aria-label="Mot de passe"
             type="password"
             placeholder="Mot de passe"
             value={form.password}
             onChange={updateField('password')}
-            className="w-full border border-slate-200 p-3 rounded-xl text-xs bg-slate-50/50 outline-none focus:ring-2 focus:ring-amber-500"
+            className="w-full border border-slate-200 p-3 rounded-xl text-xs bg-slate-50/50 outline-none focus:ring-2 focus:ring-terre-500"
             required
           />
 
-          <input
+          <input aria-label="Confirmer le mot de passe"
             type="password"
             placeholder="Confirmer le mot de passe"
             value={form.confirmPassword}
             onChange={updateField('confirmPassword')}
-            className="w-full border border-slate-200 p-3 rounded-xl text-xs bg-slate-50/50 outline-none focus:ring-2 focus:ring-amber-500"
+            className="w-full border border-slate-200 p-3 rounded-xl text-xs bg-slate-50/50 outline-none focus:ring-2 focus:ring-terre-500"
             required
           />
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full inline-flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-700 text-white font-bold py-3 px-4 rounded-xl text-xs transition disabled:opacity-50"
+            className="w-full inline-flex items-center justify-center gap-2 bg-terre-700 hover:bg-terre-800 text-white font-bold py-3 px-4 rounded-xl text-xs transition disabled:opacity-50"
           >
             <PackageCheck size={16} />
             {loading ? 'Création du compte...' : 'Créer mon compte livreur'}

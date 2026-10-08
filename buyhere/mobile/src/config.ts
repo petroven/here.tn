@@ -31,6 +31,13 @@ export const API_URL = resolveApiUrl();
 /** Origine du serveur (sans /api) : les images envoyées par les vendeurs sont servies en /uploads/... */
 export const API_ORIGIN = API_URL.replace(/\/api$/, '');
 
+/**
+ * Site web (pages d'aide et conditions). En production, l'API et le site sont
+ * servis par le même service : l'origine de l'API suffit. EXPO_PUBLIC_WEB_URL
+ * permet de pointer ailleurs (ex. le serveur Vite en développement).
+ */
+export const WEB_URL = (process.env.EXPO_PUBLIC_WEB_URL || API_ORIGIN).replace(/\/$/, '');
+
 /** Schéma de retour après paiement Konnect / Flouci (cf. app.json "scheme"). */
 export const PAYMENT_RETURN_URL = 'buyhere://payment-return';
 

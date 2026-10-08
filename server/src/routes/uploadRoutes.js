@@ -22,6 +22,10 @@ router.post('/upload', authMiddleware, requireRole('vendeur', 'admin_boutique', 
       url,
     });
   } catch (error) {
+    // Image refusée (trop lourde, pas une image) : erreur de saisie, pas une panne.
+    if (/^(Image trop lourde|Seules les images)/.test(error.message)) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
     console.error('[UPLOAD] Erreur:', error);
     return res.status(500).json({ success: false, message: error.message });
   }

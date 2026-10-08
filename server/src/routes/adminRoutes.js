@@ -7,8 +7,20 @@ import { authMiddleware } from '../middleware/auth.js';
 import { crediterCashback } from '../utils/wallet.js';
 import { envoyerRecuPaiement } from '../utils/email.js';
 import { calculerFinancesBoutique, REVENUE_STATUTS } from '../utils/finance.js';
+import { changerStatutCommande, synchroniserStatutCommande } from '../utils/orderStatus.js';
+import { restaurerStockCommande, whereStockFaible } from '../utils/stock.js';
+import { journaliser } from '../utils/audit.js';
+import { notifierVendeur } from '../utils/notifications.js';
+import { STATUTS_COMMANDE } from '../utils/orderStatus.js';
+import { estCommandeEncaissee } from '../utils/finance.js';
+import { marketplaceConfig } from '../config/marketplace.js';
+import { AuditLog, HistoriqueCommande } from '../models/index.js';
+import { Op } from 'sequelize';
 
 const router = express.Router();
+
+// Comptes joints aux listes admin : jamais le hash du mot de passe.
+const SANS_MOT_DE_PASSE = { exclude: ['password'] };
 
 // Admin access requires a real logged-in JWT with an admin role — no
 // shared-secret bypass. A static header token would be visible in any
@@ -24,7 +36,7 @@ const adminMiddleware = (req, res, next) => authMiddleware(req, res, () => {
 router.get('/admin/vendors', adminMiddleware, async (req, res) => {
   try {
     const boutiques = await Boutique.findAll({
-      include: [{ model: Utilisateur, as: 'vendeur' }],
+      include: [{ model: Utilisateur, as: 'vendeur', attributes: SANS_MOT_DE_PASSE }],
       order: [['createdAt', 'DESC']],
     });
 
@@ -55,7 +67,7 @@ router.get('/admin/vendors', adminMiddleware, async (req, res) => {
 router.get('/admin/withdrawals', adminMiddleware, async (req, res) => {
   try {
     const retraits = await Retrait.findAll({
-      include: [{ model: Boutique, include: [{ model: Utilisateur, as: 'vendeur' }] }],
+      include: [{ model: Boutique, include: [{ model: Utilisateur, as: 'vendeur', attributes: SANS_MOT_DE_PASSE }] }],
       order: [['createdAt', 'DESC']],
     });
 
@@ -71,7 +83,7 @@ router.put('/admin/withdrawals/:retraitId', adminMiddleware, async (req, res) =>
     const { retraitId } = req.params;
     const { statut, motifRejection } = req.body;
 
-    if (!['approuve', 'rejete'].includes(statut)) {
+    if (!['approuve', 'verse', 'rejete'].includes(statut)) {
       return res.status(400).json({ success: false, message: 'Statut invalide.' });
     }
 
@@ -80,9 +92,35 @@ router.put('/admin/withdrawals/:retraitId', adminMiddleware, async (req, res) =>
       return res.status(404).json({ success: false, message: 'Retrait non trouvé.' });
     }
 
+    // demande → approuve → verse, ou demande/approuve → rejete. Un retrait
+    // versé ou rejeté est définitif.
+    const TRANSITIONS_RETRAIT = { demande: ['approuve', 'rejete'], approuve: ['verse', 'rejete'] };
+    if (!(TRANSITIONS_RETRAIT[retrait.statut] || []).includes(statut)) {
+      return res.status(409).json({ success: false, message: `Un retrait « ${retrait.statut} » ne peut pas passer à « ${statut} ».` });
+    }
+
+    const avant = retrait.toJSON();
     await retrait.update({
       statut,
       motifRejection: statut === 'rejete' ? motifRejection : null,
+      dateRetrait: statut === 'verse' ? new Date() : retrait.dateRetrait,
+    });
+    await journaliser(req, {
+      action: `retrait.${statut}`, entite: 'Retrait', entiteId: retrait.id, avant, apres: retrait,
+      champs: ['statut', 'montant', 'iban', 'motifRejection'], commentaire: motifRejection || null,
+    });
+
+    const MESSAGES_RETRAIT = {
+      approuve: ['Retrait accepté', `Votre demande de retrait de ${Number(retrait.montant).toFixed(3)} DT a été acceptée.`],
+      verse: ['Retrait versé', `Le virement de ${Number(retrait.montant).toFixed(3)} DT a été effectué.`],
+      rejete: ['Retrait refusé', `Votre demande de retrait a été refusée${motifRejection ? ` : ${motifRejection}` : '.'}`],
+    };
+    notifierVendeur(retrait.boutiqueId, {
+      type: `retrait_${statut}`,
+      titre: MESSAGES_RETRAIT[statut][0],
+      message: MESSAGES_RETRAIT[statut][1],
+      lien: 'vendeur/retraits',
+      data: { retraitId: retrait.id },
     });
 
     res.json({ success: true, data: retrait });
@@ -126,7 +164,14 @@ router.patch('/admin/virements/:paiementId/valider', adminMiddleware, async (req
     }
 
     await paiement.update({ statut: 'valide' });
-    await Commande.update({ statut: 'payee' }, { where: { id: paiement.commandeId } });
+    await journaliser(req, {
+      action: 'virement.valider', entite: 'Paiement', entiteId: paiement.id,
+      avant: { statut: 'en_attente_validation' }, apres: { statut: 'valide', montant: paiement.montant, commandeId: paiement.commandeId },
+    });
+    await synchroniserStatutCommande(paiement.commandeId, 'payee', {
+      utilisateurId: req.user.id,
+      commentaire: 'Virement bancaire validé par un administrateur',
+    });
     await crediterCashback(paiement.commandeId);
     envoyerRecuPaiement(paiement.commandeId).catch((error) => {
       console.error('[EMAIL] Échec envoi reçu de paiement:', error.message);
@@ -153,23 +198,31 @@ router.patch('/admin/virements/:paiementId/rejeter', adminMiddleware, async (req
       return res.status(409).json({ success: false, message: 'Ce virement est déjà validé, impossible de le rejeter.' });
     }
 
+    await changerStatutCommande(paiement.commandeId, 'annulee', {
+      utilisateurId: req.user.id,
+      commentaire: 'Virement non reçu — rejeté par un administrateur',
+      transaction,
+    });
     const lignes = await LigneCommande.findAll({ where: { commandeId: paiement.commandeId }, transaction });
-    for (const ligne of lignes) {
-      if (ligne.varianteId) {
-        await Variante.increment('stock', { by: ligne.quantite, where: { id: ligne.varianteId }, transaction });
-      } else {
-        await Produit.increment('stock', { by: ligne.quantite, where: { id: ligne.produitId }, transaction });
-      }
-    }
+    await restaurerStockCommande(lignes, {
+      motif: 'annulation',
+      commandeId: paiement.commandeId,
+      utilisateurId: req.user.id,
+      transaction,
+    });
 
     await paiement.update({ statut: 'echec' }, { transaction });
-    await Commande.update({ statut: 'annulee' }, { where: { id: paiement.commandeId }, transaction });
+    await journaliser(req, {
+      action: 'virement.rejeter', entite: 'Paiement', entiteId: paiement.id,
+      avant: { statut: 'en_attente_validation' }, apres: { statut: 'echec', montant: paiement.montant, commandeId: paiement.commandeId },
+      transaction,
+    });
 
     await transaction.commit();
     res.json({ success: true, message: 'Virement rejeté, commande annulée et stock restauré.' });
   } catch (error) {
     await transaction.rollback();
-    res.status(500).json({ success: false, message: error.message });
+    res.status(error.status || 500).json({ success: false, message: error.message });
   }
 });
 
@@ -179,7 +232,7 @@ router.get('/admin/commissions', adminMiddleware, async (req, res) => {
     const commissions = await Commission.findAll({
       include: [
         { model: Commande },
-        { model: Boutique, include: [{ model: Utilisateur, as: 'vendeur' }] },
+        { model: Boutique, include: [{ model: Utilisateur, as: 'vendeur', attributes: SANS_MOT_DE_PASSE }] },
       ],
       order: [['createdAt', 'DESC']],
     });
@@ -219,8 +272,13 @@ router.patch('/admin/boutiques/:id/statut', adminMiddleware, async (req, res) =>
     });
   }
 
+  const avant = boutique.toJSON();
   boutique.statut = statut;
   await boutique.save();
+  await journaliser(req, {
+    action: `boutique.${statut}`, entite: 'Boutique', entiteId: boutique.id, avant, apres: boutique, champs: ['statut', 'nom'],
+  });
+  notifierVendeur(boutique.id, notificationStatutBoutique(statut));
 
   return res.json({ success: true, data: boutique });
 });
@@ -245,11 +303,19 @@ router.patch('/admin/boutiques/:id/kyc', adminMiddleware, async (req, res) => {
     return res.status(400).json({ success: false, message: 'Aucun document KYC soumis par ce vendeur.' });
   }
 
+  const avant = boutique.toJSON();
   await boutique.update({
     kycStatut,
     kycCommentaireAdmin: kycCommentaireAdmin || null,
     kycDateTraitement: new Date(),
   });
+  await journaliser(req, {
+    action: kycStatut === 'valide' ? 'kyc.valider' : 'kyc.rejeter', entite: 'Boutique', entiteId: boutique.id,
+    avant, apres: boutique, champs: ['kycStatut', 'kycCommentaireAdmin', 'nom'], commentaire: kycCommentaireAdmin || null,
+  });
+  notifierVendeur(boutique.id, kycStatut === 'valide'
+    ? { type: 'kyc_valide', titre: 'KYC validé', message: 'Votre identité et votre RIB ont été vérifiés : votre boutique affiche le badge « vérifiée ».', lien: 'vendeur/kyc' }
+    : { type: 'kyc_rejete', titre: 'KYC refusé', message: `Vos documents KYC ont été refusés${kycCommentaireAdmin ? ` : ${kycCommentaireAdmin}` : '.'} Vous pouvez les renvoyer.`, lien: 'vendeur/kyc' });
 
   return res.json({ success: true, data: boutique });
 });
@@ -263,8 +329,12 @@ router.patch('/admin/avis/:id', adminMiddleware, async (req, res) => {
     return res.status(404).json({ success: false, message: 'Avis introuvable.' });
   }
 
+  const avant = avis.toJSON();
   avis.valide = Boolean(valide);
   await avis.save();
+  await journaliser(req, {
+    action: avis.valide ? 'avis.publier' : 'avis.masquer', entite: 'Avis', entiteId: avis.id, avant, apres: avis, champs: ['valide', 'note'],
+  });
 
   return res.json({ success: true, data: avis });
 });
@@ -297,7 +367,14 @@ router.get('/admin/stats', adminMiddleware, async (req, res) => {
     
     const totalOrders = await Commande.count();
     const totalProducts = await Produit.count();
-    const totalRevenue = await Commande.sum('montantCommission', { where: { statut: REVENUE_STATUTS } }) || 0;
+    const commandesRevenu = await Commande.findAll({
+      where: { statut: REVENUE_STATUTS },
+      attributes: ['id', 'statut', 'montantCommission'],
+      include: [{ model: Paiement, as: 'paiement', attributes: ['statut'] }],
+    });
+    const totalRevenue = commandesRevenu.filter(estCommandeEncaissee)
+      .reduce((sum, c) => sum + Number(c.montantCommission || 0), 0);
+    const lowStockProducts = await Produit.count({ where: { ...whereStockFaible(), status: { [Op.ne]: 'inactif' } } });
     const pendingCommissions = await Commission.sum('montant', { where: { statut: 'collectee' } }) || 0;
     
     const totalUsers = await Utilisateur.count();
@@ -309,7 +386,7 @@ router.get('/admin/stats', adminMiddleware, async (req, res) => {
       data: {
         vendors: { total: totalVendors, verified: verifiedVendors, pending: pendingVendors },
         orders: { total: totalOrders },
-        products: { total: totalProducts },
+        products: { total: totalProducts, lowStock: lowStockProducts, lowStockThreshold: marketplaceConfig.lowStockThreshold },
         revenue: { commission: totalRevenue, pending: pendingCommissions },
         users: { total: totalUsers, vendors: vendorUsers, customers: customerUsers },
       },
@@ -341,7 +418,12 @@ router.put('/admin/vendors/:boutiqueId/status', adminMiddleware, async (req, res
       });
     }
 
+    const avant = boutique.toJSON();
     await boutique.update({ statut });
+    await journaliser(req, {
+      action: `boutique.${statut}`, entite: 'Boutique', entiteId: boutique.id, avant, apres: boutique, champs: ['statut', 'nom'],
+    });
+    notifierVendeur(boutique.id, notificationStatutBoutique(statut));
     res.json({ success: true, data: boutique, message: `Statut de la boutique mis à jour: ${statut}` });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -353,8 +435,8 @@ router.get('/admin/orders', adminMiddleware, async (req, res) => {
   try {
     const commandes = await Commande.findAll({
       include: [
-        { model: Utilisateur, as: 'client' },
-        { model: Boutique, as: 'boutique', include: [{ model: Utilisateur, as: 'vendeur' }] },
+        { model: Utilisateur, as: 'client', attributes: SANS_MOT_DE_PASSE },
+        { model: Boutique, as: 'boutique', include: [{ model: Utilisateur, as: 'vendeur', attributes: SANS_MOT_DE_PASSE }] },
       ],
       order: [['createdAt', 'DESC']],
     });
@@ -382,14 +464,18 @@ router.get('/admin/users', adminMiddleware, async (req, res) => {
 // Super-admin catalogue moderation
 router.get('/admin/products', adminMiddleware, async (req, res) => {
   try {
+    // ?stock=faible → produits actifs/en attente au seuil d'alerte ou en
+    // rupture, les plus bas d'abord.
+    const stockFaible = req.query.stock === 'faible';
     const produits = await Produit.findAll({
+      where: stockFaible ? { ...whereStockFaible(), status: { [Op.ne]: 'inactif' } } : undefined,
+      order: stockFaible ? [['stock', 'ASC'], ['nom', 'ASC']] : [['createdAt', 'DESC']],
       include: [
         { model: Boutique, as: 'boutique', attributes: ['id', 'nom', 'statut'] },
         { model: Categorie, as: 'categorie', attributes: ['id', 'nom'] },
       ],
-      order: [['createdAt', 'DESC']],
     });
-    return res.json({ success: true, data: produits, count: produits.length });
+    return res.json({ success: true, data: produits, count: produits.length, lowStockThreshold: marketplaceConfig.lowStockThreshold });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
@@ -403,7 +489,11 @@ router.patch('/admin/products/:id/status', adminMiddleware, async (req, res) => 
     }
     const produit = await Produit.findByPk(req.params.id);
     if (!produit) return res.status(404).json({ success: false, message: 'Produit introuvable.' });
+    const avant = produit.toJSON();
     await produit.update({ status });
+    await journaliser(req, {
+      action: 'produit.statut', entite: 'Produit', entiteId: produit.id, avant, apres: produit, champs: ['status', 'nom', 'boutiqueId'],
+    });
     return res.json({ success: true, data: produit });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
@@ -414,8 +504,90 @@ router.delete('/admin/products/:id', adminMiddleware, async (req, res) => {
   try {
     const produit = await Produit.findByPk(req.params.id);
     if (!produit) return res.status(404).json({ success: false, message: 'Produit introuvable.' });
+    const avant = produit.toJSON();
     await produit.update({ status: 'inactif' });
+    await journaliser(req, {
+      action: 'produit.supprimer', entite: 'Produit', entiteId: produit.id, avant, apres: produit, champs: ['status', 'nom', 'boutiqueId'],
+    });
     return res.json({ success: true, message: 'Produit désactivé du catalogue.', data: produit });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Changement manuel du statut d'une commande par un admin — même machine
+// d'états que partout ailleurs (aucun passe-droit : une transition
+// incohérente est refusée), avec commentaire obligatoire et journal d'audit.
+router.patch('/admin/orders/:id/statut', adminMiddleware, async (req, res) => {
+  try {
+    const { statut, commentaire } = req.body;
+    if (!STATUTS_COMMANDE.includes(statut)) {
+      return res.status(400).json({ success: false, message: 'Statut de commande invalide.' });
+    }
+    if (!commentaire || !String(commentaire).trim()) {
+      return res.status(400).json({ success: false, message: 'Un commentaire est requis pour modifier une commande manuellement.' });
+    }
+    const commande = await Commande.findByPk(req.params.id, { include: [{ model: LigneCommande, as: 'lignes' }] });
+    if (!commande) return res.status(404).json({ success: false, message: 'Commande introuvable.' });
+
+    const ancienStatut = commande.statut;
+    const transaction = await Commande.sequelize.transaction();
+    try {
+      await changerStatutCommande(commande, statut, { utilisateurId: req.user.id, commentaire, transaction });
+      // Une annulation admin restitue le stock, comme toutes les autres.
+      if (statut === 'annulee') {
+        await restaurerStockCommande(commande.lignes, {
+          motif: 'annulation', commandeId: commande.id, utilisateurId: req.user.id, transaction,
+        });
+      }
+      await journaliser(req, {
+        action: 'commande.statut', entite: 'Commande', entiteId: commande.id,
+        avant: { statut: ancienStatut }, apres: { statut }, commentaire, transaction,
+      });
+      await transaction.commit();
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+    return res.json({ success: true, data: commande });
+  } catch (error) {
+    return res.status(error.status || 500).json({ success: false, message: error.message });
+  }
+});
+
+router.get('/admin/orders/:id/historique', adminMiddleware, async (req, res) => {
+  try {
+    const historique = await HistoriqueCommande.findAll({
+      where: { commandeId: req.params.id },
+      include: [{ model: Utilisateur, as: 'utilisateur', attributes: ['id', 'nom', 'prenom', 'role'] }],
+      order: [['createdAt', 'ASC'], ['id', 'ASC']],
+    });
+    return res.json({ success: true, data: historique });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Journal d'audit — filtres optionnels : entite, entiteId, action (préfixe,
+// ex: 'kyc'), acteurId. Paginé, le plus récent d'abord.
+router.get('/admin/audit-logs', adminMiddleware, async (req, res) => {
+  try {
+    const page = Math.max(Number.parseInt(req.query.page, 10) || 1, 1);
+    const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 50, 1), 200);
+    const where = {};
+    if (req.query.entite) where.entite = req.query.entite;
+    if (req.query.entiteId) where.entiteId = Number(req.query.entiteId);
+    if (req.query.acteurId) where.acteurId = Number(req.query.acteurId);
+    if (req.query.action) where.action = { [Op.like]: `${req.query.action}%` };
+
+    const { rows, count } = await AuditLog.findAndCountAll({
+      where,
+      include: [{ model: Utilisateur, as: 'acteur', attributes: ['id', 'nom', 'prenom', 'email'] }],
+      order: [['createdAt', 'DESC'], ['id', 'DESC']],
+      limit,
+      offset: (page - 1) * limit,
+    });
+    return res.json({ success: true, data: rows, pagination: { page, limit, total: count } });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
@@ -425,7 +597,7 @@ router.delete('/admin/products/:id', adminMiddleware, async (req, res) => {
 router.get('/admin/settlement-report', adminMiddleware, async (req, res) => {
   try {
     const boutiques = await Boutique.findAll({
-      include: [{ model: Utilisateur, as: 'vendeur' }],
+      include: [{ model: Utilisateur, as: 'vendeur', attributes: SANS_MOT_DE_PASSE }],
     });
 
     const report = await Promise.all(
@@ -450,5 +622,38 @@ router.get('/admin/settlement-report', adminMiddleware, async (req, res) => {
   }
 });
 
+// Photo d'une catégorie (pastilles de l'accueil du site et de l'app). L'image
+// est d'abord envoyée via POST /upload ; ici on enregistre son URL.
+// image: null → retour à la photo automatique (premier produit de la catégorie).
+router.patch('/admin/categories/:id', adminMiddleware, async (req, res) => {
+  try {
+    const categorie = await Categorie.findByPk(req.params.id);
+    if (!categorie) return res.status(404).json({ success: false, message: 'Catégorie introuvable.' });
+
+    const { image } = req.body;
+    if (image !== null && (typeof image !== 'string' || !/^(https?:\/\/|\/uploads\/)/.test(image))) {
+      return res.status(400).json({ success: false, message: 'Image invalide.' });
+    }
+    const avant = { image: categorie.image };
+    await categorie.update({ image });
+    await journaliser(req, {
+      action: 'categorie.image', entite: 'Categorie', entiteId: categorie.id, avant, apres: { image }, champs: ['image'],
+    });
+    return res.json({ success: true, data: categorie });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 export default router;
 
+
+function notificationStatutBoutique(statut) {
+  const messages = {
+    validee: ['Boutique validée', 'Votre boutique est validée : vos produits sont visibles sur la marketplace.'],
+    suspendue: ['Boutique suspendue', 'Votre boutique a été suspendue. Contactez le support pour plus d\'informations.'],
+    en_attente: ['Boutique en attente', 'Votre boutique est repassée en attente de validation.'],
+  };
+  const [titre, message] = messages[statut];
+  return { type: `boutique_${statut}`, titre, message, lien: 'vendeur' };
+}

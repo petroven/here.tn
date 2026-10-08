@@ -1,18 +1,21 @@
 import React from 'react';
 import { ShieldCheck, X } from 'lucide-react';
+import { useDialog } from '../hooks/useDialog.js';
 
 export default function PolicyConsentModal({ open, onAccept, onRefuse, language = 'fr' }) {
+  // Choix obligatoire : Échap vaut refus, comme le bouton « Refuser ».
+  const dialog = useDialog(open, onRefuse, 'consent-dialog-title');
   if (!open) return null;
   const isAr = language === 'ar';
   const tr = (fr, ar) => (isAr ? ar : fr);
 
   return (
     <div dir={isAr ? 'rtl' : 'ltr'} className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/70 p-4 font-sans">
-      <div className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-lg bg-white shadow-soft">
+      <div {...dialog} className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-lg bg-white shadow-soft">
         <div className="flex items-center gap-3 gradient-brand p-5 text-white">
           <span className="flex h-11 w-11 items-center justify-center rounded-2xl glass"><ShieldCheck size={22} /></span>
           <div>
-            <h2 className="text-base font-black">{tr('Conditions de vente et de retour', 'شروط البيع والإرجاع')}</h2>
+            <h2 id="consent-dialog-title" className="text-base font-black">{tr('Conditions de vente et de retour', 'شروط البيع والإرجاع')}</h2>
             <p className="text-[11px] text-white/80">{tr('À lire avant de créer votre compte', 'يرجى القراءة قبل إنشاء حسابكم')}</p>
           </div>
           <button onClick={onRefuse} aria-label={tr('Fermer', 'إغلاق')} className="ms-auto rounded-full p-1.5 text-white/80 hover:bg-white/10 hover:text-white">

@@ -100,6 +100,24 @@ const marketplaceTaxonomy = [
   ['Librairie, Papeterie & Bureau', ['Fournitures scolaires & Bureau', 'Livres'], 14],
 ];
 
+// Photo par défaut de chaque univers (Unsplash, licence libre). Posée une
+// seule fois : une photo changée par l'admin n'est jamais écrasée.
+const unsplash = (id) => `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=600&h=600&q=75`;
+const categoryImages = {
+  'Informatique, Gaming & High-Tech': unsplash('1496181133206-80ce9b88a853'),
+  'Téléphonie & Objets Connectés': unsplash('1511707171634-5f897ff02aa9'),
+  'Image, Son & Électroménager': unsplash('1593359677879-a4bb92f829d1'),
+  'Mode, Chaussures & Accessoires': unsplash('1445205170230-053b83016050'),
+  'Bébé, Puériculture & Enfants': unsplash('1515488042361-ee00e0ddd4e4'),
+  'Beauté, Santé & Parapharmacie': unsplash('1596462502278-27bfdc403348'),
+  'Maison, Déco & Bricolage': unsplash('1586023492125-27b2c045efd7'),
+  'Artisanat & Produits du Terroir': unsplash('1596040033229-a9821ebd058d'),
+  'Supermarché & Alimentation': unsplash('1542838132-92c53300491e'),
+  'Sports, Loisirs & Voyage': unsplash('1517836357463-d25dfeac3438'),
+  'Auto, Moto & Accessoires': unsplash('1492144534655-ae79c964c9d7'),
+  'Librairie, Papeterie & Bureau': unsplash('1512820790803-83ca734da794'),
+};
+
 function toSlug(value) {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
@@ -111,6 +129,7 @@ export async function seedMarketplaceCategories() {
       defaults: { nom: parentName, slug: toSlug(parentName), icone: 'shopping-bag', description: `Univers ${parentName}.`, delaiRetourJours },
     });
     if (parent.delaiRetourJours === null) await parent.update({ delaiRetourJours });
+    if (!parent.image && categoryImages[parentName]) await parent.update({ image: categoryImages[parentName] });
 
     for (const childName of children) {
       const [child] = await Categorie.findOrCreate({

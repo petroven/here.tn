@@ -7,6 +7,8 @@ import { useTranslation } from '../i18n';
 import ProductCard from '../components/ProductCard';
 import Badge from '../components/ui/Badge';
 import Input from '../components/ui/Input';
+import { useDialog } from '../hooks/useDialog.js';
+import { API_URL, absoluteImageUrl } from '../config/api.js';
 
 function FilterSection({ title, open, onToggle, children }) {
   return (
@@ -48,6 +50,7 @@ export function Marketplace({ cartItems = [], onUpdateCart, onStartChat, onViewC
   const [totalPages, setTotalPages] = useState(1);
   const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'list'
   const [showMobileFilters, setShowMobileFilters] = useState(false);
+  const filtersDialog = useDialog(showMobileFilters, () => setShowMobileFilters(false), 'filters-dialog-title');
 
   const [openSections, setOpenSections] = useState({ category: true, price: true, store: false, rating: true });
   const toggleSection = (key) => setOpenSections((s) => ({ ...s, [key]: !s[key] }));
@@ -69,8 +72,8 @@ export function Marketplace({ cartItems = [], onUpdateCart, onStartChat, onViewC
       if (selectedCategory?.id) params.set('categoryId', String(selectedCategory.id));
       if (selectedStore) params.set('storeId', String(selectedStore.id));
       const [productsRes, boutiquesRes] = await Promise.all([
-        fetch(`/api/produits?${params.toString()}`),
-        fetch('/api/boutiques'),
+        fetch(`${API_URL}/produits?${params.toString()}`),
+        fetch(`${API_URL}/boutiques`),
       ]);
       const productsData = await productsRes.json();
       const boutiquesData = await boutiquesRes.json();
@@ -87,7 +90,7 @@ export function Marketplace({ cartItems = [], onUpdateCart, onStartChat, onViewC
   };
 
   useEffect(() => {
-    fetch('/api/categories')
+    fetch(`${API_URL}/categories`)
       .then((response) => response.json())
       .then((data) => {
         if (data.success) {
@@ -105,7 +108,7 @@ export function Marketplace({ cartItems = [], onUpdateCart, onStartChat, onViewC
     const ids = products.map((p) => p.id).join(',');
     if (!ids) return;
     try {
-      const response = await fetch(`/api/wishlist/check?ids=${ids}`, { headers: { Authorization: `Bearer ${token}` } });
+      const response = await fetch(`${API_URL}/wishlist/check?ids=${ids}`, { headers: { Authorization: `Bearer ${token}` } });
       const data = await response.json();
       if (data.success) setWishlistIds(data.data);
     } catch (err) {
@@ -121,10 +124,10 @@ export function Marketplace({ cartItems = [], onUpdateCart, onStartChat, onViewC
     const inWishlist = wishlistIds.includes(productId);
     try {
       if (inWishlist) {
-        const response = await fetch(`/api/wishlist/${productId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+        const response = await fetch(`${API_URL}/wishlist/${productId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
         if (response.ok) setWishlistIds(wishlistIds.filter((id) => id !== productId));
       } else {
-        const response = await fetch('/api/wishlist', {
+        const response = await fetch(`${API_URL}/wishlist`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({ produitId: productId }),
@@ -191,7 +194,7 @@ export function Marketplace({ cartItems = [], onUpdateCart, onStartChat, onViewC
       </FilterSection>
 
       <FilterSection title={`${tr('Prix', 'السعر')} (TND)`} open={openSections.price} onToggle={() => toggleSection('price')}>
-        <input
+        <input aria-label={tr('Prix maximum', 'السعر الأقصى')}
           type="range"
           min="0"
           max="500"
@@ -328,7 +331,7 @@ export function Marketplace({ cartItems = [], onUpdateCart, onStartChat, onViewC
                   <button onClick={() => setViewMode('list')} className={`rounded-lg p-1.5 transition ${viewMode === 'list' ? 'bg-[#F8E4DE] text-[#C4532C]' : 'text-slate-400'}`}><List size={16} /></button>
                 </div>
 
-                <select
+                <select aria-label={tr('Trier par', 'ترتيب حسب')}
                   value={sort}
                   onChange={(event) => { setCurrentPage(1); setSort(event.target.value); }}
                   className="input-premium px-3 py-2 text-xs font-bold text-slate-700 outline-none"
@@ -381,7 +384,7 @@ export function Marketplace({ cartItems = [], onUpdateCart, onStartChat, onViewC
                       className="card-premium flex items-center gap-4 p-3 text-left"
                     >
                       <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-slate-100">
-                        {product.image ? <img src={product.image} alt={product.nom} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center text-slate-300"><ShoppingCart size={20} /></div>}
+                        {product.image ? <img src={absoluteImageUrl(product.image)} alt={product.nom} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center text-slate-300"><ShoppingCart size={20} /></div>}
                       </div>
                       <div className="min-w-0 flex-1">
                         <h3 className="truncate text-sm font-bold text-slate-900">{product.nom}</h3>
@@ -429,10 +432,10 @@ export function Marketplace({ cartItems = [], onUpdateCart, onStartChat, onViewC
       {showMobileFilters && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-slate-900/50" onClick={() => setShowMobileFilters(false)} />
-          <div className="absolute bottom-0 left-0 right-0 max-h-[85vh] overflow-y-auto rounded-t-3xl bg-white p-5 pb-8 animate-fadeIn">
+          <div {...filtersDialog} className="absolute bottom-0 left-0 right-0 max-h-[85vh] overflow-y-auto rounded-t-3xl bg-white p-5 pb-8 animate-fadeIn">
             <div className="mb-2 flex items-center justify-between">
-              <h2 className="text-base font-black text-slate-900">{tr('Filtres', 'الفلاتر')}</h2>
-              <button onClick={() => setShowMobileFilters(false)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100"><X size={18} /></button>
+              <h2 id="filters-dialog-title" className="text-base font-black text-slate-900">{tr('Filtres', 'الفلاتر')}</h2>
+              <button onClick={() => setShowMobileFilters(false)} aria-label={tr('Fermer', 'إغلاق')} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100"><X size={18} aria-hidden="true" /></button>
             </div>
             {FiltersPanel}
             <button onClick={() => setShowMobileFilters(false)} className="btn-primary-premium mt-4 w-full py-3 text-sm">

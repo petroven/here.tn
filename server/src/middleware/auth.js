@@ -1,6 +1,12 @@
 import jwt from 'jsonwebtoken';
+import { estCompteSupprime } from '../utils/comptesSupprimes.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev_marketplace_secret';
+// En production, un secret manquant ou trop court rendrait les jetons
+// falsifiables (le secret de dev est public dans ce dépôt) : on refuse de démarrer.
+if (process.env.NODE_ENV === 'production' && (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32)) {
+  throw new Error('JWT_SECRET doit être défini (32 caractères minimum) en production.');
+}
+export const JWT_SECRET = process.env.JWT_SECRET || 'dev_marketplace_secret';
 
 export const generateToken = (user) =>
   jwt.sign(
@@ -23,6 +29,9 @@ export const authMiddleware = (req, res, next) => {
   try {
     const token = header.split(' ')[1];
     const decoded = jwt.verify(token, JWT_SECRET);
+    if (estCompteSupprime(decoded.id)) {
+      return res.status(401).json({ success: false, message: 'Ce compte a été supprimé.' });
+    }
     req.user = decoded;
     return next();
   } catch (error) {
@@ -39,7 +48,8 @@ export const optionalAuthMiddleware = (req, _res, next) => {
   const header = req.headers.authorization;
   if (header && header.startsWith('Bearer ')) {
     try {
-      req.user = jwt.verify(header.split(' ')[1], JWT_SECRET);
+      const decoded = jwt.verify(header.split(' ')[1], JWT_SECRET);
+      if (!estCompteSupprime(decoded.id)) req.user = decoded;
     } catch {
       // jeton expiré/invalide — on continue en tant qu'invité plutôt que
       // de bloquer une commande pour une session périmée côté client.

@@ -1,11 +1,13 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft, Heart, MessageSquare, PackageCheck, ShieldCheck, Star, Store,
-  Truck, ShoppingCart, Zap, ChevronLeft, ChevronRight, RotateCcw, Minus, Plus, Check,
+  Truck, ShoppingCart, ShoppingBag, Zap, ChevronLeft, ChevronRight, RotateCcw, Minus, Plus, Check,
 } from 'lucide-react';
 import ProductCard from '../components/ProductCard';
 import Avatar from '../components/ui/Avatar';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { useNavigate } from 'react-router-dom';
+import { API_URL, absoluteImageUrl } from '../config/api.js';
 
 const SWATCH_COLORS = {
   noir: '#1E1B18', black: '#1E1B18',
@@ -53,7 +55,7 @@ export default function ProductPage({ productId, language = 'fr', onBack, onOpen
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/produits/${productId}`)
+    fetch(`${API_URL}/produits/${productId}`)
       .then((response) => response.json())
       .then((data) => {
         if (data.success) {
@@ -71,7 +73,7 @@ export default function ProductPage({ productId, language = 'fr', onBack, onOpen
   }, [productId]);
 
   useEffect(() => {
-    fetch('/api/gouvernorats')
+    fetch(`${API_URL}/gouvernorats`)
       .then((response) => response.json())
       .then((data) => { if (data.success) setGouvernorats(data.data); })
       .catch(() => setGouvernorats([]));
@@ -79,7 +81,7 @@ export default function ProductPage({ productId, language = 'fr', onBack, onOpen
 
   useEffect(() => {
     if (!product?.categorie?.id) return;
-    fetch(`/api/produits?categoryId=${product.categorie.id}&limit=8`)
+    fetch(`${API_URL}/produits?categoryId=${product.categorie.id}&limit=8`)
       .then((response) => response.json())
       .then((data) => { if (data.success) setSimilar(data.data.filter((p) => p.id !== product.id)); })
       .catch(() => setSimilar([]));
@@ -99,7 +101,12 @@ export default function ProductPage({ productId, language = 'fr', onBack, onOpen
   const isTunis = (nom) => /tunis/i.test(nom || '');
   const estimatedDelay = (nom) => (isTunis(nom) ? '24-48h' : '48-72h');
 
-  const images = useMemo(() => [product?.image, ...(product?.images || [])].filter(Boolean), [product]);
+  // Photo principale + galerie, sans doublon (la principale figure souvent aussi dans la galerie).
+  const images = useMemo(
+    () => [...new Set([product?.image, ...(product?.images || [])].filter(Boolean).map(absoluteImageUrl))],
+    [product],
+  );
+  const navigate = useNavigate();
 
   // Deux axes indépendants (couleur / taille-pointure) dérivés de la liste
   // brute de variantes — un produit peut n'en avoir qu'un des deux, ou
@@ -157,15 +164,62 @@ export default function ProductPage({ productId, language = 'fr', onBack, onOpen
   ];
 
   return (
-    <div dir={isAr ? 'rtl' : 'ltr'} className="min-h-screen bg-slate-50 px-4 pb-24 pt-7 sm:px-6 md:pb-7">
-      <main className="mx-auto max-w-6xl space-y-6">
-        <button onClick={onBack} className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-bold text-slate-600 hover:bg-white">
+    <div dir={isAr ? 'rtl' : 'ltr'} className="min-h-screen bg-slate-50 px-4 pb-28 pt-4 max-sm:bg-[#FBF8F3] max-sm:pt-0 sm:px-6 sm:pt-7 md:pb-7">
+      <main className="mx-auto max-w-6xl space-y-4 sm:space-y-6">
+        <button onClick={onBack} className="inline-flex items-center gap-2 rounded-xl max-sm:hidden px-1 py-1.5 text-sm font-bold text-slate-600 hover:bg-white sm:px-3 sm:py-2">
           <ArrowLeft size={16} className="rtl:rotate-180" /> {tr('Retour aux produits', 'رجوع إلى المنتجات')}
         </button>
 
-        <section className="grid gap-7 rounded-lg border border-slate-200 bg-white p-5 shadow-soft lg:grid-cols-[1fr_1fr] lg:p-8">
+        <section className="grid gap-5 rounded-lg border border-slate-200 bg-white p-3 shadow-soft max-sm:-mx-4 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none sm:gap-7 sm:p-5 lg:grid-cols-[1fr_1fr] lg:p-8">
+          {/* Téléphone (comme l'app) : photos pleine largeur qu'on fait glisser,
+              boutons ronds flottants (retour, favori), points indicateurs. */}
+          <div className="relative sm:hidden">
+            <div
+              className="flex aspect-square snap-x snap-mandatory overflow-x-auto bg-[#F4ECDF] [scrollbar-width:none]"
+              onScroll={(e) => {
+                const el = e.currentTarget;
+                const i = Math.round(Math.abs(el.scrollLeft) / el.clientWidth);
+                if (i !== imageIndex) setImageIndex(i);
+              }}
+            >
+              {(images.length ? images : [null]).map((image, index) => (
+                <div key={image ?? index} className="h-full w-full shrink-0 snap-center">
+                  {image ? (
+                    <img src={image} alt={index === 0 ? product.nom : ''} loading={index === 0 ? 'eager' : 'lazy'} className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-slate-300"><PackageCheck size={56} /></div>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="absolute inset-x-0 top-3 flex items-center justify-between px-4">
+              <button onClick={onBack} aria-label={tr('Retour', 'رجوع')} className="flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-[#1E1B18] shadow-sm">
+                <ArrowLeft size={20} className="rtl:rotate-180" />
+              </button>
+              <button
+                onClick={() => setIsFavorite((v) => !v)}
+                aria-label={tr('Ajouter aux favoris', 'أضف إلى المفضلة')}
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-white/90 text-[#1E1B18] shadow-sm"
+              >
+                <Heart size={20} className={isFavorite ? 'fill-[#C4532C] text-[#C4532C]' : ''} />
+              </button>
+            </div>
+            {hasPromo && (
+              <span className="absolute bottom-4 start-4 rounded-lg bg-[#C4532C] px-2 py-0.5 text-xs font-bold text-white">
+                -{Math.round((1 - product.prix / product.prixAvant) * 100)}%
+              </span>
+            )}
+            {images.length > 1 && (
+              <div className="absolute inset-x-0 bottom-4 flex justify-center gap-1.5">
+                {images.map((image, index) => (
+                  <span key={image} className={`h-1.5 rounded-full transition-all ${index === imageIndex ? 'w-5 bg-[#C4532C]' : 'w-1.5 bg-white/80'}`} />
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* Gallery — vignettes en bande verticale à gauche de la photo principale */}
-          <div className="flex gap-3">
+          <div className="hidden gap-3 sm:flex sm:flex-row">
             {images.length > 1 && (
               <div className="flex shrink-0 flex-col gap-2 overflow-y-auto">
                 {images.map((image, index) => (
@@ -174,13 +228,13 @@ export default function ProductPage({ productId, language = 'fr', onBack, onOpen
                     onClick={() => setImageIndex(index)}
                     className={`h-16 w-16 shrink-0 overflow-hidden rounded-xl border-2 transition-colors ${index === imageIndex ? 'border-[#C4532C]' : 'border-transparent hover:border-slate-200'}`}
                   >
-                    <img src={image} alt="" className="h-full w-full object-cover" />
+                    <img loading="lazy" decoding="async" src={image} alt="" className="h-full w-full object-cover" />
                   </button>
                 ))}
               </div>
             )}
             <div
-              className="relative h-[360px] w-full cursor-zoom-in overflow-hidden rounded-lg bg-slate-100 sm:h-[450px]"
+              className="relative aspect-square w-full cursor-zoom-in overflow-hidden rounded-lg bg-slate-100 sm:aspect-auto sm:h-[450px]"
               onMouseEnter={() => setZoomed(true)}
               onMouseLeave={() => setZoomed(false)}
             >
@@ -202,8 +256,8 @@ export default function ProductPage({ productId, language = 'fr', onBack, onOpen
           </div>
 
           {/* Info */}
-          <div className="flex flex-col gap-5">
-            <div className="flex items-center justify-end">
+          <div className="flex flex-col gap-4 px-4 sm:gap-5 sm:px-0">
+            <div className="hidden items-center justify-end sm:flex">
               <button
                 onClick={() => setIsFavorite((v) => !v)}
                 aria-label={tr('Ajouter aux favoris', 'أضف إلى المفضلة')}
@@ -214,15 +268,15 @@ export default function ProductPage({ productId, language = 'fr', onBack, onOpen
             </div>
 
             <div>
-              <h1 className="text-3xl font-black leading-tight text-slate-900">{product.nom}</h1>
+              <h1 className="text-[22px] font-black leading-tight text-slate-900 sm:text-3xl">{product.nom}</h1>
               <div className="mt-3 flex items-center gap-2 text-sm">
                 <span className="inline-flex items-center gap-1 font-bold text-amber-600"><Star size={16} className="fill-amber-400 text-amber-400" /> {rating ? rating.toFixed(1) : tr('Nouveau', 'جديد')}</span>
                 <span className="text-slate-500">({product.nombreAvis || reviews.length} {tr('avis', 'تقييم')})</span>
               </div>
             </div>
 
-            <div className="border-y border-slate-100 py-5">
-              <strong className="text-gradient-brand text-3xl font-black sm:text-4xl">{price.toFixed(3)} TND</strong>
+            <div className="border-y border-slate-100 py-4 sm:py-5">
+              <strong className="text-gradient-brand text-[28px] font-black sm:text-4xl">{price.toFixed(3)} TND</strong>
               {hasPromo && <div className="mt-1 text-sm text-slate-400 line-through">{Number(product.prixAvant).toFixed(3)} TND</div>}
               <p className="mt-2 text-xs font-bold text-emerald-700">
                 {(variant ? variant.stock : product.stock) > 0 ? `${variant ? variant.stock : product.stock} ${tr('en stock', 'متوفر')}` : tr('Rupture de stock', 'نفذ المخزون')}
@@ -304,7 +358,7 @@ export default function ProductPage({ productId, language = 'fr', onBack, onOpen
               </div>
             </div>
 
-            <div className="flex flex-col gap-2.5 sm:flex-row">
+            <div className="hidden gap-2.5 sm:flex sm:flex-row">
               <button
                 onClick={addToCart}
                 disabled={(variant ? variant.stock : product.stock) < 1 || (product.variantes?.length > 0 && !variant)}
@@ -399,7 +453,7 @@ export default function ProductPage({ productId, language = 'fr', onBack, onOpen
                           {minFee === maxFee ? `${minFee.toFixed(3)} TND` : `${minFee.toFixed(3)} - ${maxFee.toFixed(3)} TND`} {tr('selon votre gouvernorat · livraison sous 24-72h', 'حسب ولايتك · التوصيل خلال 24-72 ساعة')}
                         </p>
                       )}
-                      <select
+                      <select aria-label={tr('Gouvernorat de livraison', 'ولاية التوصيل')}
                         value={selectedGouvernoratId}
                         onChange={(e) => setSelectedGouvernoratId(e.target.value)}
                         className="input-premium mt-2 w-full px-2.5 py-2 text-xs font-semibold text-slate-700 outline-none"
@@ -433,7 +487,7 @@ export default function ProductPage({ productId, language = 'fr', onBack, onOpen
         <aside className="space-y-3 rounded-lg border border-slate-200 bg-white p-5 shadow-soft">
           <div className="flex items-center gap-3">
             <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[#F8E4DE] text-sm font-black text-[#C4532C]">
-              {product.boutique?.logo ? <img src={product.boutique.logo} alt="" className="h-full w-full object-cover" /> : (product.boutique?.nom || 'B').slice(0, 1)}
+              {product.boutique?.logo ? <img loading="lazy" decoding="async" src={product.boutique.logo} alt="" className="h-full w-full object-cover" /> : (product.boutique?.nom || 'B').slice(0, 1)}
             </span>
             <div className="min-w-0">
               <h3 className="truncate text-sm font-extrabold text-slate-900">{product.boutique?.nom || tr('Boutique locale', 'متجر محلي')}</h3>
@@ -473,6 +527,27 @@ export default function ProductPage({ productId, language = 'fr', onBack, onOpen
           </section>
         )}
       </main>
+
+      {/* Téléphone : barre d'action fixe, comme l'app (panier + ajouter). */}
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-100 bg-white px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:hidden">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigate('/checkout')}
+            aria-label={tr('Voir le panier', 'عرض السلة')}
+            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-slate-200 text-[#1E1B18]"
+          >
+            <ShoppingBag size={22} />
+          </button>
+          <button
+            onClick={addToCart}
+            disabled={(variant ? variant.stock : product.stock) < 1 || (product.variantes?.length > 0 && !variant)}
+            className="h-14 flex-1 rounded-2xl bg-[#C4532C] text-base font-bold text-white active:bg-[#994122] disabled:opacity-40"
+          >
+            {(variant ? variant.stock : product.stock) < 1 ? tr('Rupture de stock', 'نفذ المخزون') : tr('Ajouter au panier', 'أضف إلى السلة')}
+          </button>
+        </div>
+      </div>
+
     </div>
   );
 }

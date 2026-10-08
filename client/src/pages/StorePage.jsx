@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, CheckCircle2, MapPin, MessageSquare, Package, Search, Star, Store, Truck } from 'lucide-react';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { API_URL, absoluteImageUrl } from '../config/api.js';
 
 function StoreRatingStars({ note, size = 14 }) {
   return (
@@ -27,7 +28,7 @@ export default function StorePage({ storeId, language = 'fr', onBack, onOpenProd
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/boutiques/${storeId}`)
+    fetch(`${API_URL}/boutiques/${storeId}`)
       .then((response) => response.json())
       .then((data) => {
         if (data.success) setStore(data.data);
@@ -44,20 +45,20 @@ export default function StorePage({ storeId, language = 'fr', onBack, onOpenProd
 
   return (
     <div dir={isAr ? 'rtl' : 'ltr'} className="min-h-screen bg-slate-50 pb-24 md:pb-10">
-      <div className="relative h-52 overflow-hidden bg-slate-900 sm:h-64">
-        {store.bannière ? <img src={store.bannière} alt="" className="h-full w-full object-cover opacity-70" /> : <div className="h-full w-full bg-gradient-to-br from-slate-900 via-slate-800 to-terre-900" />}
-        <button onClick={onBack} className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-xl bg-white/90 px-3 py-2 text-xs font-bold text-slate-800"><ArrowLeft size={15} /> {tr('Retour', 'رجوع')}</button>
+      <div className="relative h-32 overflow-hidden bg-slate-900 sm:h-64">
+        {store.bannière ? <img loading="lazy" decoding="async" src={absoluteImageUrl(store.bannière)} alt="" className="h-full w-full object-cover opacity-70" /> : <div className="h-full w-full bg-gradient-to-br from-slate-900 via-slate-800 to-terre-900" />}
+        <button onClick={onBack} className="absolute start-4 top-3 inline-flex items-center gap-2 rounded-xl bg-white/90 px-3 py-2 text-xs font-bold text-slate-800 sm:top-4"><ArrowLeft size={15} /> {tr('Retour', 'رجوع')}</button>
       </div>
 
-      <main className="mx-auto -mt-10 max-w-7xl px-4 sm:px-6">
-        <section className="relative rounded-lg border border-slate-200 bg-white p-5 shadow-soft sm:p-7">
-          <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
-            <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-lg border-4 border-white bg-[#F8E4DE] text-3xl font-black text-[#C4532C] shadow-lg">
-              {store.logo ? <img src={store.logo} alt={store.nom} className="h-full w-full object-cover" /> : store.nom.slice(0, 1).toUpperCase()}
+      <main className="mx-auto -mt-8 max-w-7xl px-4 sm:-mt-10 sm:px-6">
+        <section className="relative rounded-lg border border-slate-200 bg-white p-4 shadow-soft sm:p-7">
+          <div className="flex flex-row items-start gap-4 sm:items-center sm:gap-5">
+            <div className="flex h-16 w-16 shrink-0 sm:h-24 sm:w-24 items-center justify-center overflow-hidden rounded-lg border-4 border-white bg-[#F8E4DE] text-3xl font-black text-[#C4532C] shadow-lg">
+              {store.logo ? <img loading="lazy" decoding="async" src={absoluteImageUrl(store.logo)} alt={store.nom} className="h-full w-full object-cover" /> : store.nom.slice(0, 1).toUpperCase()}
             </div>
             <div className="flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-2xl font-black text-slate-900">{store.nom}</h1>
+                <h1 className="text-xl font-black text-slate-900 sm:text-2xl">{store.nom}</h1>
                 {store.kycStatut === 'valide' ? (
                   <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700"><CheckCircle2 size={14} /> {tr('Vérifiée', 'موثقة')}</span>
                 ) : (
@@ -102,20 +103,20 @@ export default function StorePage({ storeId, language = 'fr', onBack, onOpenProd
           <section className="mt-6 space-y-5">
             <div className="relative max-w-md">
               <Search className="absolute left-3 top-3 text-slate-400" size={16} />
-              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={tr('Rechercher dans la boutique', 'ابحث في منتجات المتجر')} className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none" />
+              <input aria-label={tr('Rechercher dans la boutique', 'ابحث في منتجات المتجر')} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={tr('Rechercher dans la boutique', 'ابحث في منتجات المتجر')} className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none" />
             </div>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
               {products.map((product) => (
                 <article key={product.id} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-soft">
                   <button onClick={() => onOpenProduct(product.id)} className="block w-full text-left">
-                    <div className="h-44 bg-slate-100">{product.image ? <img src={product.image} alt={product.nom} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center text-slate-300"><Store size={35} /></div>}</div>
-                    <div className="space-y-2 p-4">
+                    <div className="aspect-square bg-slate-100 sm:aspect-auto sm:h-44">{product.image ? <img loading="lazy" decoding="async" src={absoluteImageUrl(product.image)} alt={product.nom} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center text-slate-300"><Store size={35} /></div>}</div>
+                    <div className="space-y-1.5 p-3 sm:space-y-2 sm:p-4">
                       <h3 className="truncate text-sm font-extrabold text-slate-900">{product.nom}</h3>
-                      <p className="line-clamp-2 text-xs text-slate-500">{product.description}</p>
-                      <div className="flex items-center justify-between"><strong className="text-lg text-[#C4532C]">{Number(product.prix).toFixed(3)} TND</strong><span className="text-xs font-semibold text-slate-500">Stock {product.stock}</span></div>
+                      <p className="hidden line-clamp-2 text-xs text-slate-500 sm:block">{product.description}</p>
+                      <div className="flex flex-wrap items-center justify-between gap-x-2"><strong className="text-base text-[#C4532C] sm:text-lg">{Number(product.prix).toFixed(3)} TND</strong><span className="text-xs font-semibold text-slate-500">Stock {product.stock}</span></div>
                     </div>
                   </button>
-                  <button onClick={() => onAddToCart({ id: product.id, nom: product.nom, prix: product.prix, boutiqueId: store.id, boutiqueNom: store.nom, image: product.image, stock: product.stock, varianteId: null })} disabled={product.stock < 1} className="m-4 mt-0 w-[calc(100%-2rem)] rounded-xl bg-[#C4532C] px-3 py-2.5 text-xs font-bold text-white hover:bg-[#994122] disabled:opacity-40">{tr('Ajouter au panier', 'أضف إلى السلة')}</button>
+                  <button onClick={() => onAddToCart({ id: product.id, nom: product.nom, prix: product.prix, boutiqueId: store.id, boutiqueNom: store.nom, image: product.image, stock: product.stock, varianteId: null })} disabled={product.stock < 1} className="m-3 mt-0 w-[calc(100%-1.5rem)] rounded-xl sm:m-4 sm:mt-0 sm:w-[calc(100%-2rem)] bg-[#C4532C] px-3 py-2.5 text-xs font-bold text-white hover:bg-[#994122] disabled:opacity-40"><span className="sm:hidden">{tr('Ajouter', 'أضف')}</span><span className="hidden sm:inline">{tr('Ajouter au panier', 'أضف إلى السلة')}</span></button>
                 </article>
               ))}
             </div>

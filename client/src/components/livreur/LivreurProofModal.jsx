@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { X, Camera, CheckCircle2, AlertCircle } from 'lucide-react';
 import { API_URL } from '../../config/api.js';
+import { useDialog } from '../../hooks/useDialog.js';
 
 export default function LivreurProofModal({ course, onClose, onDelivered }) {
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const dialog = useDialog(true, onClose, 'proof-dialog-title');
 
   const token = localStorage.getItem('token');
 
@@ -68,10 +70,10 @@ export default function LivreurProofModal({ course, onClose, onDelivered }) {
 
   return (
     <div className="fixed inset-0 bg-slate-900/70 flex items-end sm:items-center justify-center z-[60] p-0 sm:p-4">
-      <div className="bg-white rounded-t-3xl sm:rounded-lg w-full max-w-md max-h-[85vh] overflow-y-auto p-6 space-y-4">
+      <div {...dialog} className="bg-white rounded-t-3xl sm:rounded-lg w-full max-w-md max-h-[85vh] overflow-y-auto p-6 space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-black text-slate-900">Confirmer la livraison</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
+          <h2 id="proof-dialog-title" className="text-lg font-black text-slate-900">Confirmer la livraison</h2>
+          <button onClick={onClose} aria-label="Fermer" className="text-slate-400 hover:text-slate-600"><X size={20} aria-hidden="true" /></button>
         </div>
 
         {error && (
@@ -81,12 +83,12 @@ export default function LivreurProofModal({ course, onClose, onDelivered }) {
           </div>
         )}
 
-        <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-slate-200 rounded-2xl p-6 cursor-pointer hover:border-amber-400 transition">
+        <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-slate-200 rounded-2xl p-6 cursor-pointer hover:border-terre-400 transition">
           {preview ? (
             <img src={preview} alt="Preuve de livraison" className="h-40 w-full object-cover rounded-xl" />
           ) : (
             <>
-              <Camera size={28} className="text-amber-600" />
+              <Camera size={28} className="text-terre-700" />
               <span className="text-xs font-bold text-slate-600">Prendre ou choisir une photo</span>
             </>
           )}
@@ -96,7 +98,7 @@ export default function LivreurProofModal({ course, onClose, onDelivered }) {
         <button
           onClick={handleConfirm}
           disabled={loading}
-          className="w-full inline-flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-700 text-white font-bold py-3.5 rounded-2xl text-sm transition disabled:opacity-50"
+          className="w-full inline-flex items-center justify-center gap-2 bg-terre-700 hover:bg-terre-800 text-white font-bold py-3.5 rounded-2xl text-sm transition disabled:opacity-50"
         >
           <CheckCircle2 size={18} />
           {loading ? 'Envoi...' : 'Confirmer la livraison'}
@@ -105,7 +107,7 @@ export default function LivreurProofModal({ course, onClose, onDelivered }) {
         <button
           onClick={handleSkip}
           disabled={loading}
-          className="w-full text-center text-xs font-semibold text-slate-400 hover:text-amber-600 transition"
+          className="w-full text-center text-xs font-semibold text-slate-400 hover:text-terre-700 transition"
         >
           Marquer livré sans photo
         </button>

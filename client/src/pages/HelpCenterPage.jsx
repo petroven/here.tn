@@ -241,7 +241,7 @@ export default function HelpCenterPage({ language = 'fr', onBack }) {
 
           <div className="relative mt-6">
             <Search size={16} className="absolute left-4 top-3.5 text-slate-400 rtl:left-auto rtl:right-4" />
-            <input
+            <input aria-label={tr('Rechercher une question...', 'ابحث عن سؤال...')}
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}

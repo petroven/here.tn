@@ -2,6 +2,7 @@ import express from 'express';
 import { authMiddleware } from '../middleware/auth.js';
 import { Conversation, Message, Utilisateur, Boutique } from '../models/index.js';
 import { Op } from 'sequelize';
+import { notifier } from '../utils/notifications.js';
 
 const router = express.Router();
 
@@ -153,6 +154,16 @@ router.post('/chat/messages', authMiddleware, async (req, res) => {
 
     const detailedMessage = await Message.findByPk(message.id, {
       include: [{ model: Utilisateur, as: 'expediteur', attributes: ['id', 'nom', 'prenom'] }],
+    });
+
+    const destinataireId = Number(conversation.clientId) === Number(expediteurId) ? conversation.vendeurId : conversation.clientId;
+    const auteur = detailedMessage.expediteur ? `${detailedMessage.expediteur.prenom} ${detailedMessage.expediteur.nom}` : 'Nouveau message';
+    notifier(destinataireId, {
+      type: 'nouveau_message',
+      titre: auteur,
+      message: contenu.length > 120 ? `${contenu.slice(0, 117)}…` : contenu,
+      lien: `messages/${conversation.id}`,
+      data: { conversationId: conversation.id },
     });
 
     return res.status(201).json({ success: true, data: detailedMessage });

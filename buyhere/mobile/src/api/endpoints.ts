@@ -1,10 +1,12 @@
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
+import { Platform } from 'react-native';
 import { api, ApiError } from './client';
 import { API_URL } from '@/config';
 import {
   mapCategory,
   mapGovernorate,
+  mapNotification,
   mapOrder,
   mapProductCard,
   mapProductDetail,
@@ -17,6 +19,7 @@ import {
   type WebCategory,
   type WebEnvelope,
   type WebGovernorate,
+  type WebNotification,
   type WebOrder,
   type WebProduct,
   type WebReview,
@@ -49,6 +52,7 @@ import type {
   User,
 } from './types';
 import { localAddresses, localCart, type StoredCart } from '@/store/local';
+import { mapBankTransfer } from './account';
 
 /**
  * Couche d'accès à l'API du site web (server/, préfixe /api) : une fonction
@@ -67,7 +71,7 @@ const cleanPhone = (phone?: string | null) => {
 
 // ─── Auth ───
 
-async function sessionFrom(token: string): Promise<AuthResponse> {
+export async function sessionFrom(token: string): Promise<AuthResponse> {
   const me = await get<WebUser>('/users/me', undefined, { Authorization: `Bearer ${token}` });
   return { accessToken: token, user: mapUser(me.data) };
 }
@@ -139,6 +143,16 @@ let addressSeq = 0;
 
 export const meApi = {
   get: () => get<WebUser>('/users/me').then((r) => mapUser(r.data)),
+  /** Mot de passe (compte classique) ou « SUPPRIMER » (compte Google / Facebook). */
+  /** Photo de profil (JPEG/PNG, 5 Mo max côté serveur). */
+  uploadPhoto: async (uri: string) => {
+    const name = uri.split('/').pop() || 'avatar.jpg';
+    const form = new FormData();
+    form.append('photo', { uri, name, type: name.endsWith('.png') ? 'image/png' : 'image/jpeg' } as unknown as Blob);
+    await api.put('/users/me/photo', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+  },
+  deleteAccount: (secret: string) =>
+    api.delete('/users/me', { data: { password: secret, confirmation: secret.trim().toUpperCase() } }).then(() => undefined),
   update: async (input: Partial<Pick<User, 'firstName' | 'lastName' | 'phone' | 'language'>>) => {
     const body: Record<string, unknown> = {};
     if (input.firstName !== undefined) body.prenom = input.firstName;
@@ -151,8 +165,15 @@ export const meApi = {
   },
   changePassword: (currentPassword: string, newPassword: string) =>
     api.patch('/users/me/password', { currentPassword, newPassword }),
-  /** Pas de notifications push côté API web pour l'instant. */
-  setPushToken: (_token: string | null) => Promise.resolve(),
+  /**
+   * Enregistre le jeton Expo Push de l'appareil sur le compte (null = le
+   * retire, à la déconnexion) — le serveur envoie ensuite les push de suivi
+   * de commande, retours, remboursements et messages.
+   */
+  setPushToken: async (token: string | null, previous?: string | null) => {
+    if (token) await api.put('/users/me/push-token', { token, plateforme: Platform.OS });
+    else await api.delete('/users/me/push-token', { data: previous ? { token: previous } : {} });
+  },
 
   // Carnet d'adresses : conservé sur le téléphone (voir store/local.ts).
   addresses: () => localAddresses.get(),
@@ -239,7 +260,10 @@ export const catalogApi = {
       categories.map(async (c) => {
         const first = await productList({ category: c.slug, limit: 1 }).catch(() => null);
         const product = first?.data[0];
-        return product ? { ...c, imageUrl: mapProductCard(product).imageUrl, productCount: first?.count } : c;
+        // Photo choisie par l'admin en priorité, sinon celle d'un produit de la catégorie.
+        return product
+          ? { ...c, imageUrl: c.imageUrl ?? mapProductCard(product).imageUrl, productCount: first?.count }
+          : c;
       }),
     );
   },
@@ -445,9 +469,23 @@ export const cartApi = {
       return { ...cart, couponCode: code.toUpperCase() };
     }),
   removeCoupon: () => updateCart((cart) => ({ ...cart, couponCode: null })),
+  /**
+   * Mémorise un code reçu par lien promotionnel (buyhere://promotion/CODE)
+   * sans le valider tout de suite : le panier peut être vide ou sous le
+   * minimum. Le récapitulatif du panier le revalide et affiche l'erreur
+   * éventuelle, comme pour un code saisi.
+   */
+  rememberCoupon: (code: string) => updateCart((cart) => ({ ...cart, couponCode: code.trim().toUpperCase() })),
 };
 
 // ─── Commandes & paiement ───
+
+/** Statuts regroupés sous un même filtre de la liste « Mes commandes ». */
+const ORDER_FILTER_GROUPS: Partial<Record<OrderStatus, OrderStatus[]>> = {
+  CONFIRMED: ['CONFIRMED', 'PREPARING'],
+  SHIPPED: ['SHIPPED', 'OUT_FOR_DELIVERY'],
+  RETURN_REQUESTED: ['RETURN_REQUESTED', 'REFUNDED'],
+};
 
 async function fetchOrders(): Promise<Order[]> {
   const [orders, governorates] = await Promise.all([
@@ -460,6 +498,7 @@ async function fetchOrders(): Promise<Order[]> {
 type CreatedOrder = {
   commande: WebOrder;
   paymentRedirect: { paymentUrl?: string; paymentRef?: string; sandbox?: boolean } | null;
+  virementInstructions: { titulaire: string; rib: string; banque: string; montant: number; reference: string } | null;
 };
 
 export const ordersApi = {
@@ -467,7 +506,7 @@ export const ordersApi = {
    * Même appel que le checkout du site (POST /commandes). Une commande avec
    * plusieurs boutiques est découpée en une commande par boutique côté API.
    */
-  create: async (input: { addressId: string; paymentMethod: PaymentMethod }) => {
+  create: async (input: { addressId: string; paymentMethod: PaymentMethod; walletAmount?: number }) => {
     const [stored, addresses] = await Promise.all([localCart.get(), localAddresses.get()]);
     const address = addresses.find((a) => a.id === input.addressId);
     if (!address) throw new ApiError('VALIDATION_ERROR', 'Adresse de livraison introuvable.');
@@ -485,10 +524,13 @@ export const ordersApi = {
       delegationId: address.delegationId,
       methodePaiement: toWebPaymentMethod(input.paymentMethod),
       couponCode: stored.couponCode ?? undefined,
+      // Montant demandé (millimes → TND) : l'API le plafonne au solde réel et
+      // au sous-total des articles, jamais aux frais de livraison.
+      walletMontant: input.walletAmount ? input.walletAmount / 1000 : 0,
     });
     await localCart.save({ lines: [], couponCode: null });
 
-    const { commande, paymentRedirect } = r.data.data;
+    const { commande, paymentRedirect, virementInstructions } = r.data.data;
     const order = mapOrder(commande, { governorates: [] });
     order.paymentMethod = input.paymentMethod;
     return {
@@ -496,10 +538,12 @@ export const ordersApi = {
       payUrl: paymentRedirect?.sandbox ? null : (paymentRedirect?.paymentUrl ?? null),
       // Mode sandbox du site : le paiement simulé se confirme directement, sans page externe.
       sandboxRef: paymentRedirect?.sandbox ? (paymentRedirect.paymentRef ?? null) : null,
+      bankTransfer: mapBankTransfer(virementInstructions),
     };
   },
   list: async (_page: number, status?: OrderStatus): Promise<Paginated<Order>> => {
-    const items = (await fetchOrders()).filter((o) => !status || o.status === status);
+    const groupe = status ? (ORDER_FILTER_GROUPS[status] ?? [status]) : null;
+    const items = (await fetchOrders()).filter((o) => !groupe || groupe.includes(o.status));
     return { items, page: 1, limit: items.length, total: items.length, hasMore: false };
   },
   get: async (id: string) => {
@@ -547,19 +591,32 @@ export const favoritesApi = {
   remove: (productId: string) => api.delete(`/wishlist/${productId}`),
 };
 
-// ─── Notifications ───
-// L'API web n'expose pas encore de notifications client : liste vide.
+// ─── Notifications (mêmes notifications que la cloche du site) ───
+
+type WebNotificationPage = WebEnvelope<WebNotification[]> & {
+  nonLues: number;
+  pagination: { page: number; limit: number; total: number };
+};
 
 export const notificationsApi = {
-  list: async (_page: number): Promise<Paginated<AppNotification> & { unread: number }> => ({
-    items: [],
-    page: 1,
-    limit: 20,
-    total: 0,
-    hasMore: false,
-    unread: 0,
-  }),
-  unreadCount: async () => 0,
-  markRead: async (_id: string) => undefined,
-  markAllRead: async () => undefined,
+  list: async (page: number): Promise<Paginated<AppNotification> & { unread: number }> => {
+    const limit = 20;
+    const r = await api.get<WebNotificationPage>('/notifications', { params: { page, limit } });
+    const { pagination } = r.data;
+    return {
+      items: r.data.data.map(mapNotification),
+      page: pagination.page,
+      limit: pagination.limit,
+      total: pagination.total,
+      hasMore: pagination.page * pagination.limit < pagination.total,
+      unread: r.data.nonLues,
+    };
+  },
+  unreadCount: async () => (await get<{ count: number }>('/notifications/non-lues')).data.count,
+  markRead: async (id: string) => {
+    await api.patch(`/notifications/${id}/lu`);
+  },
+  markAllRead: async () => {
+    await api.patch('/notifications/tout-lu');
+  },
 };

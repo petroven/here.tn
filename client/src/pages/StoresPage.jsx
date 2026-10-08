@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Search, Store, ShieldCheck } from 'lucide-react';
 import BoutiqueCard from '../components/BoutiqueCard';
+import { API_URL } from '../config/api.js';
 
 export default function StoresPage({ language = 'fr', onOpenStore }) {
   const [stores, setStores] = useState([]);
@@ -8,7 +9,7 @@ export default function StoresPage({ language = 'fr', onOpenStore }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/boutiques')
+    fetch(`${API_URL}/boutiques`)
       .then((response) => response.json())
       .then((data) => {
         if (data.success) setStores(data.data);
@@ -34,7 +35,7 @@ export default function StoresPage({ language = 'fr', onOpenStore }) {
             </div>
             <div className="relative w-full md:max-w-sm">
               <Search className="absolute left-3 top-3.5 text-slate-400" size={17} />
-              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={language === 'ar' ? 'ابحث عن متجر' : 'Rechercher une boutique'} className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-10 pr-4 text-sm outline-none focus:border-terre-400" />
+              <input aria-label={language === 'ar' ? 'ابحث عن متجر' : 'Rechercher une boutique'} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={language === 'ar' ? 'ابحث عن متجر' : 'Rechercher une boutique'} className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-10 pr-4 text-sm outline-none focus:border-terre-400" />
             </div>
           </div>
         </header>

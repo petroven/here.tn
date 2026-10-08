@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { Routes, Route, Navigate, Outlet, useNavigate, useLocation, useParams } from 'react-router-dom';
 import {
   Menu,
@@ -16,31 +16,33 @@ import {
   X,
   ArrowRight,
   Mail,
+  LayoutGrid,
+  ShoppingBag,
 } from 'lucide-react';
 import CheckoutPage from './pages/CheckoutPage';
-import AdminDashboard from './pages/AdminDashboard';
-import VendorDashboard from './pages/VendorDashboard';
-import VendorRegistration from './pages/VendorRegistration';
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+const VendorDashboard = lazy(() => import('./pages/VendorDashboard'));
+const VendorRegistration = lazy(() => import('./pages/VendorRegistration'));
 import Marketplace from './pages/Marketplace';
-import TrackingPage from './pages/TrackingPage';
-import ResetPasswordPage from './pages/ResetPasswordPage';
-import ClientOrdersPage from './pages/ClientOrdersPage';
-import AccountPage from './pages/AccountPage';
+const TrackingPage = lazy(() => import('./pages/TrackingPage'));
+const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'));
+const ClientOrdersPage = lazy(() => import('./pages/ClientOrdersPage'));
+const AccountPage = lazy(() => import('./pages/AccountPage'));
 import StoresPage from './pages/StoresPage';
 import StorePage from './pages/StorePage';
 import ProductPage from './pages/ProductPage';
-import LegalPage from './pages/LegalPage';
-import HelpCenterPage from './pages/HelpCenterPage';
-import ConfirmOrderPage from './pages/ConfirmOrderPage';
-import LivreurLoginPage from './pages/LivreurLoginPage';
-import LivreurRegistrationPage from './pages/LivreurRegistrationPage';
-import LivreurDashboardPage from './pages/LivreurDashboardPage';
+const LegalPage = lazy(() => import('./pages/LegalPage'));
+const HelpCenterPage = lazy(() => import('./pages/HelpCenterPage'));
+const ConfirmOrderPage = lazy(() => import('./pages/ConfirmOrderPage'));
+const LivreurLoginPage = lazy(() => import('./pages/LivreurLoginPage'));
+const LivreurRegistrationPage = lazy(() => import('./pages/LivreurRegistrationPage'));
+const LivreurDashboardPage = lazy(() => import('./pages/LivreurDashboardPage'));
 import FavoritesPage from './pages/FavoritesPage';
-import CouponsPage from './pages/CouponsPage';
-import OAuthCallbackPage from './pages/OAuthCallbackPage';
-import PaymentReturnPage from './pages/PaymentReturnPage';
+const CouponsPage = lazy(() => import('./pages/CouponsPage'));
+const OAuthCallbackPage = lazy(() => import('./pages/OAuthCallbackPage'));
+const PaymentReturnPage = lazy(() => import('./pages/PaymentReturnPage'));
 import ChatWidget from './components/ChatWidget';
-import MessagesPage from './pages/MessagesPage';
+const MessagesPage = lazy(() => import('./pages/MessagesPage'));
 import PolicyConsentModal from './components/PolicyConsentModal';
 import CategoryDrawer from './components/CategoryDrawer';
 import HomeDashboard from './components/home/HomeDashboard.jsx';
@@ -49,9 +51,14 @@ import BoutiqueCard from './components/BoutiqueCard';
 import Avatar from './components/ui/Avatar';
 import Logo from './components/ui/Logo.jsx';
 import ToastHost from './components/ui/Toast.jsx';
+import NotificationBell from './components/NotificationBell.jsx';
 import { iconForCategory } from './utils/categoryIcons.js';
 import { useTranslation } from './i18n';
-import { API_URL } from './config/api.js';
+import { API_URL, absoluteImageUrl } from './config/api.js';
+import NotFoundPage from './pages/NotFoundPage.jsx';
+import IntroAnimation from './components/IntroAnimation.jsx';
+import { useDialog } from './hooks/useDialog.js';
+import { passwordError } from './utils/password.js';
 
 // --- Petits wrappers de route : lisent le paramètre d'URL et le passent en
 // prop aux pages existantes, qui n'ont pas besoin de connaître react-router.
@@ -75,10 +82,38 @@ function LegalRoute(props) {
   return <LegalPage type={type || 'cgu'} {...props} />;
 }
 
+// Espaces chargés à la demande (admin, vendeur, livreur, compte…) : le
+// visiteur du catalogue ne télécharge pas leur code.
+function PageLoader() {
+  return (
+    <div className="flex min-h-[50vh] items-center justify-center" role="status" aria-live="polite">
+      <span className="h-8 w-8 animate-spin rounded-full border-2 border-[#C4532C] border-t-transparent" />
+      <span className="sr-only">Chargement…</span>
+    </div>
+  );
+}
+
 function App() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [language, setLanguage] = useState('fr');
+  // Langue mémorisée entre les visites ; <html lang/dir> suit, pour les
+  // lecteurs d'écran et les fenêtres rendues hors du conteneur principal.
+  const [language, setLanguage] = useState(() => {
+    try {
+      return localStorage.getItem('language') === 'ar' ? 'ar' : 'fr';
+    } catch {
+      return 'fr';
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem('language', language);
+    } catch {
+      // stockage indisponible (navigation privée) : la langue n'est pas mémorisée
+    }
+    document.documentElement.lang = language;
+    document.documentElement.dir = language === 'ar' ? 'rtl' : 'ltr';
+  }, [language]);
   const { t } = useTranslation(language);
   const tr = (fr, ar) => (language === 'ar' ? ar : fr);
 
@@ -148,6 +183,11 @@ function App() {
     e.preventDefault();
     setAuthError('');
     if (authForm.isRegister) {
+      const pwdError = passwordError(authForm.password, language);
+      if (pwdError) {
+        setAuthError(pwdError);
+        return;
+      }
       // L'inscription ne peut pas se soumettre directement — les conditions
       // de vente/retour doivent d'abord être explicitement acceptées via
       // l'alerte dédiée (refuser bloque totalement l'inscription).
@@ -257,7 +297,10 @@ function App() {
   }
 
   return (
-    <Routes>
+    <>
+      <IntroAnimation />
+      <Suspense fallback={<PageLoader />}>
+      <Routes>
       <Route path="/admin" element={<AdminDashboard onLogout={handleLogout} language={language} setLanguage={setLanguage} />} />
 
       <Route
@@ -479,10 +522,11 @@ function App() {
         <Route path="/suivi" element={<TrackingPage language={language} />} />
         <Route path="/compte" element={<AccountPage language={language} navigate={navigate} />} />
         <Route path="/commandes" element={<ClientOrdersPage onStartChat={handleStartChat} language={language} />} />
+        <Route path="*" element={<NotFoundPage language={language} navigate={navigate} />} />
       </Route>
-
-      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </Suspense>
+    </>
   );
 }
 
@@ -505,10 +549,11 @@ function HomeView({ navigate, language = 'fr', user, cartCount = 0, setSelectedC
       .then(async (data) => {
         if (!data.success) return;
         setCategories(data.data);
-        // Une vraie photo produit par catégorie (déjà en base, aucune
-        // recherche externe nécessaire) plutôt qu'une icône générique.
+        // Photo de la catégorie (choisie par l'admin), sinon une vraie photo
+        // produit de la catégorie plutôt qu'une icône générique.
         const entries = await Promise.all(
           data.data.slice(0, 12).map(async (cat) => {
+            if (cat.image) return [cat.id, absoluteImageUrl(cat.image)];
             try {
               const res = await fetch(`${API_URL}/produits?categoryId=${cat.id}&limit=1`);
               const productData = await res.json();
@@ -550,22 +595,22 @@ function HomeView({ navigate, language = 'fr', user, cartCount = 0, setSelectedC
   const vendeursAvecPhoto = boutiques.filter((b) => b.vendeur);
 
   return (
-    <div className="space-y-12 pb-20 md:pb-10">
+    <div className="space-y-8 sm:space-y-12 pb-24 md:pb-10">
       {/* Client connecté : tableau de bord personnel à la place du bandeau marketing */}
       {isClient ? (
         <HomeDashboard language={language} navigate={navigate} cartCount={cartCount} onOpenProduct={onOpenProduct} />
       ) : (
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 pt-8">
-        <div className="premium-gradient grid overflow-hidden rounded-lg text-white lg:grid-cols-2">
-          <div className="max-w-2xl space-y-4 p-8 sm:p-12">
-            <span className="inline-flex items-center gap-1.5 bg-white/10 px-3 py-1 rounded-full text-xs font-semibold tracking-wide">
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 pt-4 sm:pt-8">
+        <div className="premium-gradient relative overflow-hidden rounded-3xl text-white lg:grid lg:grid-cols-2 lg:rounded-lg">
+          <div className="relative z-10 max-w-2xl space-y-3.5 p-5 sm:space-y-4 sm:p-12">
+            <span className="inline-flex items-center gap-1.5 bg-white/10 px-3 py-1 rounded-full text-[11px] sm:text-xs font-semibold tracking-wide">
               <Sparkles size={14} />
               {tr('Shop local · Plateforme tunisienne multi-boutiques', 'تسوق محلي · منصة تونسية متعددة المتاجر')}
             </span>
-            <h2 className="text-3xl sm:text-4xl font-extrabold leading-tight">
+            <h2 className="text-[28px] sm:text-4xl font-extrabold leading-tight">
               {tr('Les bonnes choses sont ici.', 'الأشياء الجيدة هنا.')}
             </h2>
-            <p className="text-sm sm:text-base text-slate-200 max-w-xl">
+            <p className="text-[13px] leading-relaxed sm:text-base text-slate-200 max-w-xl">
               {tr('Découvrez des milliers de produits proposés par des boutiques tunisiennes. Un seul compte, un seul panier, plusieurs boutiques.', 'اكتشفوا آلاف المنتجات من متاجر تونسية. حساب واحد، سلة واحدة، عدة متاجر.')}
             </p>
             <button
@@ -575,16 +620,16 @@ function HomeView({ navigate, language = 'fr', user, cartCount = 0, setSelectedC
               <Search size={16} />
               {tr('Que recherchez-vous ?', 'ماذا تبحثون؟')}
             </button>
-            <div className="flex flex-wrap gap-3 pt-1">
-              <button onClick={() => navigate('/catalogue')} className="px-5 py-3 rounded-xl bg-white text-[#994122] hover:bg-terre-50 font-bold text-sm transition">
+            <div className="grid grid-cols-2 gap-2.5 pt-1 sm:flex sm:flex-wrap sm:gap-3">
+              <button onClick={() => navigate('/catalogue')} className="px-3 py-3 sm:px-5 rounded-xl bg-white text-[#994122] hover:bg-terre-50 font-bold text-xs leading-tight sm:text-sm transition">
                 {tr('Découvrir les produits', 'اكتشف المنتجات')}
               </button>
-              <button onClick={() => navigate('/vendeur/inscription')} className="px-5 py-3 rounded-xl border border-white/40 text-white font-bold text-sm hover:bg-white/10 transition">
+              <button onClick={() => navigate('/vendeur/inscription')} className="px-3 py-3 sm:px-5 rounded-xl border border-white/40 text-white font-bold text-[13px] sm:text-sm hover:bg-white/10 transition">
                 {tr('Devenir vendeur', 'كن بائعًا')}
               </button>
             </div>
           </div>
-          <div className="relative hidden lg:block">
+          <div className="absolute inset-0 lg:relative">
             <img
               src="https://images.unsplash.com/photo-1781455816406-c3dead3a643e?fm=jpg&q=80&w=1200&auto=format&fit=crop"
               alt=""
@@ -594,6 +639,8 @@ function HomeView({ navigate, language = 'fr', user, cartCount = 0, setSelectedC
             {/* Étalonnage chaud — la photo source est en lumière froide/matinale,
                 ce calque la rapproche du ton doré recherché pour la marque. */}
             <div className="absolute inset-0 bg-gradient-to-t from-[#C4532C]/25 via-transparent to-amber-200/15" />
+            {/* Téléphone : dégradé terracotta par-dessus la photo, comme dans l'app. */}
+            <div className="absolute inset-0 bg-gradient-to-br from-[#C4532C]/[0.97] via-[#C4532C]/85 to-[#6E2E19]/55 lg:hidden" />
           </div>
         </div>
       </section>
@@ -603,25 +650,26 @@ function HomeView({ navigate, language = 'fr', user, cartCount = 0, setSelectedC
       {categories.length > 0 && (
         <section className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="flex items-end justify-between mb-4">
-            <h3 className="text-xl sm:text-2xl font-extrabold text-slate-900">{tr('Catégories principales', 'الفئات الرئيسية')}</h3>
+            <h3 className="text-lg sm:text-2xl font-extrabold text-slate-900">{tr('Catégories principales', 'الفئات الرئيسية')}</h3>
             <button onClick={() => navigate('/catalogue')} className="text-sm font-bold text-[#C4532C] hover:text-[#994122]">{tr('Voir tout', 'عرض الكل')}</button>
           </div>
-          <div className="grid grid-cols-3 gap-4 sm:grid-cols-4 md:grid-cols-6">
+          {/* Téléphone : rangée qu'on fait défiler (comme l'app) ; grille sur PC. */}
+          <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-4 sm:gap-4 sm:overflow-visible sm:px-0 md:grid-cols-6">
             {categories.slice(0, 12).map((cat) => {
               const photo = categoryPhotos[cat.id];
               const Icon = iconForCategory(cat.nom);
               return (
-                <button key={cat.id} onClick={() => goToCategory(cat.id)} className="flex flex-col items-center gap-2 text-center">
-                  <span className="h-16 w-16 overflow-hidden rounded-full border-2 border-white shadow-soft ring-1 ring-[#E2D9CB] sm:h-20 sm:w-20">
+                <button key={cat.id} onClick={() => goToCategory(cat.id)} className="flex w-[78px] shrink-0 flex-col items-center gap-1.5 text-center sm:w-auto sm:gap-2">
+                  <span className="h-[72px] w-[72px] overflow-hidden rounded-full border-2 border-white shadow-soft ring-1 ring-[#E2D9CB] sm:h-20 sm:w-20">
                     {photo ? (
-                      <img src={photo} alt="" className="h-full w-full object-cover transition duration-300 hover:scale-110" />
+                      <img loading="lazy" decoding="async" src={photo} alt="" className="h-full w-full object-cover transition duration-300 hover:scale-110" />
                     ) : (
                       <span className="flex h-full w-full items-center justify-center bg-[#F8E4DE] text-[#C4532C]">
                         <Icon size={26} />
                       </span>
                     )}
                   </span>
-                  <span className="line-clamp-2 text-xs font-bold text-slate-700">{cat.nom}</span>
+                  <span className="line-clamp-2 text-[11px] sm:text-xs font-bold leading-tight text-slate-700">{cat.nom}</span>
                 </button>
               );
             })}
@@ -633,10 +681,10 @@ function HomeView({ navigate, language = 'fr', user, cartCount = 0, setSelectedC
       {populaires.length > 0 && (
         <section className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="flex items-end justify-between mb-4">
-            <h3 className="text-xl sm:text-2xl font-extrabold text-slate-900">{isClient ? tr('Recommandés pour vous', 'مقترحة لكم') : tr('Produits populaires', 'المنتجات الأكثر رواجًا')}</h3>
+            <h3 className="text-lg sm:text-2xl font-extrabold text-slate-900">{isClient ? tr('Recommandés pour vous', 'مقترحة لكم') : tr('Produits populaires', 'المنتجات الأكثر رواجًا')}</h3>
             <button onClick={() => navigate('/catalogue')} className="text-sm font-bold text-[#C4532C] hover:text-[#994122]">{tr('Voir tout', 'عرض الكل')}</button>
           </div>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+          <div className="-mx-4 flex gap-3 overflow-x-auto px-4 [scrollbar-width:none] max-sm:[&>*]:w-[44%] max-sm:[&>*]:shrink-0 sm:mx-0 sm:grid sm:grid-cols-3 sm:gap-4 sm:overflow-visible sm:px-0 lg:grid-cols-4">
             {populaires.map((product) => (
               <ProductCard key={product.id} product={product} language={language} onOpen={onOpenProduct} onAddToCart={onAddToCart} />
             ))}
@@ -648,10 +696,10 @@ function HomeView({ navigate, language = 'fr', user, cartCount = 0, setSelectedC
       {nouveautes.length > 0 && (
         <section className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="flex items-end justify-between mb-4">
-            <h3 className="text-xl sm:text-2xl font-extrabold text-slate-900">{tr('Nouveaux produits', 'منتجات جديدة')}</h3>
+            <h3 className="text-lg sm:text-2xl font-extrabold text-slate-900">{tr('Nouveaux produits', 'منتجات جديدة')}</h3>
             <button onClick={() => navigate('/catalogue')} className="text-sm font-bold text-[#C4532C] hover:text-[#994122]">{tr('Voir tout', 'عرض الكل')}</button>
           </div>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+          <div className="-mx-4 flex gap-3 overflow-x-auto px-4 [scrollbar-width:none] max-sm:[&>*]:w-[44%] max-sm:[&>*]:shrink-0 sm:mx-0 sm:grid sm:grid-cols-3 sm:gap-4 sm:overflow-visible sm:px-0 lg:grid-cols-4">
             {nouveautes.map((product) => (
               <ProductCard key={product.id} product={product} language={language} onOpen={onOpenProduct} onAddToCart={onAddToCart} />
             ))}
@@ -663,7 +711,7 @@ function HomeView({ navigate, language = 'fr', user, cartCount = 0, setSelectedC
       {boutiques.length > 0 && (
         <section className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="flex items-end justify-between mb-4">
-            <h3 className="text-xl sm:text-2xl font-extrabold text-slate-900">{tr('Découvrez nos boutiques', 'اكتشفوا متاجرنا')}</h3>
+            <h3 className="text-lg sm:text-2xl font-extrabold text-slate-900">{tr('Découvrez nos boutiques', 'اكتشفوا متاجرنا')}</h3>
             <button onClick={() => navigate('/boutiques')} className="text-sm font-bold text-[#C4532C] hover:text-[#994122]">{tr('Voir tout', 'عرض الكل')}</button>
           </div>
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -695,7 +743,7 @@ function HomeView({ navigate, language = 'fr', user, cartCount = 0, setSelectedC
       <section className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           {[
-            { icon: ShieldCheck, title: tr('Paiement sécurisé', 'دفع آمن'), text: tr('COD, Konnect et Flouci (sandbox) avec vérification des commandes.', 'الدفع عند الاستلام، Konnect و Flouci (تجريبي) مع التحقق من الطلبات.') },
+            { icon: ShieldCheck, title: tr('Paiement sécurisé', 'دفع آمن'), text: tr('Paiement à la livraison, Konnect, Flouci ou virement, avec confirmation de chaque commande.', 'الدفع عند الاستلام أو Konnect أو Flouci أو التحويل البنكي، مع تأكيد كل طلب.') },
             { icon: PackageCheck, title: tr('Protection acheteur', 'حماية المشتري'), text: tr('Retours et suivi des colis avec historique transparent.', 'إرجاع وتتبع الطرود بسجل شفاف.') },
             { icon: Store, title: tr('Boutiques vérifiées', 'متاجر موثّقة'), text: tr('Validation des vendeurs et contrôle des boutiques.', 'التحقق من البائعين ومراقبة المتاجر.') },
             { icon: Truck, title: tr('Livraison nationale', 'توصيل وطني'), text: tr('Couverture des 24 gouvernorats avec frais lisibles.', 'تغطية الولايات الـ24 بأسعار واضحة.') },
@@ -726,7 +774,7 @@ function HomeView({ navigate, language = 'fr', user, cartCount = 0, setSelectedC
             <form onSubmit={handleNewsletterSubmit} className="mx-auto mt-5 flex max-w-md flex-col gap-2.5 sm:flex-row">
               <div className="relative flex-1">
                 <Mail className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                <input
+                <input aria-label={tr('Votre email', 'بريدكم الإلكتروني')}
                   type="email"
                   required
                   value={newsletterEmail}
@@ -757,32 +805,42 @@ function MainShell({
   performAuthSubmit, setAuthError,
 }) {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const isAr = language === 'ar';
   const tr = (fr, ar) => (isAr ? ar : fr);
+  // Onglet actif de la barre du bas (téléphone).
+  const onglet = pathname === '/' ? 'accueil'
+    : pathname.startsWith('/catalogue') ? 'recherche'
+    : pathname.startsWith('/checkout') ? 'panier'
+    : /^\/(compte|commandes|messages)/.test(pathname) ? 'compte'
+    : null;
+  const loginDialog = useDialog(showLoginModal, () => setShowLoginModal(false), 'login-dialog-title');
 
   return (
     <div dir={isAr ? 'rtl' : 'ltr'} className={`marketplace-shell min-h-screen flex flex-col justify-between font-sans ${isAr ? 'rtl' : 'ltr'}`}>
 
       {/* Navigation */}
-      <nav className="mp-header backdrop-blur border-b border-white/10 sticky top-0 z-50 shadow-soft">
-        <div className="max-w-7xl mx-auto px-4 py-3.5 flex justify-between items-center gap-3">
+      <nav className="mp-header backdrop-blur border-b border-white/10 sticky top-0 z-50 shadow-soft max-md:!border-0 max-md:!bg-[#FBF8F3] max-md:!shadow-none">
+        <div className="max-w-7xl mx-auto px-4 py-2.5 md:py-3.5 flex justify-between items-center gap-3">
           <div className="flex items-center gap-2">
+            {/* Téléphone : les catégories sont dans la barre du bas. */}
             <button
               onClick={() => setShowCategoryDrawer(true)}
-              aria-label={tr('Ouvrir le menu', 'فتح القائمة')}
-              className="rounded-xl p-2 text-slate-700 hover:bg-[#F8E4DE] hover:text-[#C4532C]"
+              aria-label={tr('Toutes les catégories', 'كل الفئات')}
+              title={tr('Toutes les catégories', 'كل الفئات')}
+              className="hidden md:inline-flex rounded-xl p-2 text-slate-700 hover:bg-[#F8E4DE] hover:text-[#C4532C]"
             >
-              <Menu size={22} />
+              <LayoutGrid size={22} />
             </button>
             <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/')}>
-              <Logo variant="horizontal" className="h-9 sm:h-10 w-auto" />
+              <Logo variant="horizontal" className="h-7 sm:h-10 w-auto" />
               <p className="hidden sm:block text-[10px] text-slate-300 font-semibold border-l border-slate-200 pl-2.5 ml-0.5">{tr('Marketplace multi-boutiques tunisienne', 'سوق تونسي متعدد المتاجر')}</p>
             </div>
           </div>
 
           <div className="hidden lg:flex flex-1 max-w-xl relative">
             <Search className="absolute left-3 top-3.5 text-slate-500" size={16} />
-            <input
+            <input aria-label={tr('Que recherchez-vous ?', 'ماذا تبحث؟')}
               type="text"
               readOnly
               onClick={() => navigate('/catalogue')}
@@ -805,6 +863,14 @@ function MainShell({
 
             {user ? (
               <>
+                <NotificationBell
+                  language={language}
+                  onOuvrirLien={(lien) => {
+                    if (lien.startsWith('messages')) navigate('/messages');
+                    else if (lien.startsWith('vendeur')) navigate('/vendeur');
+                    else navigate('/commandes');
+                  }}
+                />
                 {user.role === 'client' && (
                   <button
                     onClick={() => navigate('/compte')}
@@ -861,9 +927,36 @@ function MainShell({
             </button>
           </div>
 
-          <button onClick={() => setShowMobileMenu(!showMobileMenu)} className="md:hidden text-slate-700" aria-label={tr('Ouvrir le menu mobile', 'فتح القائمة')}>
-            <Menu size={24} />
-          </button>
+          {/* Téléphone : comme l'app — boutons ronds blancs (recherche, panier, menu). */}
+          <div className="flex items-center gap-2 md:hidden">
+            <button
+              onClick={() => navigate('/catalogue')}
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-[#1E1B18] shadow-sm active:opacity-80"
+              aria-label={tr('Rechercher', 'البحث')}
+            >
+              <Search size={20} />
+            </button>
+            <button
+              onClick={() => navigate('/checkout')}
+              className="relative flex h-10 w-10 items-center justify-center rounded-full bg-white text-[#1E1B18] shadow-sm active:opacity-80"
+              aria-label={tr('Panier', 'السلة')}
+            >
+              <ShoppingBag size={20} />
+              {cart.length > 0 && (
+                <span className="absolute end-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#C4532C] px-1 text-[10px] font-bold text-white">
+                  {cart.length > 9 ? '9+' : cart.length}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setShowMobileMenu(!showMobileMenu)}
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-[#1E1B18] shadow-sm active:opacity-80"
+              aria-label={tr('Ouvrir le menu mobile', 'فتح القائمة')}
+              aria-expanded={showMobileMenu}
+            >
+              {showMobileMenu ? <X size={20} /> : <Menu size={20} />}
+            </button>
+          </div>
         </div>
 
         {showMobileMenu && (
@@ -902,45 +995,53 @@ function MainShell({
         <Outlet />
       </main>
 
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 px-2 py-2">
-        <div className="grid grid-cols-5 gap-1 text-[11px] font-semibold text-slate-600">
-          <button onClick={() => navigate('/')} className="flex flex-col items-center py-1.5 hover:text-[#C4532C]">
-            <Home size={16} />
-            <span>{tr('Accueil', 'الرئيسية')}</span>
-          </button>
-          <button onClick={() => navigate('/catalogue')} className="flex flex-col items-center py-1.5 hover:text-[#C4532C]">
-            <Search size={16} />
-            <span>{tr('Categories', 'الفئات')}</span>
-          </button>
-          <button onClick={() => navigate('/catalogue')} className="flex flex-col items-center py-1.5 hover:text-[#C4532C]">
-            <Store size={16} />
-            <span>{tr('Recherche', 'البحث')}</span>
-          </button>
-          <button onClick={() => navigate('/checkout')} className="flex flex-col items-center py-1.5 hover:text-[#C4532C] relative">
-            <ShoppingCart size={16} />
-            <span>{tr('Panier', 'السلة')}</span>
-            {cart.length > 0 && (
-              <span className="absolute top-0 right-4 bg-[#C4532C] text-white rounded-full text-[9px] min-w-[14px] h-[14px] px-1 flex items-center justify-center">
-                {cart.length}
-              </span>
-            )}
-          </button>
-          <button onClick={() => (user ? navigate('/compte') : setShowLoginModal(true))} className="flex flex-col items-center py-1.5 hover:text-[#C4532C]">
-            <User size={16} />
-            <span>{tr('Compte', 'حسابي')}</span>
-          </button>
+      {/* Barre d'onglets (téléphone) — onglet actif mis en avant, zone sûre de l'iPhone respectée. */}
+      <nav
+        aria-label={tr('Navigation principale', 'التنقل الرئيسي')}
+        hidden={pathname.startsWith('/produits/')}
+        className="md:hidden fixed bottom-0 inset-x-0 z-40 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_16px_rgba(30,27,24,0.06)]"
+      >
+        <div className="grid grid-cols-5 text-[11px] font-semibold">
+          {[
+            { id: 'accueil', label: tr('Accueil', 'الرئيسية'), Icon: Home, onClick: () => navigate('/') },
+            { id: 'categories', label: tr('Catégories', 'الفئات'), Icon: LayoutGrid, onClick: () => setShowCategoryDrawer(true) },
+            { id: 'recherche', label: tr('Recherche', 'البحث'), Icon: Search, onClick: () => navigate('/catalogue') },
+            { id: 'panier', label: tr('Panier', 'السلة'), Icon: ShoppingBag, onClick: () => navigate('/checkout'), badge: cart.length },
+            { id: 'compte', label: tr('Compte', 'حسابي'), Icon: User, onClick: () => (user ? navigate('/compte') : setShowLoginModal(true)) },
+          ].map(({ id, label, Icon, onClick, badge }) => {
+            const actif = onglet === id;
+            return (
+              <button
+                key={id}
+                onClick={onClick}
+                aria-current={actif ? 'page' : undefined}
+                className={`relative flex flex-col items-center gap-0.5 pt-2 pb-1.5 transition-colors ${actif ? 'text-[#C4532C]' : 'text-slate-500 active:text-[#C4532C]'}`}
+              >
+                {actif && <span className="absolute top-0 h-0.5 w-8 rounded-full bg-[#C4532C]" />}
+                <span className="relative">
+                  <Icon size={21} strokeWidth={actif ? 2.4 : 2} />
+                  {badge > 0 && (
+                    <span className="absolute -top-1.5 -end-2.5 min-w-[17px] h-[17px] px-1 rounded-full bg-[#C4532C] text-white text-[10px] font-black flex items-center justify-center ring-2 ring-white">
+                      {badge}
+                    </span>
+                  )}
+                </span>
+                <span>{label}</span>
+              </button>
+            );
+          })}
         </div>
-      </div>
+      </nav>
 
       {/* Footer */}
-      <footer className="bg-[#1E1B18] text-white py-12 mt-12 font-sans border-t border-[#2E2A26] mb-16 md:mb-0">
+      <footer className="bg-[#1E1B18] text-white py-12 mt-12 font-sans border-t border-[#2E2A26] pb-28 md:pb-12">
         <div className="max-w-7xl mx-auto px-6 mb-8">
           <Logo variant="horizontal" tone="blanc" className="h-8 w-auto" />
         </div>
         <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-3 gap-8 mb-8 text-xs font-medium text-slate-400">
           <div className="space-y-3">
             <h4 className="font-bold text-white text-sm">{tr('À propos de BuyHere', 'حول BuyHere')}</h4>
-            <p>{tr('La première plateforme e-commerce tunisienne bilingue avec gestion de stock avancée, logistique intégrée et paiement sandbox.', 'أول منصة تجارة إلكترونية تونسية ثنائية اللغة مع إدارة مخزون متقدمة ولوجستيك متكامل ودفع تجريبي.')}</p>
+            <p>{tr('La marketplace tunisienne bilingue : boutiques locales, livraison dans les 24 gouvernorats, paiement à la livraison et retours simplifiés.', 'السوق التونسية ثنائية اللغة: متاجر محلية، توصيل إلى الولايات الـ24، دفع عند الاستلام وإرجاع مبسّط.')}</p>
           </div>
           <div className="space-y-2">
             <h4 className="font-bold text-white text-sm">{tr('Liens Utiles', 'روابط مفيدة')}</h4>
@@ -1001,10 +1102,14 @@ function MainShell({
 
       {/* Login & Register Modal */}
       {showLoginModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 animate-fadeIn">
-          <div className="relative grid max-h-[90vh] w-full max-w-3xl overflow-y-auto overflow-x-hidden rounded-lg bg-white shadow-soft md:grid-cols-2">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 animate-fadeIn"
+          onMouseDown={(e) => { if (e.target === e.currentTarget) setShowLoginModal(false); }}
+        >
+          <div {...loginDialog} className="relative grid max-h-[90vh] w-full max-w-3xl overflow-y-auto overflow-x-hidden rounded-lg bg-white shadow-soft md:grid-cols-2">
             <button
               onClick={() => setShowLoginModal(false)}
+              aria-label={tr('Fermer', 'إغلاق')}
               className="absolute right-4 top-4 z-10 rounded-full bg-white/80 p-1.5 text-slate-400 backdrop-blur transition hover:text-slate-600 rtl:right-auto rtl:left-4"
             >
               <X size={20} />
@@ -1013,7 +1118,7 @@ function MainShell({
             {/* Form side */}
             <div className="p-6 sm:p-8 font-sans">
               <Logo variant="symbole" className="mb-4 h-10 w-10 md:hidden" />
-              <h2 className="mb-2 text-2xl font-black text-slate-900">
+              <h2 id="login-dialog-title" className="mb-2 text-2xl font-black text-slate-900">
                 {authForm.isRegister ? tr('Créer un compte', 'إنشاء حساب') : tr('Bienvenue chez BuyHere', 'مرحبًا بكم في BuyHere')}
               </h2>
               <p className="mb-6 text-xs text-slate-500">
@@ -1032,7 +1137,7 @@ function MainShell({
               <form onSubmit={handleLoginSubmit} className="space-y-3.5">
                 {authForm.isRegister && (
                   <div className="grid grid-cols-2 gap-2">
-                    <input
+                    <input aria-label={tr('Prénom', 'الاسم')}
                       type="text"
                       placeholder={tr('Prénom', 'الاسم')}
                       value={authForm.prenom}
@@ -1040,7 +1145,7 @@ function MainShell({
                       className="input-premium p-3 text-xs outline-none"
                       required
                     />
-                    <input
+                    <input aria-label={tr('Nom', 'اللقب')}
                       type="text"
                       placeholder={tr('Nom', 'اللقب')}
                       value={authForm.nom}
@@ -1051,7 +1156,7 @@ function MainShell({
                   </div>
                 )}
 
-                <input
+                <input aria-label={tr('Adresse email', 'البريد الإلكتروني')}
                   type="email"
                   placeholder={tr('Adresse email', 'البريد الإلكتروني')}
                   value={authForm.email}
@@ -1061,7 +1166,7 @@ function MainShell({
                 />
 
                 {authForm.isRegister && (
-                  <input
+                  <input aria-label={tr('Téléphone tunisien', 'الهاتف التونسي')}
                     type="text"
                     placeholder={tr('Téléphone tunisien', 'الهاتف التونسي')}
                     value={authForm.telephone}
@@ -1071,7 +1176,7 @@ function MainShell({
                   />
                 )}
 
-                <input
+                <input aria-label={tr('Mot de passe', 'كلمة المرور')}
                   type="password"
                   placeholder={tr('Mot de passe', 'كلمة المرور')}
                   value={authForm.password}

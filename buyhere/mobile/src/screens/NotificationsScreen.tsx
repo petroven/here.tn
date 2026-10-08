@@ -10,6 +10,7 @@ import { Screen } from '@/components/ui/Screen';
 import { ListItemSkeleton } from '@/components/ui/Skeleton';
 import { EmptyState, ErrorState } from '@/components/ui/States';
 import { flattenPages, qk, useNotifications } from '@/hooks/queries';
+import { openAppLink } from '@/hooks/usePushNotifications';
 import { useSettingsStore } from '@/store/settings';
 import { useTheme } from '@/theme/useTheme';
 import { timeAgo } from '@/utils/format';
@@ -40,6 +41,7 @@ export function NotificationsScreen({ navigation }: RootScreenProps<'Notificatio
   const open = (n: AppNotification) => {
     if (!n.readAt) markOne.mutate(n.id);
     if (n.data?.orderId) navigation.navigate('OrderDetail', { orderId: n.data.orderId });
+    else if (n.data?.link) openAppLink(n.data.link);
   };
 
   return (

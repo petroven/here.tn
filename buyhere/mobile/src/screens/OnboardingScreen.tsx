@@ -31,9 +31,10 @@ export function OnboardingScreen({ navigation }: RootScreenProps<'Onboarding'>) 
 
   const next = () => (isLast ? finish() : listRef.current?.scrollToIndex({ index: index + 1 }));
 
-  const onViewable = useRef(({ viewableItems }: { viewableItems: ViewToken<Slide>[] }) => {
+  // FlatList exige un rappel stable (jamais recréé) pour onViewableItemsChanged.
+  const [onViewable] = useState(() => ({ viewableItems }: { viewableItems: ViewToken<Slide>[] }) => {
     if (viewableItems[0]?.index != null) setIndex(viewableItems[0].index);
-  }).current;
+  });
 
   return (
     <SafeAreaView className="flex-1 bg-white dark:bg-surface-dark">

@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import Input from '../components/ui/Input';
 import Modal from '../components/ui/Modal';
-import { API_URL } from '../config/api.js';
+import { API_URL, absoluteImageUrl } from '../config/api.js';
 
 const STEPS = [
   { key: 'panier', labelFr: 'Panier', labelAr: 'السلة' },
@@ -170,7 +170,15 @@ export default function CheckoutPage({ cartItems = [], onOrderPlaced, onClearCar
   const remiseCoupon = appliedCoupon ? appliedCoupon.remise : 0;
   const plafondWalletProduits = Math.max(0, subtotal - remiseCoupon);
   const walletMontantApplique = useWallet ? Math.min(Number(walletAmountInput) || 0, walletSolde, plafondWalletProduits) : 0;
-  const finalTotal = subtotal + shippingTotal - remiseCoupon - walletMontantApplique;
+  // Fiscalité (même calcul que le serveur) : prix TTC, TVA comprise détaillée,
+  // un timbre fiscal par commande, soit par boutique du panier.
+  const tvaTaux = virementConfig?.tvaTaux ?? 0.19;
+  // Mention « test » seulement quand les paiements en ligne sont en mode sandbox.
+  const testSuffix = virementConfig?.paiementTest ? tr(' (test)', ' (تجريبي)') : '';
+  const timbreUnitaire = virementConfig?.timbreFiscal ?? 1;
+  const timbreTotal = timbreUnitaire * Math.max(groupedStores.length, 1);
+  const montantTva = Math.max(0, subtotal - remiseCoupon + shippingTotal) * tvaTaux / (1 + tvaTaux);
+  const finalTotal = subtotal + shippingTotal - remiseCoupon - walletMontantApplique + timbreTotal;
 
   const handleToggleWallet = () => {
     const next = !useWallet;
@@ -363,7 +371,7 @@ export default function CheckoutPage({ cartItems = [], onOrderPlaced, onClearCar
   if (cartItems.length === 0) {
     return (
       <div className="mx-auto flex min-h-[70vh] max-w-lg flex-col items-center justify-center p-6 text-center font-sans">
-        <img src="/logo-alt-basket.png" alt="" className="mb-6 h-28 w-28 object-contain" />
+        <div className="mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-[#F8E4DE] text-[#C4532C]"><ShoppingBag size={40} /></div>
         <h1 className="text-xl font-black text-slate-900">{tr('Votre panier est vide', 'سلتك فارغة')}</h1>
         <p className="mt-2 text-sm text-slate-500">{tr('Ajoutez des produits pour commencer votre commande.', 'أضف منتجات لبدء طلبك.')}</p>
         <button onClick={onBack} className="btn-primary-premium mt-6 px-6 py-3 text-sm">
@@ -406,7 +414,7 @@ export default function CheckoutPage({ cartItems = [], onOrderPlaced, onClearCar
             {cartItems.map((item) => (
               <div key={`${item.boutiqueId}-${item.id}-${item.varianteId || 'base'}`} className="flex items-center gap-3 rounded-2xl border border-slate-100 p-3">
                 <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-slate-100">
-                  {item.image ? <img src={item.image} alt={item.nom} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center text-slate-300"><ShoppingBag size={20} /></div>}
+                  {item.image ? <img loading="lazy" decoding="async" src={absoluteImageUrl(item.image)} alt={item.nom} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center text-slate-300"><ShoppingBag size={20} /></div>}
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-bold text-slate-800">{item.nom}</p>
@@ -480,12 +488,12 @@ export default function CheckoutPage({ cartItems = [], onOrderPlaced, onClearCar
                 />
               )}
 
-              <select value={form.gouvernoratId} onChange={updateField('gouvernoratId')} className="input-premium p-3 text-sm outline-none" required>
+              <select aria-label={tr('Gouvernorat', 'الولاية')} value={form.gouvernoratId} onChange={updateField('gouvernoratId')} className="input-premium p-3 text-sm outline-none" required>
                 <option value="">{tr('Sélectionner Gouvernorat', 'اختر الولاية')}</option>
                 {gouvernorats.map((gov) => <option key={gov.id} value={gov.id}>{isAr ? gov.nomAr : gov.nom}</option>)}
               </select>
 
-              <select value={form.delegationId} onChange={updateField('delegationId')} className="input-premium p-3 text-sm outline-none disabled:opacity-50" disabled={!form.gouvernoratId || loadingGeo} required>
+              <select aria-label={tr('Délégation', 'المعتمدية')} value={form.delegationId} onChange={updateField('delegationId')} className="input-premium p-3 text-sm outline-none disabled:opacity-50" disabled={!form.gouvernoratId || loadingGeo} required>
                 <option value="">{loadingGeo ? tr('Chargement...', 'جارٍ التحميل...') : tr('Sélectionner Délégation', 'اختر المعتمدية')}</option>
                 {delegations.map((del) => <option key={del.id} value={del.id}>{del.nom}</option>)}
               </select>
@@ -511,8 +519,8 @@ export default function CheckoutPage({ cartItems = [], onOrderPlaced, onClearCar
                 // vérification de sécurité à des commandes sans compte.
                 ...(token
                   ? [
-                    { key: 'konnect', icon: CreditCard, title: 'Konnect', desc: tr('Cartes CIB & E-Dinar (Sandbox).', 'بطاقات بنكية (تجريبي).') },
-                    { key: 'flouci', icon: CreditCard, title: 'Flouci', desc: tr('Portefeuille ou carte (Sandbox).', 'محفظة أو بطاقة (تجريبي).') },
+                    { key: 'konnect', icon: CreditCard, title: 'Konnect', desc: `${tr('Cartes CIB & E-Dinar', 'بطاقات بنكية')}${testSuffix}.` },
+                    { key: 'flouci', icon: CreditCard, title: 'Flouci', desc: `${tr('Portefeuille ou carte', 'محفظة أو بطاقة')}${testSuffix}.` },
                   ]
                   : []),
                 ...(virementConfig?.virementDisponible
@@ -547,7 +555,7 @@ export default function CheckoutPage({ cartItems = [], onOrderPlaced, onClearCar
             </div>
             {!token && (
               <p className="mt-3 text-[11px] font-semibold text-slate-400">
-                {tr('Le paiement en ligne (sandbox) est réservé aux comptes connectés.', 'الدفع الإلكتروني (تجريبي) متاح فقط للحسابات المسجلة.')}
+                {tr('Le paiement en ligne est réservé aux comptes connectés.', 'الدفع الإلكتروني متاح فقط للحسابات المسجلة.')}
               </p>
             )}
             {selectedPayment === 'virement' && (
@@ -598,7 +606,7 @@ export default function CheckoutPage({ cartItems = [], onOrderPlaced, onClearCar
               </label>
               {useWallet && (
                 <div className="mt-2 flex items-center gap-2">
-                  <input type="number" min="0" max={Math.min(walletSolde, plafondWalletProduits)} step="0.001" value={walletAmountInput} onChange={(e) => setWalletAmountInput(e.target.value)} className="input-premium flex-1 bg-white px-3 py-2 text-xs" />
+                  <input aria-label={tr('Montant du solde à utiliser', 'المبلغ المستعمل من الرصيد')} type="number" min="0" max={Math.min(walletSolde, plafondWalletProduits)} step="0.001" value={walletAmountInput} onChange={(e) => setWalletAmountInput(e.target.value)} className="input-premium flex-1 bg-white px-3 py-2 text-xs" />
                   <span className="text-[10px] font-semibold text-slate-400">TND</span>
                 </div>
               )}
@@ -634,9 +642,22 @@ export default function CheckoutPage({ cartItems = [], onOrderPlaced, onClearCar
                 <span>-{walletMontantApplique.toFixed(3)} TND</span>
               </div>
             )}
+            {timbreTotal > 0 && (
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-500">
+                  {tr('Timbre fiscal', 'الطابع الجبائي')}
+                  {groupedStores.length > 1 && ` (${groupedStores.length} × ${timbreUnitaire.toFixed(3)})`}
+                </span>
+                <span className="font-bold text-slate-800">{timbreTotal.toFixed(3)} TND</span>
+              </div>
+            )}
             <div className="flex items-center justify-between border-t border-slate-200 pt-3 text-sm font-black text-slate-900">
-              <span>{tr('Total', 'المجموع')}</span>
+              <span>{tr('Total TTC', 'المجموع')}</span>
               <span className="text-gradient-brand text-lg">{finalTotal.toFixed(3)} TND</span>
+            </div>
+            <div className="flex items-center justify-between text-[11px] text-slate-400">
+              <span>{tr(`Dont TVA (${Math.round(tvaTaux * 100)} %)`, `منها الأداء على القيمة المضافة (${Math.round(tvaTaux * 100)}٪)`)}</span>
+              <span>{montantTva.toFixed(3)} TND</span>
             </div>
           </div>
 
@@ -809,7 +830,10 @@ export default function CheckoutPage({ cartItems = [], onOrderPlaced, onClearCar
             </button>
 
             <p className="flex items-center justify-center gap-1.5 text-[10px] text-slate-400">
-              <ShieldCheck size={12} /> {tr('Paiement sandbox — aucune donnée réelle transmise.', 'دفع تجريبي — لا يتم إرسال بيانات حقيقية.')}
+              <ShieldCheck size={12} />{' '}
+              {virementConfig?.paiementTest
+                ? tr('Paiement de test — aucune donnée réelle transmise.', 'دفع تجريبي — لا يتم إرسال بيانات حقيقية.')
+                : tr('Paiement sécurisé par notre partenaire bancaire.', 'دفع آمن عبر شريكنا البنكي.')}
             </p>
           </form>
         )}

@@ -19,6 +19,10 @@ import {
 import { useTranslation } from '../i18n';
 import { API_URL } from '../config/api.js';
 import Logo from '../components/ui/Logo.jsx';
+import AdminAuditLog from '../components/admin/AdminAuditLog.jsx';
+import AdminCategories from '../components/admin/AdminCategories.jsx';
+import ToastHost, { toast } from '../components/ui/Toast.jsx';
+import { STATUT_LABELS as STATUTS_COMMANDE } from '../utils/orderStatus.js';
 
 const STATUT_BADGE = {
   validee: 'bg-emerald-50 text-emerald-700',
@@ -49,11 +53,15 @@ export function AdminDashboard({ onLogout, language = 'fr', setLanguage = () => 
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
+  // Échec d'un chargement (serveur injoignable, session expirée…) : bandeau avec « Réessayer ».
+  const [loadError, setLoadError] = useState(false);
   const [settlementReport, setSettlementReport] = useState([]);
   const [products, setProducts] = useState([]);
   const [virements, setVirements] = useState([]);
   const [retours, setRetours] = useState([]);
   const [avisList, setAvisList] = useState([]);
+  const [filtreStockFaible, setFiltreStockFaible] = useState(false);
+  const [seuilStockFaible, setSeuilStockFaible] = useState(5);
 
   const token = localStorage.getItem('token');
 
@@ -86,9 +94,13 @@ export function AdminDashboard({ onLogout, language = 'fr', setLanguage = () => 
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json();
-      if (data.success) setProducts(data.data);
+      if (data.success) {
+        setProducts(data.data);
+        if (Number.isInteger(data.lowStockThreshold)) setSeuilStockFaible(data.lowStockThreshold);
+      }
     } catch (error) {
       console.error('Error fetching products:', error);
+      setLoadError(true);
     }
   };
 
@@ -101,6 +113,7 @@ export function AdminDashboard({ onLogout, language = 'fr', setLanguage = () => 
       if (data.success) setStats(data.data);
     } catch (error) {
       console.error('Error fetching stats:', error);
+      setLoadError(true);
     }
   };
 
@@ -113,6 +126,7 @@ export function AdminDashboard({ onLogout, language = 'fr', setLanguage = () => 
       if (data.success) setVendors(data.data);
     } catch (error) {
       console.error('Error fetching vendors:', error);
+      setLoadError(true);
     }
   };
 
@@ -125,6 +139,7 @@ export function AdminDashboard({ onLogout, language = 'fr', setLanguage = () => 
       if (data.success) setWithdrawals(data.data);
     } catch (error) {
       console.error('Error fetching withdrawals:', error);
+      setLoadError(true);
     }
   };
 
@@ -137,6 +152,7 @@ export function AdminDashboard({ onLogout, language = 'fr', setLanguage = () => 
       if (data.success) setUsers(data.data);
     } catch (error) {
       console.error('Error fetching users:', error);
+      setLoadError(true);
     }
   };
 
@@ -149,6 +165,7 @@ export function AdminDashboard({ onLogout, language = 'fr', setLanguage = () => 
       if (data.success) setOrders(data.data);
     } catch (error) {
       console.error('Error fetching orders:', error);
+      setLoadError(true);
     }
   };
 
@@ -161,6 +178,7 @@ export function AdminDashboard({ onLogout, language = 'fr', setLanguage = () => 
       if (data.success) setVirements(data.data);
     } catch (error) {
       console.error('Error fetching virements:', error);
+      setLoadError(true);
     }
   };
 
@@ -173,6 +191,7 @@ export function AdminDashboard({ onLogout, language = 'fr', setLanguage = () => 
       if (data.success) setRetours(data.data);
     } catch (error) {
       console.error('Error fetching retours:', error);
+      setLoadError(true);
     }
   };
 
@@ -184,9 +203,11 @@ export function AdminDashboard({ onLogout, language = 'fr', setLanguage = () => 
         body: JSON.stringify({ statut }),
       });
       const data = await response.json();
-      if (data.success) fetchRetours();
+      if (data.success) { toast.success(tr('Modification enregistrée.', 'تم حفظ التعديل.')); fetchRetours(); }
+      else toast.error(data.message || tr('Action refusée.', 'تم رفض الإجراء.'));
     } catch (error) {
       console.error('Error updating retour:', error);
+      toast.error(tr('Connexion impossible. Réessayez.', 'تعذر الاتصال. حاول مجددًا.'));
     }
   };
 
@@ -199,6 +220,7 @@ export function AdminDashboard({ onLogout, language = 'fr', setLanguage = () => 
       if (data.success) setAvisList(data.data);
     } catch (error) {
       console.error('Error fetching avis:', error);
+      setLoadError(true);
     }
   };
 
@@ -210,9 +232,11 @@ export function AdminDashboard({ onLogout, language = 'fr', setLanguage = () => 
         body: JSON.stringify({ valide }),
       });
       const data = await response.json();
-      if (data.success) fetchAvis();
+      if (data.success) { toast.success(tr('Modification enregistrée.', 'تم حفظ التعديل.')); fetchAvis(); }
+      else toast.error(data.message || tr('Action refusée.', 'تم رفض الإجراء.'));
     } catch (error) {
       console.error('Error moderating avis:', error);
+      toast.error(tr('Connexion impossible. Réessayez.', 'تعذر الاتصال. حاول مجددًا.'));
     }
   };
 
@@ -226,10 +250,11 @@ export function AdminDashboard({ onLogout, language = 'fr', setLanguage = () => 
         body: JSON.stringify({ kycStatut, kycCommentaireAdmin }),
       });
       const data = await response.json();
-      if (data.success) fetchVendors();
-      else alert(data.message);
+      if (data.success) { toast.success(tr('Modification enregistrée.', 'تم حفظ التعديل.')); fetchVendors(); }
+      else toast.error(data.message || tr('Action refusée.', 'تم رفض الإجراء.'));
     } catch (error) {
       console.error('Error updating KYC:', error);
+      toast.error(tr('Connexion impossible. Réessayez.', 'تعذر الاتصال. حاول مجددًا.'));
     }
   };
 
@@ -240,9 +265,11 @@ export function AdminDashboard({ onLogout, language = 'fr', setLanguage = () => 
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json();
-      if (data.success) fetchVirements();
+      if (data.success) { toast.success(tr('Modification enregistrée.', 'تم حفظ التعديل.')); fetchVirements(); }
+      else toast.error(data.message || tr('Action refusée.', 'تم رفض الإجراء.'));
     } catch (error) {
       console.error('Error updating virement:', error);
+      toast.error(tr('Connexion impossible. Réessayez.', 'تعذر الاتصال. حاول مجددًا.'));
     }
   };
 
@@ -255,6 +282,7 @@ export function AdminDashboard({ onLogout, language = 'fr', setLanguage = () => 
       if (data.success) setSettlementReport(data.data);
     } catch (error) {
       console.error('Error fetching settlement report:', error);
+      setLoadError(true);
     }
   };
 
@@ -266,9 +294,11 @@ export function AdminDashboard({ onLogout, language = 'fr', setLanguage = () => 
         body: JSON.stringify({ statut: newStatus }),
       });
       const data = await response.json();
-      if (data.success) fetchVendors();
+      if (data.success) { toast.success(tr('Modification enregistrée.', 'تم حفظ التعديل.')); fetchVendors(); }
+      else toast.error(data.message || tr('Action refusée.', 'تم رفض الإجراء.'));
     } catch (error) {
       console.error('Error updating vendor status:', error);
+      toast.error(tr('Connexion impossible. Réessayez.', 'تعذر الاتصال. حاول مجددًا.'));
     }
   };
 
@@ -280,9 +310,36 @@ export function AdminDashboard({ onLogout, language = 'fr', setLanguage = () => 
         body: JSON.stringify({ statut: status, motifRejection: reason }),
       });
       const data = await response.json();
-      if (data.success) fetchWithdrawals();
+      if (data.success) { toast.success(tr('Modification enregistrée.', 'تم حفظ التعديل.')); fetchWithdrawals(); }
+      else toast.error(data.message || tr('Action refusée.', 'تم رفض الإجراء.'));
     } catch (error) {
       console.error('Error updating withdrawal:', error);
+      toast.error(tr('Connexion impossible. Réessayez.', 'تعذر الاتصال. حاول مجددًا.'));
+    }
+  };
+
+  // Changement manuel de statut : passe par la même machine d'états que le
+  // reste de l'application (une transition incohérente est refusée) et
+  // exige un commentaire, conservé dans l'historique et le journal d'audit.
+  const handleOrderStatus = async (order, statut) => {
+    if (!statut) return;
+    const commentaire = window.prompt(tr(
+      `Motif du passage de ${order.numeroCommande} à « ${STATUTS_COMMANDE[statut]?.fr || statut} » (obligatoire) :`,
+      `سبب تغيير حالة ${order.numeroCommande} (إلزامي):`,
+    ));
+    if (!commentaire || !commentaire.trim()) return;
+    try {
+      const response = await fetch(`${API_URL}/admin/orders/${order.id}/statut`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ statut, commentaire }),
+      });
+      const data = await response.json();
+      if (data.success) { toast.success(tr('Statut de la commande mis à jour.', 'تم تحديث حالة الطلب.')); fetchOrders(); }
+      else toast.error(data.message);
+    } catch (error) {
+      console.error('Error updating order status:', error);
+      toast.error(tr('Connexion impossible. Réessayez.', 'تعذر الاتصال. حاول مجددًا.'));
     }
   };
 
@@ -294,9 +351,13 @@ export function AdminDashboard({ onLogout, language = 'fr', setLanguage = () => 
         body: JSON.stringify({ status }),
       });
       const data = await response.json();
-      if (data.success) setProducts((current) => current.map((product) => (product.id === productId ? data.data : product)));
+      if (data.success) {
+        setProducts((current) => current.map((product) => (product.id === productId ? data.data : product)));
+        toast.success(tr('Statut du produit mis à jour.', 'تم تحديث حالة المنتج.'));
+      } else toast.error(data.message || tr('Action refusée.', 'تم رفض الإجراء.'));
     } catch (error) {
       console.error('Error updating product status:', error);
+      toast.error(tr('Connexion impossible. Réessayez.', 'تعذر الاتصال. حاول مجددًا.'));
     }
   };
 
@@ -309,7 +370,7 @@ export function AdminDashboard({ onLogout, language = 'fr', setLanguage = () => 
   const pendingVirements = virements.filter((v) => v.statut === 'en_attente_validation');
   const recentOrders = [...orders].slice(0, 6);
 
-  const tabs = ['overview', 'vendors', 'kyc', 'products', 'withdrawals', 'virements', 'retours', 'avis', 'users', 'orders', 'settlement'];
+  const tabs = ['overview', 'vendors', 'kyc', 'products', 'withdrawals', 'virements', 'retours', 'avis', 'users', 'orders', 'categories', 'settlement', 'audit'];
   const litigesEnCours = retours.filter((r) => r.statut === 'litige').length;
   const kycEnAttente = vendors.filter((v) => v.kycStatut === 'en_attente').length;
   const avisEnAttente = avisList.filter((a) => !a.valide).length;
@@ -326,12 +387,16 @@ export function AdminDashboard({ onLogout, language = 'fr', setLanguage = () => 
     users: tr('Utilisateurs', 'المستخدمون'),
     orders: t('orders'),
     settlement: t('commissionBreakdown'),
+    categories: tr('Catégories', 'الفئات'),
+    audit: tr("Journal d'audit", 'سجل التدقيق'),
   };
+  const produitsStockFaible = products.filter((p) => p.status !== 'inactif' && p.stock <= seuilStockFaible);
 
   const locale = isAr ? 'ar-TN' : 'fr-TN';
 
   return (
     <div dir={isAr ? 'rtl' : 'ltr'} className="min-h-screen bg-slate-50 font-sans">
+      <ToastHost />
       {/* Header */}
       <div className="gradient-brand p-6 text-white shadow-md">
         <div className="mx-auto max-w-7xl">
@@ -387,6 +452,15 @@ export function AdminDashboard({ onLogout, language = 'fr', setLanguage = () => 
           })}
         </div>
 
+        {loadError && (
+          <div role="alert" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800">
+            <span>{tr('Certaines données n’ont pas pu être chargées.', 'تعذر تحميل بعض البيانات.')}</span>
+            <button onClick={() => window.location.reload()} className="rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-rose-700">
+              {tr('Réessayer', 'إعادة المحاولة')}
+            </button>
+          </div>
+        )}
+
         {/* Tabs */}
         <div className="mb-6 flex gap-2 overflow-x-auto border-b border-slate-200 pb-px">
           {tabs.map((tab) => (
@@ -403,6 +477,9 @@ export function AdminDashboard({ onLogout, language = 'fr', setLanguage = () => 
               )}
               {tab === 'kyc' && kycEnAttente > 0 && (
                 <span className="ms-1.5 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black text-amber-700">{kycEnAttente}</span>
+              )}
+              {tab === 'products' && produitsStockFaible.length > 0 && (
+                <span className="ms-1.5 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black text-amber-700">{produitsStockFaible.length}</span>
               )}
               {tab === 'avis' && avisEnAttente > 0 && (
                 <span className="ms-1.5 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black text-amber-700">{avisEnAttente}</span>
@@ -512,7 +589,7 @@ export function AdminDashboard({ onLogout, language = 'fr', setLanguage = () => 
                         )}
                       </td>
                       <td className="px-5 py-4">
-                        <select
+                        <select aria-label={tr('Statut de la boutique', 'حالة المتجر')}
                           onChange={(e) => handleVendorStatus(vendor.id, e.target.value)}
                           defaultValue=""
                           className="input-premium px-2.5 py-1.5 text-xs font-bold"
@@ -540,7 +617,17 @@ export function AdminDashboard({ onLogout, language = 'fr', setLanguage = () => 
                 <h2 className="text-lg font-extrabold text-slate-900">{tr('Modération du catalogue', 'مراقبة الكتالوج')}</h2>
                 <p className="mt-1 text-xs text-slate-500">{tr('Activez, mettez en attente ou désactivez les produits publiés.', 'فعّلوا أو علّقوا أو عطّلوا المنتجات المنشورة.')}</p>
               </div>
-              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#F8E4DE] text-[#C4532C]"><ShieldCheck size={18} /></span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFiltreStockFaible((v) => !v)}
+                  aria-pressed={filtreStockFaible}
+                  className={`rounded-xl border px-3 py-2 text-xs font-bold transition ${filtreStockFaible ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                >
+                  {tr(`Presque épuisés (≤ ${seuilStockFaible})`, `شبه نافدة (≤ ${seuilStockFaible})`)} · {produitsStockFaible.length}
+                </button>
+                <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#F8E4DE] text-[#C4532C]"><ShieldCheck size={18} /></span>
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full">
@@ -554,17 +641,20 @@ export function AdminDashboard({ onLogout, language = 'fr', setLanguage = () => 
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {products.map((product) => (
+                  {(filtreStockFaible ? [...produitsStockFaible].sort((a, b) => a.stock - b.stock) : products).map((product) => (
                     <tr key={product.id} className="hover:bg-slate-50">
                       <td className="px-5 py-4 text-sm font-bold text-slate-900">
                         {product.nom}
                         <span className="block text-xs font-normal text-slate-500">{Number(product.prix).toFixed(3)} TND</span>
                       </td>
                       <td className="px-5 py-4 text-sm text-slate-600">{product.boutique?.nom || 'N/A'}</td>
-                      <td className="px-5 py-4 text-sm font-bold text-slate-700">{product.stock}</td>
+                      <td className={`px-5 py-4 text-sm font-bold ${product.stock === 0 ? 'text-rose-700' : product.stock <= seuilStockFaible ? 'text-amber-700' : 'text-slate-700'}`}>
+                        {product.stock}
+                        {product.stock === 0 && <span className="ms-1 text-[10px] font-semibold">({tr('rupture', 'نفاد')})</span>}
+                      </td>
                       <td className="px-5 py-4"><StatusBadge statut={product.status} /></td>
                       <td className="px-5 py-4">
-                        <select
+                        <select aria-label={tr('Statut du produit', 'حالة المنتج')}
                           value={product.status}
                           onChange={(event) => handleProductStatus(product.id, event.target.value)}
                           className="input-premium px-2.5 py-1.5 text-xs font-bold"
@@ -722,7 +812,7 @@ export function AdminDashboard({ onLogout, language = 'fr', setLanguage = () => 
                       <div className="mt-2 flex flex-wrap gap-2">
                         {retour.photos.map((url, i) => (
                           <a key={i} href={url} target="_blank" rel="noreferrer">
-                            <img src={url} alt="" className="h-14 w-14 rounded-lg border border-slate-200 object-cover" />
+                            <img loading="lazy" decoding="async" src={url} alt="" className="h-14 w-14 rounded-lg border border-slate-200 object-cover" />
                           </a>
                         ))}
                       </div>
@@ -768,13 +858,13 @@ export function AdminDashboard({ onLogout, language = 'fr', setLanguage = () => 
                     <div className="mt-2 flex flex-wrap gap-2">
                       {vendor.kycDocumentCin && (
                         <a href={vendor.kycDocumentCin} target="_blank" rel="noreferrer" className="flex flex-col items-center gap-1">
-                          <img src={vendor.kycDocumentCin} alt="CIN" className="h-16 w-16 rounded-lg border border-slate-200 object-cover" />
+                          <img loading="lazy" decoding="async" src={vendor.kycDocumentCin} alt="CIN" className="h-16 w-16 rounded-lg border border-slate-200 object-cover" />
                           <span className="text-[9px] font-bold text-slate-400">CIN</span>
                         </a>
                       )}
                       {vendor.kycDocumentRib && (
                         <a href={vendor.kycDocumentRib} target="_blank" rel="noreferrer" className="flex flex-col items-center gap-1">
-                          <img src={vendor.kycDocumentRib} alt="RIB" className="h-16 w-16 rounded-lg border border-slate-200 object-cover" />
+                          <img loading="lazy" decoding="async" src={vendor.kycDocumentRib} alt="RIB" className="h-16 w-16 rounded-lg border border-slate-200 object-cover" />
                           <span className="text-[9px] font-bold text-slate-400">RIB</span>
                         </a>
                       )}
@@ -866,6 +956,9 @@ export function AdminDashboard({ onLogout, language = 'fr', setLanguage = () => 
         )}
 
         {/* Orders Tab */}
+        {activeTab === 'audit' && <AdminAuditLog token={token} language={language} />}
+        {activeTab === 'categories' && <AdminCategories token={token} language={language} />}
+
         {activeTab === 'orders' && (
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-soft">
             <div className="overflow-x-auto">
@@ -877,6 +970,7 @@ export function AdminDashboard({ onLogout, language = 'fr', setLanguage = () => 
                     <th className="px-5 py-3 text-left text-xs font-bold text-slate-500">{t('amount')}</th>
                     <th className="px-5 py-3 text-left text-xs font-bold text-slate-500">{t('status')}</th>
                     <th className="px-5 py-3 text-left text-xs font-bold text-slate-500">{tr('Date', 'التاريخ')}</th>
+                    <th className="px-5 py-3 text-left text-xs font-bold text-slate-500">{tr('Action', 'إجراء')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -885,8 +979,28 @@ export function AdminDashboard({ onLogout, language = 'fr', setLanguage = () => 
                       <td className="px-5 py-4 text-sm font-bold text-slate-900">{order.numeroCommande}</td>
                       <td className="px-5 py-4 text-sm text-slate-600">{order.client?.prenom} {order.client?.nom}</td>
                       <td className="px-5 py-4 text-sm font-bold text-slate-700">{Number(order.total).toFixed(3)} TND</td>
-                      <td className="px-5 py-4"><StatusBadge statut={order.statut} /></td>
+                      <td className="px-5 py-4">
+                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
+                          {STATUTS_COMMANDE[order.statut] ? tr(STATUTS_COMMANDE[order.statut].fr, STATUTS_COMMANDE[order.statut].ar) : order.statut}
+                        </span>
+                      </td>
                       <td className="px-5 py-4 text-sm text-slate-500">{new Date(order.createdAt).toLocaleDateString(locale)}</td>
+                      <td className="px-5 py-4">
+                        {!['annulee', 'retournee'].includes(order.statut) && (
+                          <select
+                            key={order.statut}
+                            defaultValue=""
+                            onChange={(e) => { handleOrderStatus(order, e.target.value); e.target.value = ''; }}
+                            className="input-premium px-2.5 py-1.5 text-xs font-bold"
+                            aria-label={tr('Modifier le statut', 'تعديل الحالة')}
+                          >
+                            <option value="" disabled>{tr('Modifier…', 'تعديل…')}</option>
+                            {Object.entries(STATUTS_COMMANDE).filter(([cle]) => cle !== order.statut).map(([cle, l]) => (
+                              <option key={cle} value={cle}>{tr(l.fr, l.ar)}</option>
+                            ))}
+                          </select>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

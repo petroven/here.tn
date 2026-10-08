@@ -7,7 +7,7 @@
 // Lancer : npm test (depuis server/)
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { startTestServer, stopTestServer, api, DEMO_CLIENT } from './helpers.js';
+import { startTestServer, stopTestServer, api, login, DEMO_CLIENT, DEMO_VENDEUR } from './helpers.js';
 
 let produitId;
 let gouvernoratId;
@@ -204,4 +204,74 @@ test('un vendeur ne peut pas passer commande (400)', async () => {
   });
   assert.equal(status, 400);
   assert.equal(json.success, false);
+});
+
+test('inscription : mot de passe faible refusé (8 caractères, lettre et chiffre)', async () => {
+  for (const password of ['court1', 'seulementdeslettres', '12345678901']) {
+    const { status, json } = await api('/api/auth/register', {
+      method: 'POST',
+      body: { nom: 'Test', prenom: 'Faible', email: `faible.${Date.now()}.${password.length}@here.tn`, password, accepteConditions: true },
+    });
+    assert.equal(status, 400, `${password} : ${JSON.stringify(json)}`);
+  }
+});
+
+test('suivi public : aucune donnée personnelle (position, preuve, livreur)', async () => {
+  const models = await import('../src/models/index.js');
+  const livraison = await models.Livraison.findOne();
+  if (!livraison) return;
+  await livraison.update({ latitudeArrivee: 36.8, longitudeArrivee: 10.18, preuveLivraison: '/uploads/preuve.jpg' });
+  const { status, json } = await api(`/api/livraisons/track/${livraison.trackingId}`);
+  assert.equal(status, 200);
+  for (const champ of ['latitudeArrivee', 'longitudeArrivee', 'preuveLivraison', 'livreurId', 'geocodage']) {
+    assert.equal(json.data[champ], undefined, `${champ} exposé`);
+  }
+  assert.ok(json.data.statut);
+});
+
+test('suppression du compte : anonymisation, sessions coupées, commandes conservées', async () => {
+  const models = await import('../src/models/index.js');
+  const email = `a.supprimer.${Date.now()}@here.tn`;
+  const inscription = await api('/api/auth/register', {
+    method: 'POST',
+    body: { nom: 'Asupprimer', prenom: 'Client', email, password: 'Supprime2026', telephone: '22334455', accepteConditions: true },
+  });
+  assert.equal(inscription.status, 201, JSON.stringify(inscription.json));
+  const { token, user } = inscription.json;
+  // Commande terminée (annulée) : elle doit survivre, anonymisée.
+  const commande = await models.Commande.create({
+    clientId: user.id, numeroCommande: `CMD-SUPP-${Date.now()}`, total: 10, sousTotal: 10, statut: 'annulee', adresseLivraison: '1 rue Test',
+  });
+
+  assert.equal((await api('/api/users/me', { method: 'DELETE', token, body: { password: 'mauvais1' } })).status, 401);
+  const vendeur = await login(DEMO_VENDEUR);
+  assert.equal((await api('/api/users/me', { method: 'DELETE', token: vendeur.token, body: { password: DEMO_VENDEUR.password } })).status, 409);
+
+  const suppression = await api('/api/users/me', { method: 'DELETE', token, body: { password: 'Supprime2026' } });
+  assert.equal(suppression.status, 200, JSON.stringify(suppression.json));
+
+  // Session ouverte refusée, reconnexion impossible.
+  assert.equal((await api('/api/users/me', { token })).status, 401);
+  assert.notEqual((await api('/api/auth/login', { method: 'POST', body: { email, password: 'Supprime2026' } })).status, 200);
+
+  const anonyme = await models.Utilisateur.findByPk(user.id);
+  assert.equal(anonyme.compteSupprime, true);
+  assert.notEqual(anonyme.email, email);
+  assert.equal(anonyme.telephone, null);
+  assert.ok(await models.Commande.findByPk(commande.id), 'commande conservée');
+});
+
+test('photo de profil : image enregistrée, autre type refusé', async () => {
+  const client = await login(DEMO_CLIENT);
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+  const ok = new FormData();
+  ok.append('photo', new Blob([png], { type: 'image/png' }), 'avatar.png');
+  const envoi = await api('/api/users/me/photo', { method: 'PUT', token: client.token, body: ok });
+  assert.equal(envoi.status, 200, JSON.stringify(envoi.json));
+  assert.ok(envoi.json.data.photo);
+  assert.equal((await api('/api/users/me', { token: client.token })).json.data.photo, envoi.json.data.photo);
+
+  const mauvais = new FormData();
+  mauvais.append('photo', new Blob(['<script>'], { type: 'text/html' }), 'x.html');
+  assert.equal((await api('/api/users/me/photo', { method: 'PUT', token: client.token, body: mauvais })).status, 400);
 });

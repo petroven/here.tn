@@ -2,8 +2,7 @@ import { Server } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import { Livreur } from '../models/index.js';
 import { corsOptions } from '../config/cors.js';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'dev_marketplace_secret';
+import { JWT_SECRET } from '../middleware/auth.js';
 
 let ioInstance = null;
 
