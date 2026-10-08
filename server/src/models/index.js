@@ -17,6 +17,7 @@ import WalletTransaction from './WalletTransaction.js';
 import HistoriqueCommande from './HistoriqueCommande.js';
 import Notification from './Notification.js';
 import PushToken from './PushToken.js';
+import Fichier from './Fichier.js';
 import AuditLog from './AuditLog.js';
 
 export const Utilisateur = sequelize.define('Utilisateur', {
@@ -421,6 +422,7 @@ export {
   HistoriqueCommande,
   Notification,
   PushToken,
+  Fichier,
   AuditLog,
 };
 

@@ -287,6 +287,7 @@ Données brutes : les 24 gouvernorats (nom FR/AR, code, délégations) et la tab
 | `helpers.js` | Fait pointer SQLite vers `data/test.db`, démarre l'application sur un port éphémère et fournit l'utilitaire `api()` ainsi que les identifiants du client de démo. |
 | `api.test.js` | Parcours critiques : authentification, panier invité, commande payée à la livraison, avis après livraison, routes publiques. |
 | `productImport.test.js` | Tests unitaires du parsing Excel/CSV/ZIP et de la validation des lignes, sans base de données. |
+| `uploadDb.test.js` | Photos stockées en base : envoi, relecture à l'identique, refus d'un fichier non-image, 404. |
 | `quickAdd.test.js` | Ajout rapide : une même `Idempotency-Key` rejouée (ou envoyée deux fois en même temps) ne crée qu'un seul produit. |
 | `orderLifecycle.test.js` | Machine d'états, historique, achats simultanés du dernier article, restitution du stock, alertes stock faible, retours, audit admin, statistiques vendeur, notifications. |
 | `sandboxPayments.test.js` | Les 8 scénarios sandbox et la chaîne commande → paiement → webhook → cashback → commission → solde vendeur. |
@@ -718,7 +719,7 @@ Toutes les routes sont préfixées par `/api`. 🔒 = en-tête `Authorization: B
 **Services externes non configurés par défaut**
 - **Emails** : sans SMTP, les envois échouent (erreurs dans les logs, sans bloquer la commande).
 - **SMS** : en mode `mock`, ils sont seulement affichés dans la console.
-- **Images** : sans Cloudinary, elles sont stockées dans `server/uploads/`, qui **ne survit pas à un redéploiement** sur Render.
+- **Images** : avec Cloudinary (`CLOUDINARY_*`), elles y sont envoyées. Sans Cloudinary, en production, elles sont **stockées en base** (modèle `Fichier`, servies par `GET /uploads/db/:id`) et survivent donc aux redéploiements ; en développement, dans `server/uploads/`. `UPLOAD_STORAGE=db|local` force l'un ou l'autre.
 
 **Architecture**
 - L'état de la cascade d'attribution des livreurs et les imports en attente sont gardés **en mémoire** : ils sont perdus au redémarrage (la cascade se reconstruit en partie) et l'application ne peut pas tourner en plusieurs instances.

@@ -7,7 +7,7 @@ import rateLimit from 'express-rate-limit';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath, pathToFileURL } from 'url';
-import './models/index.js';
+import { Fichier } from './models/index.js';
 import { syncDatabase } from './config/database.js';
 import { initIo } from './realtime/io.js';
 import { corsOptions } from './config/cors.js';
@@ -57,6 +57,26 @@ app.use(express.json({
   },
 }));
 app.use(passport.initialize());
+
+// Photos stockées en base (production sans Cloudinary — voir utils/upload.js).
+// Une photo ne change jamais pour un id donné : mise en cache longue durée.
+app.get('/uploads/db/:id', async (req, res) => {
+  const id = Number.parseInt(req.params.id, 10);
+  if (!Number.isInteger(id) || id < 1) return res.status(404).end();
+  try {
+    const fichier = await Fichier.findByPk(id);
+    if (!fichier) return res.status(404).end();
+    res.set({
+      'Content-Type': fichier.mime,
+      'Content-Length': fichier.taille,
+      'Cache-Control': 'public, max-age=31536000, immutable',
+      'X-Content-Type-Options': 'nosniff',
+    });
+    return res.end(fichier.data);
+  } catch {
+    return res.status(500).end();
+  }
+});
 
 // Serve uploads static folder
 app.use('/uploads', express.static(path.resolve('uploads')));
