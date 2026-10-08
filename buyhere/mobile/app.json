@@ -142,7 +142,8 @@
             "usesCleartextTraffic": true
           }
         }
-      ]
+      ],
+      "./plugins/withReleaseSigning"
     ]
   }
 }
