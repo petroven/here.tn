@@ -36,7 +36,18 @@ const PORT = process.env.PORT || 5000;
 // crossOriginResourcePolicy relaxed: the client (a different origin/port)
 // loads uploaded product images directly via <img src> — Helmet's default
 // same-origin policy would otherwise block that.
-app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+// img-src élargi : les photos produits viennent d'Unsplash (catalogue démo)
+// et de Cloudinary (uploads vendeurs). Le CSP par défaut de Helmet
+// (img-src 'self' data:) les bloque dès que le client est servi par Express.
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  contentSecurityPolicy: {
+    directives: {
+      'img-src': ["'self'", 'data:', 'blob:', 'https:'],
+      'connect-src': ["'self'", 'wss:', 'https:'],
+    },
+  },
+}));
 app.use(cors(corsOptions));
 // Capture the raw request body alongside the parsed JSON — payment webhook
 // signatures are computed over the exact bytes, not the re-serialized object.
