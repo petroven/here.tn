@@ -6,16 +6,12 @@ import {
   ShoppingCart,
   Store,
   ShieldCheck,
-  PackageCheck,
-  Sparkles,
   Truck,
   LogOut,
   Home,
   User,
   AlertCircle,
   X,
-  ArrowRight,
-  Mail,
   LayoutGrid,
   ShoppingBag,
 } from 'lucide-react';
@@ -45,16 +41,12 @@ import ChatWidget from './components/ChatWidget';
 const MessagesPage = lazy(() => import('./pages/MessagesPage'));
 import PolicyConsentModal from './components/PolicyConsentModal';
 import CategoryDrawer from './components/CategoryDrawer';
-import HomeDashboard from './components/home/HomeDashboard.jsx';
-import ProductCard from './components/ProductCard';
-import BoutiqueCard from './components/BoutiqueCard';
-import Avatar from './components/ui/Avatar';
+import HomePage from './pages/HomePage.jsx';
 import Logo from './components/ui/Logo.jsx';
 import ToastHost from './components/ui/Toast.jsx';
 import NotificationBell from './components/NotificationBell.jsx';
-import { iconForCategory } from './utils/categoryIcons.js';
 import { useTranslation } from './i18n';
-import { API_URL, absoluteImageUrl } from './config/api.js';
+import { API_URL } from './config/api.js';
 import NotFoundPage from './pages/NotFoundPage.jsx';
 import IntroAnimation from './components/IntroAnimation.jsx';
 import { useDialog } from './hooks/useDialog.js';
@@ -165,6 +157,19 @@ function App() {
         else if (['vendeur', 'admin_boutique'].includes(userRole)) navigate('/vendeur');
         else if (userRole === 'livreur') navigate('/livreur');
       }
+
+      // Jeton expiré (7 jours) ou refusé (compte supprimé) : sans cette
+      // vérification, l'interface restait « connectée » alors que chaque appel
+      // API répondait 401. Une panne réseau, elle, ne déconnecte pas.
+      fetch(`${API_URL}/users/me`, { headers: { Authorization: `Bearer ${savedToken}` } })
+        .then((response) => {
+          if (response.status !== 401 || localStorage.getItem('token') !== savedToken) return;
+          localStorage.removeItem('token');
+          localStorage.removeItem('userId');
+          localStorage.removeItem('userRole');
+          setUser(null);
+        })
+        .catch(() => {});
     }
     setLoading(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -437,7 +442,7 @@ function App() {
         <Route
           path="/"
           element={(
-            <HomeView
+            <HomePage
               navigate={navigate}
               language={language}
               user={user}
@@ -522,275 +527,17 @@ function App() {
         <Route path="/suivi" element={<TrackingPage language={language} />} />
         <Route path="/compte" element={<AccountPage language={language} navigate={navigate} />} />
         <Route path="/commandes" element={<ClientOrdersPage onStartChat={handleStartChat} language={language} />} />
+        {/* Liens partagés que l'app mobile intercepte (app.json, navigation/linking.ts) :
+            sans l'app installée, ils mènent à la page la plus proche du site
+            plutôt qu'à la page introuvable. */}
+        <Route path="/commandes/:orderId" element={<Navigate to="/commandes" replace />} />
+        <Route path="/promotion/:code" element={<Navigate to="/coupons" replace />} />
+        <Route path="/coupons/:code" element={<Navigate to="/coupons" replace />} />
         <Route path="*" element={<NotFoundPage language={language} navigate={navigate} />} />
       </Route>
     </Routes>
     </Suspense>
     </>
-  );
-}
-
-function HomeView({ navigate, language = 'fr', user, cartCount = 0, setSelectedCategoryId, onOpenProduct, onOpenStore, onAddToCart }) {
-  const isAr = language === 'ar';
-  const isClient = user?.role === 'client';
-  const tr = (fr, ar) => (isAr ? ar : fr);
-
-  const [categories, setCategories] = useState([]);
-  const [categoryPhotos, setCategoryPhotos] = useState({}); // { [categoryId]: imageUrl }
-  const [populaires, setPopulaires] = useState([]);
-  const [nouveautes, setNouveautes] = useState([]);
-  const [boutiques, setBoutiques] = useState([]);
-  const [newsletterEmail, setNewsletterEmail] = useState('');
-  const [newsletterSent, setNewsletterSent] = useState(false);
-
-  useEffect(() => {
-    fetch(`${API_URL}/categories`)
-      .then((response) => response.json())
-      .then(async (data) => {
-        if (!data.success) return;
-        setCategories(data.data);
-        // Photo de la catégorie (choisie par l'admin), sinon une vraie photo
-        // produit de la catégorie plutôt qu'une icône générique.
-        const entries = await Promise.all(
-          data.data.slice(0, 12).map(async (cat) => {
-            if (cat.image) return [cat.id, absoluteImageUrl(cat.image)];
-            try {
-              const res = await fetch(`${API_URL}/produits?categoryId=${cat.id}&limit=1`);
-              const productData = await res.json();
-              return [cat.id, productData.data?.[0]?.image || null];
-            } catch {
-              return [cat.id, null];
-            }
-          }),
-        );
-        setCategoryPhotos(Object.fromEntries(entries.filter(([, url]) => url)));
-      })
-      .catch(() => setCategories([]));
-    fetch(`${API_URL}/produits?limit=8&sort=rating`)
-      .then((response) => response.json())
-      .then((data) => { if (data.success) setPopulaires(data.data); })
-      .catch(() => setPopulaires([]));
-    fetch(`${API_URL}/produits?limit=8`)
-      .then((response) => response.json())
-      .then((data) => { if (data.success) setNouveautes(data.data); })
-      .catch(() => setNouveautes([]));
-    fetch(`${API_URL}/boutiques`)
-      .then((response) => response.json())
-      .then((data) => { if (data.success) setBoutiques(data.data); })
-      .catch(() => setBoutiques([]));
-  }, []);
-
-  const goToCategory = (categoryId) => {
-    setSelectedCategoryId?.(categoryId);
-    navigate('/catalogue');
-  };
-
-  const handleNewsletterSubmit = (e) => {
-    e.preventDefault();
-    if (!newsletterEmail) return;
-    // Pas d'endpoint newsletter côté serveur — confirmation visuelle uniquement.
-    setNewsletterSent(true);
-  };
-
-  const vendeursAvecPhoto = boutiques.filter((b) => b.vendeur);
-
-  return (
-    <div className="space-y-8 sm:space-y-12 pb-24 md:pb-10">
-      {/* Client connecté : tableau de bord personnel à la place du bandeau marketing */}
-      {isClient ? (
-        <HomeDashboard language={language} navigate={navigate} cartCount={cartCount} onOpenProduct={onOpenProduct} />
-      ) : (
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 pt-4 sm:pt-8">
-        <div className="premium-gradient relative overflow-hidden rounded-3xl text-white lg:grid lg:grid-cols-2 lg:rounded-lg">
-          <div className="relative z-10 max-w-2xl space-y-3.5 p-5 sm:space-y-4 sm:p-12">
-            <span className="inline-flex items-center gap-1.5 bg-white/10 px-3 py-1 rounded-full text-[11px] sm:text-xs font-semibold tracking-wide">
-              <Sparkles size={14} />
-              {tr('Shop local · Plateforme tunisienne multi-boutiques', 'تسوق محلي · منصة تونسية متعددة المتاجر')}
-            </span>
-            <h2 className="text-[28px] sm:text-4xl font-extrabold leading-tight">
-              {tr('Les bonnes choses sont ici.', 'الأشياء الجيدة هنا.')}
-            </h2>
-            <p className="text-[13px] leading-relaxed sm:text-base text-slate-200 max-w-xl">
-              {tr('Découvrez des milliers de produits proposés par des boutiques tunisiennes. Un seul compte, un seul panier, plusieurs boutiques.', 'اكتشفوا آلاف المنتجات من متاجر تونسية. حساب واحد، سلة واحدة، عدة متاجر.')}
-            </p>
-            <button
-              onClick={() => navigate('/catalogue')}
-              className="flex w-full max-w-md items-center gap-2.5 rounded-xl bg-white/95 px-4 py-3 text-left text-slate-500 shadow-lg transition hover:bg-white sm:text-sm"
-            >
-              <Search size={16} />
-              {tr('Que recherchez-vous ?', 'ماذا تبحثون؟')}
-            </button>
-            <div className="grid grid-cols-2 gap-2.5 pt-1 sm:flex sm:flex-wrap sm:gap-3">
-              <button onClick={() => navigate('/catalogue')} className="px-3 py-3 sm:px-5 rounded-xl bg-white text-[#994122] hover:bg-terre-50 font-bold text-xs leading-tight sm:text-sm transition">
-                {tr('Découvrir les produits', 'اكتشف المنتجات')}
-              </button>
-              <button onClick={() => navigate('/vendeur/inscription')} className="px-3 py-3 sm:px-5 rounded-xl border border-white/40 text-white font-bold text-[13px] sm:text-sm hover:bg-white/10 transition">
-                {tr('Devenir vendeur', 'كن بائعًا')}
-              </button>
-            </div>
-          </div>
-          <div className="absolute inset-0 lg:relative">
-            <img
-              src="https://images.unsplash.com/photo-1781455816406-c3dead3a643e?fm=jpg&q=80&w=1200&auto=format&fit=crop"
-              alt=""
-              className="absolute inset-0 h-full w-full object-cover"
-              style={{ filter: 'sepia(22%) saturate(140%) brightness(1.03)' }}
-            />
-            {/* Étalonnage chaud — la photo source est en lumière froide/matinale,
-                ce calque la rapproche du ton doré recherché pour la marque. */}
-            <div className="absolute inset-0 bg-gradient-to-t from-[#C4532C]/25 via-transparent to-amber-200/15" />
-            {/* Téléphone : dégradé terracotta par-dessus la photo, comme dans l'app. */}
-            <div className="absolute inset-0 bg-gradient-to-br from-[#C4532C]/[0.97] via-[#C4532C]/85 to-[#6E2E19]/55 lg:hidden" />
-          </div>
-        </div>
-      </section>
-      )}
-
-      {/* Catégories */}
-      {categories.length > 0 && (
-        <section className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="flex items-end justify-between mb-4">
-            <h3 className="text-lg sm:text-2xl font-extrabold text-slate-900">{tr('Catégories principales', 'الفئات الرئيسية')}</h3>
-            <button onClick={() => navigate('/catalogue')} className="text-sm font-bold text-[#C4532C] hover:text-[#994122]">{tr('Voir tout', 'عرض الكل')}</button>
-          </div>
-          {/* Téléphone : rangée qu'on fait défiler (comme l'app) ; grille sur PC. */}
-          <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-4 sm:gap-4 sm:overflow-visible sm:px-0 md:grid-cols-6">
-            {categories.slice(0, 12).map((cat) => {
-              const photo = categoryPhotos[cat.id];
-              const Icon = iconForCategory(cat.nom);
-              return (
-                <button key={cat.id} onClick={() => goToCategory(cat.id)} className="flex w-[78px] shrink-0 flex-col items-center gap-1.5 text-center sm:w-auto sm:gap-2">
-                  <span className="h-[72px] w-[72px] overflow-hidden rounded-full border-2 border-white shadow-soft ring-1 ring-[#E2D9CB] sm:h-20 sm:w-20">
-                    {photo ? (
-                      <img loading="lazy" decoding="async" src={photo} alt="" className="h-full w-full object-cover transition duration-300 hover:scale-110" />
-                    ) : (
-                      <span className="flex h-full w-full items-center justify-center bg-[#F8E4DE] text-[#C4532C]">
-                        <Icon size={26} />
-                      </span>
-                    )}
-                  </span>
-                  <span className="line-clamp-2 text-[11px] sm:text-xs font-bold leading-tight text-slate-700">{cat.nom}</span>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-      )}
-
-      {/* Produits populaires */}
-      {populaires.length > 0 && (
-        <section className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="flex items-end justify-between mb-4">
-            <h3 className="text-lg sm:text-2xl font-extrabold text-slate-900">{isClient ? tr('Recommandés pour vous', 'مقترحة لكم') : tr('Produits populaires', 'المنتجات الأكثر رواجًا')}</h3>
-            <button onClick={() => navigate('/catalogue')} className="text-sm font-bold text-[#C4532C] hover:text-[#994122]">{tr('Voir tout', 'عرض الكل')}</button>
-          </div>
-          <div className="-mx-4 flex gap-3 overflow-x-auto px-4 [scrollbar-width:none] max-sm:[&>*]:w-[44%] max-sm:[&>*]:shrink-0 sm:mx-0 sm:grid sm:grid-cols-3 sm:gap-4 sm:overflow-visible sm:px-0 lg:grid-cols-4">
-            {populaires.map((product) => (
-              <ProductCard key={product.id} product={product} language={language} onOpen={onOpenProduct} onAddToCart={onAddToCart} />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Nouveaux produits */}
-      {nouveautes.length > 0 && (
-        <section className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="flex items-end justify-between mb-4">
-            <h3 className="text-lg sm:text-2xl font-extrabold text-slate-900">{tr('Nouveaux produits', 'منتجات جديدة')}</h3>
-            <button onClick={() => navigate('/catalogue')} className="text-sm font-bold text-[#C4532C] hover:text-[#994122]">{tr('Voir tout', 'عرض الكل')}</button>
-          </div>
-          <div className="-mx-4 flex gap-3 overflow-x-auto px-4 [scrollbar-width:none] max-sm:[&>*]:w-[44%] max-sm:[&>*]:shrink-0 sm:mx-0 sm:grid sm:grid-cols-3 sm:gap-4 sm:overflow-visible sm:px-0 lg:grid-cols-4">
-            {nouveautes.map((product) => (
-              <ProductCard key={product.id} product={product} language={language} onOpen={onOpenProduct} onAddToCart={onAddToCart} />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Découvrez nos boutiques */}
-      {boutiques.length > 0 && (
-        <section className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="flex items-end justify-between mb-4">
-            <h3 className="text-lg sm:text-2xl font-extrabold text-slate-900">{tr('Découvrez nos boutiques', 'اكتشفوا متاجرنا')}</h3>
-            <button onClick={() => navigate('/boutiques')} className="text-sm font-bold text-[#C4532C] hover:text-[#994122]">{tr('Voir tout', 'عرض الكل')}</button>
-          </div>
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {boutiques.slice(0, 3).map((store) => (
-              <BoutiqueCard key={store.id} store={store} onOpen={onOpenStore} language={language} />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Derrière chaque boutique, une personne */}
-      {vendeursAvecPhoto.length > 0 && (
-        <section className="max-w-7xl mx-auto px-4 sm:px-6">
-          <h3 className="text-xl sm:text-2xl font-extrabold text-slate-900 mb-4">{tr('Derrière chaque boutique, une personne', 'وراء كل متجر، شخص')}</h3>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            {vendeursAvecPhoto.slice(0, 4).map((store) => (
-              <button key={store.id} onClick={() => onOpenStore(store.id)} className="flex flex-col items-center gap-2.5 rounded-2xl border border-slate-200 bg-white p-4 text-center transition hover:border-terre-200">
-                <Avatar nom={store.vendeur.nom} prenom={store.vendeur.prenom} photo={store.vendeur.photo} className="h-14 w-14" />
-                <span className="text-xs font-bold text-slate-900">{store.vendeur.prenom}</span>
-                <span className="text-[11px] text-slate-500">{store.nom}</span>
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Confiance — utile surtout aux visiteurs */}
-      {!isClient && (
-      <section className="max-w-7xl mx-auto px-4 sm:px-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          {[
-            { icon: ShieldCheck, title: tr('Paiement sécurisé', 'دفع آمن'), text: tr('Paiement à la livraison, Konnect, Flouci ou virement, avec confirmation de chaque commande.', 'الدفع عند الاستلام أو Konnect أو Flouci أو التحويل البنكي، مع تأكيد كل طلب.') },
-            { icon: PackageCheck, title: tr('Protection acheteur', 'حماية المشتري'), text: tr('Retours et suivi des colis avec historique transparent.', 'إرجاع وتتبع الطرود بسجل شفاف.') },
-            { icon: Store, title: tr('Boutiques vérifiées', 'متاجر موثّقة'), text: tr('Validation des vendeurs et contrôle des boutiques.', 'التحقق من البائعين ومراقبة المتاجر.') },
-            { icon: Truck, title: tr('Livraison nationale', 'توصيل وطني'), text: tr('Couverture des 24 gouvernorats avec frais lisibles.', 'تغطية الولايات الـ24 بأسعار واضحة.') },
-          ].map((item) => {
-            const Icon = item.icon;
-            return (
-              <div key={item.title} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-soft">
-                <div className="w-10 h-10 rounded-xl bg-[#F8E4DE] text-[#C4532C] flex items-center justify-center mb-3">
-                  <Icon size={20} />
-                </div>
-                <h4 className="text-sm font-extrabold text-slate-900">{item.title}</h4>
-                <p className="text-xs text-slate-600 mt-1">{item.text}</p>
-              </div>
-            );
-          })}
-        </div>
-      </section>
-      )}
-
-      {/* Newsletter */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6">
-        <div className="rounded-lg bg-[#1E1B18] p-8 text-center text-white sm:p-10">
-          <h3 className="text-lg font-extrabold sm:text-xl">{tr('Restez informé', 'ابقوا على اطلاع')}</h3>
-          <p className="mt-1.5 text-sm text-slate-300">{tr('Nouveautés, promotions et boutiques à découvrir — une fois par mois, pas plus.', 'الجديد والعروض والمتاجر التي تستحق الاكتشاف — مرة واحدة شهريًا فقط.')}</p>
-          {newsletterSent ? (
-            <p className="mx-auto mt-5 max-w-sm rounded-xl bg-white/10 px-4 py-3 text-sm font-bold">{tr('Merci ! Vous êtes inscrit.', 'شكرًا! تم تسجيلكم.')}</p>
-          ) : (
-            <form onSubmit={handleNewsletterSubmit} className="mx-auto mt-5 flex max-w-md flex-col gap-2.5 sm:flex-row">
-              <div className="relative flex-1">
-                <Mail className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                <input aria-label={tr('Votre email', 'بريدكم الإلكتروني')}
-                  type="email"
-                  required
-                  value={newsletterEmail}
-                  onChange={(e) => setNewsletterEmail(e.target.value)}
-                  placeholder={tr('Votre email', 'بريدكم الإلكتروني')}
-                  className="h-11 w-full rounded-xl bg-white pl-10 pr-4 text-sm text-slate-900 outline-none"
-                />
-              </div>
-              <button type="submit" className="flex items-center justify-center gap-1.5 rounded-xl bg-[#C4532C] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#994122]">
-                {tr("S'inscrire", 'اشتراك')} <ArrowRight size={15} />
-              </button>
-            </form>
-          )}
-        </div>
-      </section>
-    </div>
   );
 }
 

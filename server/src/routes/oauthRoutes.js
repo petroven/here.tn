@@ -3,7 +3,7 @@ import passport from '../config/passport.js';
 import { generateToken } from '../middleware/auth.js';
 
 const router = express.Router();
-const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
+const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5174';
 
 // Application mobile : elle ouvre /auth/<provider>?redirect=<url de retour>
 // dans un navigateur, et reçoit le jeton sur cette URL. Seul le schéma de
@@ -33,6 +33,14 @@ function withParams(base, params) {
   return `${base}${base.includes('?') ? '&' : '?'}${new URLSearchParams(params)}`;
 }
 
+// Retour vers le site. Le jeton passe dans le fragment (#token=…) : un
+// fragment n'est jamais envoyé au serveur, donc absent des logs d'accès
+// (Render, Vercel) et de l'en-tête Referer. L'erreur, sans secret, reste en query.
+export function urlRetourWeb({ token, error }) {
+  if (error) return `${CLIENT_URL}/oauth/callback?error=${encodeURIComponent(error)}`;
+  return `${CLIENT_URL}/oauth/callback#${new URLSearchParams({ token })}`;
+}
+
 function startOAuth(strategy, scope) {
   return (req, res, next) => {
     const { redirect } = req.query;
@@ -52,7 +60,7 @@ function handleOAuthCallback(strategy) {
     const appRedirect = appRedirectFromState(req.query.state);
     const redirectWithError = (message) => (appRedirect
       ? res.redirect(withParams(appRedirect, { error: message }))
-      : res.redirect(`${CLIENT_URL}/oauth/callback?error=${encodeURIComponent(message)}`));
+      : res.redirect(urlRetourWeb({ error: message })));
 
     passport.authenticate(strategy, { session: false }, (err, user, info) => {
       if (err) {
@@ -63,11 +71,11 @@ function handleOAuthCallback(strategy) {
         return redirectWithError(info?.message || 'Connexion refusée.');
       }
 
-      // Redirect with a one-time token in the query string — the frontend
-      // callback page (or the mobile app) reads it immediately and stores it.
+      // App mobile : schéma buyhere:// (jamais servi par un serveur web).
+      // Site : jeton dans le fragment, lu puis effacé par OAuthCallbackPage.
       const token = generateToken(user);
       if (appRedirect) return res.redirect(withParams(appRedirect, { token }));
-      return res.redirect(`${CLIENT_URL}/oauth/callback?token=${token}`);
+      return res.redirect(urlRetourWeb({ token }));
     })(req, res, next);
   };
 }

@@ -54,6 +54,10 @@ export const Utilisateur = sequelize.define('Utilisateur', {
   // Compte supprimé à la demande de l'utilisateur : données personnelles
   // effacées, commandes conservées (obligations comptables), connexion impossible.
   compteSupprime: { type: DataTypes.BOOLEAN, allowNull: true, defaultValue: false },
+  // Version des jetons (claim `tv` du JWT) : l'incrémenter invalide toutes les
+  // sessions ouvertes (changement/réinitialisation du mot de passe,
+  // « déconnecter tous les appareils ») — voir middleware/auth.js.
+  tokenVersion: { type: DataTypes.INTEGER, allowNull: true, defaultValue: 0 },
 });
 
 export const Boutique = sequelize.define('Boutique', {
@@ -65,6 +69,8 @@ export const Boutique = sequelize.define('Boutique', {
     defaultValue: 'en_attente',
   },
   logo: { type: DataTypes.STRING, allowNull: true },
+  // Image d'en-tête de la page boutique (envoyée par PUT /vendor/boutique, lue par StorePage).
+  banniere: { type: DataTypes.STRING, allowNull: true },
   bannière: { type: DataTypes.STRING, allowNull: true },
   gouvernoratId: { type: DataTypes.INTEGER, allowNull: true },
   delegationId: { type: DataTypes.INTEGER, allowNull: true },

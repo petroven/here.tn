@@ -150,6 +150,8 @@ export default function AccountPage({ language = 'fr', navigate }) {
       });
       const data = await response.json();
       if (!response.ok || !data.success) throw new Error(data.message || tr('Erreur lors du changement de mot de passe.', 'خطأ أثناء تغيير كلمة المرور.'));
+      // Les autres appareils sont déconnectés ; cette session garde un jeton valide.
+      if (data.token) localStorage.setItem('token', data.token);
       setPasswordStatus({ type: 'success', message: tr('Mot de passe modifié avec succès.', 'تم تغيير كلمة المرور بنجاح.') });
       setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
       setTimeout(() => setShowPasswordForm(false), 1500);

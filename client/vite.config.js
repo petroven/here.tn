@@ -3,6 +3,12 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
+  // Tests (npm test → vitest run) : DOM simulé par jsdom.
+  test: {
+    environment: 'jsdom',
+    include: ['src/**/*.test.{js,jsx}'],
+    restoreMocks: true,
+  },
   server: {
     port: 5174,
     strictPort: true,

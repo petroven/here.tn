@@ -6,10 +6,19 @@ Français et arabe (RTL), mode sombre, prix en dinars (« 49,900 DT »).
 
 ```
 buyhere/
-├── backend/   API REST — Node.js, Express 5, Prisma 6, PostgreSQL, Zod, JWT
+├── backend/   API REST alternative, NON UTILISÉE — Node.js, Express 5, Prisma 6, PostgreSQL, Zod, JWT
 └── mobile/    App — React Native (Expo SDK 57), TypeScript, React Navigation,
                Zustand, TanStack Query, NativeWind, i18next
 ```
+
+> **Statut de `backend/`** : l'application mobile **n'utilise pas** cette API. Elle
+> appelle le serveur du site web (`server/` à la racine du dépôt, port 5000, préfixe
+> `/api`, en production `https://buyhere-xffq.onrender.com/api`) : mêmes comptes,
+> produits et commandes que le site. `backend/` est une API séparée, avec sa propre base
+> PostgreSQL et son schéma Prisma, branchée nulle part (ni site, ni mobile, ni
+> déploiement Render ou Vercel). Elle est conservée telle quelle ; la brancher ou
+> migrer vers elle demande une décision explicite. Pour faire tourner l'app, lancez
+> `server/` (voir le `README.md` racine) et passez directement à la section 3.
 
 ---
 
@@ -26,7 +35,7 @@ Comptes facultatifs : [Cloudinary](https://cloudinary.com) (photos de profil),
 
 ---
 
-## 2. Lancer le backend
+## 2. Lancer l'API alternative `backend/` (facultatif, non utilisée par l'app)
 
 ```bash
 cd buyhere/backend
@@ -84,7 +93,7 @@ npx expo start
 ```
 
 Scannez le QR code avec **Expo Go** (même Wi-Fi que le PC). L'app trouve l'API
-automatiquement (`http://<IP-du-PC>:4000`) ; sinon, renseignez `EXPO_PUBLIC_API_URL`
+automatiquement (`http://<IP-du-PC>:5000/api`, le serveur `server/` du site) ; sinon, renseignez `EXPO_PUBLIC_API_URL`
 dans `mobile/.env` (voir `.env.example`).
 
 Émulateur : touche `a` (Android) ou `i` (iOS) dans le terminal Expo.

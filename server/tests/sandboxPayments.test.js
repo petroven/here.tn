@@ -78,6 +78,15 @@ const statutTransaction = async (id) => (await models.Transaction.findByPk(id)).
 const cashbacks = (commandeId) => models.WalletTransaction.count({ where: { commandeId, motif: 'cashback' } });
 const historiquePayee = (commandeId) => models.HistoriqueCommande.count({ where: { commandeId, nouveauStatut: 'payee' } });
 
+test('initiate sandbox : URL de retour lisible par la page /payment/return (paramètre order)', async () => {
+  const commande = await commandeEnLigne();
+  const { paymentUrl } = await initier(commande.id);
+  const url = new URL(paymentUrl);
+  assert.equal(url.pathname, '/payment/return');
+  // client/src/pages/PaymentReturnPage.jsx lit `order` (comme les retours Konnect/Flouci de paymentGateway.js).
+  assert.equal(url.searchParams.get('order'), String(commande.id));
+});
+
 test('SUCCESS : commande → paiement → webhook → payée → cashback → commission → solde vendeur', async () => {
   const { calculerFinancesBoutique } = await import('../src/utils/finance.js');
   const { marketplaceConfig } = await import('../src/config/marketplace.js');

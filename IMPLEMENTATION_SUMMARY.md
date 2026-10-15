@@ -1,8 +1,10 @@
 # here.tn - Marketplace Bilingue Tunisien
 
-## ✅ Implémentation Complète
+> **Document historique.** Ce résumé décrit les premières fonctionnalités livrées. Il n'est plus tenu à jour : l'état réel, l'architecture et la configuration de production sont dans [`DOCUMENTATION.md`](DOCUMENTATION.md) et [`README.md`](README.md). Les tâches restantes et les validations effectivement passées sont dans [`CLAUDE_TASKS.md`](CLAUDE_TASKS.md).
 
-Votre marketplace e-commerce bilingue (Français/Arabe) est maintenant **complètement opérationnel** avec tous les systèmes critiques en place.
+## Fonctionnalités initiales
+
+Le site est fonctionnel en développement. La mise en production réelle demande encore la configuration des paiements, des emails et de la publication mobile (voir `README.md`, section « Avant une mise en production réelle »).
 
 ---
 
@@ -112,7 +114,7 @@ npm start
 ```bash
 cd client
 npm run dev
-# Client accessibleà http://localhost:5173
+# Client accessible à http://localhost:5174
 ```
 
 ---
@@ -157,9 +159,7 @@ L'accès admin passe exclusivement par un JWT obtenu via `POST /api/auth/login` 
 
 ## 💾 Base de Données
 
-SQLite avec Sequelize ORM
-- **Fichier:** `server/data/marketplace.db`
-- **Création automatique:** Au premier lancement, tous les tables sont créées
+Sequelize ORM : SQLite en développement (`server/data/marketplace.db`, créé au premier lancement), PostgreSQL en production (`DATABASE_URL`, base `here-tn-db` sur Render). Limites du mécanisme de schéma actuel : `DOCUMENTATION.md` §15.
 
 ---
 
@@ -223,18 +223,9 @@ VITE_DEFAULT_LANGUAGE=fr
 
 ---
 
-## 📈 Prochaines Étapes Possibles
+## 📈 Suite du projet
 
-- [ ] Intégration paiement réelle (Konnect, Tunisiechéques)
-- [ ] Upload d'images (AWS S3, Cloudinary)
-- [ ] Notifications email/SMS
-- [ ] Système d'évaluations produits
-- [ ] Dashboard statistiques avancées
-- [ ] Système de coupon/promotion
-- [ ] Export PDF des factures
-- [ ] Chat vendeur-client en temps réel
-- [ ] Système de wishlist
-- [ ] Mobile app native
+L'ancienne liste « prochaines étapes » est obsolète. Avis, coupons, factures PDF, chat, wishlist, upload d'images (base ou Cloudinary), notifications email/SMS/push et application mobile Expo ont été réalisés depuis. Le suivi à jour est dans [`CLAUDE_TASKS.md`](CLAUDE_TASKS.md).
 
 ---
 
@@ -243,7 +234,7 @@ VITE_DEFAULT_LANGUAGE=fr
 ### Backend
 - **Express.js** - Framework web
 - **Sequelize** - ORM pour base de données
-- **SQLite** - Base de données
+- **SQLite / PostgreSQL** - Base de données (dev / production)
 - **bcryptjs** - Hash des mots de passe
 - **jsonwebtoken** - Authentification JWT
 - **CORS** - Cross-origin requests

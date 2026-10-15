@@ -5,6 +5,7 @@ import { Sequelize, Transaction } from 'sequelize';
 import dotenv from 'dotenv';
 import { seedGeographie } from '../utils/shipping.js';
 import { seedDemoAccounts, seedMarketplaceCategories } from '../utils/seed.js';
+import { appliquerMigrations } from './migrations.js';
 
 dotenv.config();
 
@@ -108,6 +109,9 @@ export const syncDatabase = async () => {
       }
     }
   }
+
+  // Migrations versionnées (contraintes, index, données) — voir config/migrations.js.
+  await appliquerMigrations(sequelize);
 
   await seedGeographie();
   await seedMarketplaceCategories();

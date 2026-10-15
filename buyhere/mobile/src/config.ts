@@ -4,7 +4,7 @@ import { Platform } from 'react-native';
 /**
  * URL de l'API — la même que le site web (server/, préfixe /api) : mêmes
  * comptes, produits, boutiques et commandes. Priorité : variable
- * EXPO_PUBLIC_API_URL (fichier .env, ex. https://here-tn.onrender.com/api),
+ * EXPO_PUBLIC_API_URL (fichier .env, ex. https://buyhere-xffq.onrender.com/api),
  * sinon l'IP de la machine de dev détectée par Expo (fonctionne sur un
  * téléphone réel via Expo Go), sinon localhost / 10.0.2.2 (émulateur Android).
  */

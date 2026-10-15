@@ -20,8 +20,11 @@ export default function OAuthCallbackPage({ onSuccess }) {
   const [error, setError] = useState('');
 
   useEffect(() => {
+    // Jeton dans le fragment (#token=…, jamais envoyé au serveur ni journalisé) ;
+    // la query n'est plus lue que pour l'erreur et les anciens liens de retour.
     const params = new URLSearchParams(window.location.search);
-    const token = params.get('token');
+    const fragment = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const token = fragment.get('token') || params.get('token');
     const oauthError = params.get('error');
 
     // Clear the token/error from the URL immediately — it's single-use,

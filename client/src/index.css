@@ -252,6 +252,7 @@ img {
   z-index: 9999;
   overflow: hidden;
   cursor: pointer;
+  contain: strict;
   background: radial-gradient(circle at 50% 50%, #2a2420 0%, #1e1b18 55%, #120f0d 100%);
   animation: bh-intro-bg 3.3s ease-in forwards;
   transition: opacity 0.45s ease;
@@ -269,6 +270,7 @@ img {
   border-radius: 50%;
   background: #c4532c;
   box-shadow: 0 0 40px 10px rgba(196, 83, 44, 0.55);
+  will-change: transform, opacity;
   animation: bh-intro-dot 1.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 .bh-intro__ring {
@@ -281,6 +283,7 @@ img {
   border-radius: 50%;
   border: 2px solid rgba(232, 168, 124, 0.8);
   opacity: 0;
+  will-change: transform, opacity;
   animation: bh-intro-ring 0.9s ease-out 0.62s forwards;
 }
 .bh-intro__ring--late { animation-delay: 0.8s; }
@@ -294,11 +297,10 @@ img {
   left: calc(var(--x) * 1vw);
   width: var(--w);
   background: linear-gradient(180deg, transparent 0%, var(--c) 18%, var(--c) 82%, transparent 100%);
-  filter: blur(1px);
   opacity: 0;
   transform: translateX(calc((50 - var(--x)) * 1vw)) scaleY(0);
   animation: bh-intro-ribbon 1.5s cubic-bezier(0.65, 0, 0.35, 1) calc(0.75s + var(--d)) forwards;
-  mix-blend-mode: screen;
+  will-change: transform, opacity;
 }
 
 /* 3. Le logo se dévoile de gauche à droite, 4. puis la caméra plonge à travers. */
@@ -309,7 +311,7 @@ img {
   width: min(72vw, 460px);
   transform: translate(-50%, -50%) scale(0.92);
   clip-path: inset(0 100% 0 0);
-  filter: drop-shadow(0 0 22px rgba(196, 83, 44, 0.45));
+  will-change: transform, clip-path, opacity;
   animation:
     bh-intro-reveal 0.9s cubic-bezier(0.22, 1, 0.36, 1) 1.55s forwards,
     bh-intro-zoom 0.65s cubic-bezier(0.7, 0, 0.84, 0) 2.65s forwards;
@@ -355,7 +357,7 @@ img {
 }
 @keyframes bh-intro-zoom {
   0% { clip-path: inset(0 0 0 0); transform: translate(-50%, -50%) scale(1); opacity: 1; }
-  100% { clip-path: inset(0 0 0 0); transform: translate(-50%, -50%) scale(14); opacity: 0; }
+  100% { clip-path: inset(0 0 0 0); transform: translate(-50%, -50%) scale(1.18); opacity: 0; }
 }
 @keyframes bh-intro-fade { to { opacity: 1; } }
 @keyframes bh-intro-bg {

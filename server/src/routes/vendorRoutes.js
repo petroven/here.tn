@@ -9,7 +9,7 @@ import { validerPrixAvant, enregistrerChangementPrix } from '../utils/promoGuard
 import { emailBienvenueVendeur } from '../utils/email.js';
 import { calculerFinancesBoutique } from '../utils/finance.js';
 import { clampDelaiRetourOverride } from '../utils/returnPolicy.js';
-import { uploadImage } from '../utils/upload.js';
+import { uploadImage, supprimerImagesSiOrphelines } from '../utils/upload.js';
 import {
   buildImportTemplateWorkbook,
   parseSpreadsheetBuffer,
@@ -229,12 +229,14 @@ router.put('/vendor/boutique/:vendeurId', authMiddleware, boutiqueAdminMiddlewar
       return res.status(400).json({ success: false, message: 'IBAN requis pour ce mode de paiement.' });
     }
 
+    const anciennesImages = [boutique.logo, boutique.banniere];
     await boutique.update({
       nom, description, logo, banniere,
       modePaiement: modePaiement || boutique.modePaiement,
       iban: iban !== undefined ? iban : boutique.iban,
       flouciNumero: flouciNumero !== undefined ? flouciNumero : boutique.flouciNumero,
     });
+    await supprimerImagesSiOrphelines(anciennesImages);
     res.json({ success: true, data: boutique });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -606,6 +608,10 @@ router.put('/vendor/products/:produitId', authMiddleware, boutiqueAdminMiddlewar
       prixAvantValide = null;
     }
 
+    // Photos d'avant la modification : nettoyées à la fin si plus rien ne les référence.
+    const anciennesVariantes = variantes !== undefined ? await Variante.findAll({ where: { produitId } }) : [];
+    const anciennesImages = [produit.image, ...(Array.isArray(produit.images) ? produit.images : []), ...anciennesVariantes.map((v) => v.image)];
+
     // Delete existing variants and re-create if updated variants list is supplied
     if (variantes !== undefined) {
       await Variante.destroy({ where: { produitId } });
@@ -655,6 +661,7 @@ router.put('/vendor/products/:produitId', authMiddleware, boutiqueAdminMiddlewar
     if (prixAChange) {
       await enregistrerChangementPrix(produit.id, nouveauPrix);
     }
+    await supprimerImagesSiOrphelines(anciennesImages);
 
     const detailedProduct = await Produit.findByPk(produitId, {
       include: [{ model: Variante, as: 'variantes' }],
@@ -678,7 +685,9 @@ router.delete('/vendor/products/:produitId', authMiddleware, boutiqueAdminMiddle
     const boutique = await Boutique.findByPk(produit.boutiqueId);
     if (!boutique || !canManageVendor(req, boutique.vendeurId)) return res.status(403).json({ success: false, message: 'Accès à ce produit refusé.' });
 
+    const anciennesImages = [produit.image, ...(Array.isArray(produit.images) ? produit.images : [])];
     await produit.destroy();
+    await supprimerImagesSiOrphelines(anciennesImages);
     res.json({ success: true, message: 'Produit supprimé avec succès.' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

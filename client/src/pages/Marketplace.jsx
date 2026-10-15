@@ -39,7 +39,8 @@ export function Marketplace({ cartItems = [], onUpdateCart, onStartChat, onViewC
   const [wishlistIds, setWishlistIds] = useState([]);
 
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
+  // Recherche lancée depuis l'accueil : /catalogue?q=…
+  const [searchTerm, setSearchTerm] = useState(() => new URLSearchParams(window.location.search).get('q') || '');
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [categories, setCategories] = useState([]);
   const [priceRange, setPriceRange] = useState([0, 500]);

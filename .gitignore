@@ -4,6 +4,20 @@ server/data
 client/dist
 server/uploads
 .env
+.env.local
+.env.*.local
+# Clés de signature et identifiants (Android, Apple, Firebase) : jamais dans Git.
+*.jks
+*.keystore
+*.p8
+*.p12
+*.pem
+*.mobileprovision
+google-services.json
+GoogleService-Info.plist
+# Rapports et caches générés
+coverage
+*.tsbuildinfo
 .DS_Store
 npm-debug.log*
 .claude

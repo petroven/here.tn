@@ -46,7 +46,7 @@ export default function StorePage({ storeId, language = 'fr', onBack, onOpenProd
   return (
     <div dir={isAr ? 'rtl' : 'ltr'} className="min-h-screen bg-slate-50 pb-24 md:pb-10">
       <div className="relative h-32 overflow-hidden bg-slate-900 sm:h-64">
-        {store.bannière ? <img loading="lazy" decoding="async" src={absoluteImageUrl(store.bannière)} alt="" className="h-full w-full object-cover opacity-70" /> : <div className="h-full w-full bg-gradient-to-br from-slate-900 via-slate-800 to-terre-900" />}
+        {store.banniere ? <img loading="lazy" decoding="async" src={absoluteImageUrl(store.banniere)} alt="" className="h-full w-full object-cover opacity-70" /> : <div className="h-full w-full bg-gradient-to-br from-slate-900 via-slate-800 to-terre-900" />}
         <button onClick={onBack} className="absolute start-4 top-3 inline-flex items-center gap-2 rounded-xl bg-white/90 px-3 py-2 text-xs font-bold text-slate-800 sm:top-4"><ArrowLeft size={15} /> {tr('Retour', 'رجوع')}</button>
       </div>
 

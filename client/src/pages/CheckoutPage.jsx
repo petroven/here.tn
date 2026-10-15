@@ -542,7 +542,8 @@ export default function CheckoutPage({ cartItems = [], onOrderPlaced, onClearCar
                     </div>
                     <span className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
                       {option.title}
-                      {(option.key === 'konnect' || option.key === 'flouci') && (
+                      {/* Badge « Test » seulement en mode sandbox (paiementTest du serveur, faux en production). */}
+                      {(option.key === 'konnect' || option.key === 'flouci') && virementConfig?.paiementTest && (
                         <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-amber-700">
                           {tr('Test', 'تجريبي')}
                         </span>
@@ -583,12 +584,24 @@ export default function CheckoutPage({ cartItems = [], onOrderPlaced, onClearCar
           <h2 className="text-base font-bold text-slate-800">{tr('Résumé de commande', 'ملخص الطلب')}</h2>
 
           <div className="border-b border-slate-200 pb-4">
-            <form onSubmit={handleApplyCoupon} className="flex gap-2">
-              <Input containerClassName="flex-1" type="text" placeholder={tr('Code coupon', 'رمز الكوبون')} value={couponCode} onChange={(e) => setCouponCode(e.target.value)} disabled={couponLoading || appliedCoupon} className="bg-white" />
-              <button type="submit" disabled={couponLoading || appliedCoupon} className="btn-secondary-premium px-4 py-2.5 text-xs">
+            {/* Pas de <form> ici : ce bloc est dans le formulaire de commande, et
+                un submit (clic ou Entrée) passerait la commande au lieu
+                d'appliquer le coupon. */}
+            <div className="flex gap-2">
+              <Input
+                containerClassName="flex-1"
+                type="text"
+                placeholder={tr('Code coupon', 'رمز الكوبون')}
+                value={couponCode}
+                onChange={(e) => setCouponCode(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleApplyCoupon(e); }}
+                disabled={couponLoading || appliedCoupon}
+                className="bg-white"
+              />
+              <button type="button" onClick={handleApplyCoupon} disabled={couponLoading || appliedCoupon} className="btn-secondary-premium px-4 py-2.5 text-xs">
                 {tr('Appliquer', 'تطبيق')}
               </button>
-            </form>
+            </div>
             {couponError && <p className="mt-1 text-[10px] font-semibold text-rose-600">{couponError}</p>}
             {appliedCoupon && (
               <div className="mt-2 flex items-center justify-between rounded-xl border border-emerald-100 bg-emerald-50 p-2.5 text-xs text-emerald-800">

@@ -19,6 +19,11 @@ Marketplace multi-vendeurs tunisienne, bilingue français / arabe. Ce document d
 9. [Variables d'environnement](#9-variables-denvironnement)
 10. [Points d'attention et limites connues](#10-points-dattention-et-limites-connues)
 11. [Machine d'états, stock, notifications, audit (Phase 1)](#11-machine-détats-stock-notifications-audit-phase-1)
+12. [Exploitation : sauvegardes, health check, journaux](#12-exploitation--sauvegardes-health-check-journaux)
+13. [Authentification : évaluation et proposition (tâche 4.1)](#13-authentification--évaluation-et-proposition-tâche-41)
+14. [États en mémoire : évaluation et proposition (tâche 4.2)](#14-états-en-mémoire--évaluation-et-proposition-tâche-42)
+15. [Schéma de base : limites actuelles et migrations (tâche 4.3)](#15-schéma-de-base--limites-actuelles-et-migrations-tâche-43)
+16. [Publication mobile : état et checklist (tâche 5.3)](#16-publication-mobile--état-et-checklist-tâche-53)
 
 ---
 
@@ -55,6 +60,8 @@ App mobile Expo ──────── HTTP /api ─────────�
 
 En production (Render), un seul service sert l'API **et** le site compilé (`client/dist`) sur la même URL.
 
+**URL de production officielle : `https://buyhere-xffq.onrender.com`** (API sous `/api`). Elle est utilisée par les rewrites `vercel.json`, les profils EAS `preview`/`production`, `buyhere/mobile/.env.production` et le repli `PRODUCTION_API_URL` de `buyhere/mobile/src/config.ts`. Sur Render, `CLIENT_URL`, `FRONTEND_URL` et `API_BASE_URL` doivent valoir cette URL. `https://buyhere.tn` est le futur domaine personnalisé (déjà accepté par les liens profonds mobiles). Quand il sera branché, il faudra mettre à jour tous ces fichiers en même temps puis recompiler l'APK.
+
 ---
 
 ## 2. Démarrage rapide
@@ -82,7 +89,7 @@ Au premier démarrage, le serveur crée les tables et insère automatiquement :
 
 Deux autres comptes vendeurs (`vendeur1.demo@here.tn` pour *Atelier Kairouan*, `vendeur2.demo@here.tn` pour *GadgetPro Sfax*) reçoivent un mot de passe non documenté.
 
-Tests du serveur : `npm test --prefix server` (base isolée `server/data/test.db`).
+Tests : `npm test --prefix server` (bases SQLite isolées `server/data/test-*.db`), `npm test --prefix client`, `npm test --prefix buyhere/mobile`. Voir §4.12 et la CI.
 
 ---
 
@@ -93,8 +100,10 @@ Tests du serveur : `npm test --prefix server` (base isolée `server/data/test.db
 | `package.json` | Scripts globaux. `dev` lance serveur et client en parallèle via `concurrently` ; `build` installe les deux projets et compile le client ; `start` démarre le serveur seul, qui sert alors `client/dist`. |
 | `package-lock.json` | Verrou des versions npm de la racine. |
 | `render.yaml` | Déploiement Render : un service web Node 20 à Francfort et une base PostgreSQL gratuite (`here-tn-db`). `JWT_SECRET` et les mots de passe de démo sont générés automatiquement ; `CLIENT_URL`, `FRONTEND_URL` et `API_BASE_URL` sont à renseigner. Health check sur `/api/health`. |
-| `README.md` | Guide de démarrage court, comptes de démo et avertissement sur les paiements. |
-| `IMPLEMENTATION_SUMMARY.md` | Résumé fonctionnel historique. Certaines informations sont dépassées : le port client indiqué est 5173 alors que c'est 5174, et sa liste « prochaines étapes » contient des fonctions déjà faites (avis, coupons, PDF, chat, wishlist). |
+| `.github/workflows/ci.yml` | CI GitHub Actions (push sur `main`/`master`, pull requests, déclenchement manuel) : 4 jobs parallèles sous Node 20. Tests serveur, build web avec vérification de `client/dist/index.html`, `prisma generate` puis typecheck de `buyhere/backend`, `tsc --noEmit` du mobile. Installation par `npm ci` (échoue si un lockfile est désynchronisé), permissions en lecture seule, aucun secret. |
+| `README.md` | Vue d'ensemble : architecture et ports, URL de production, démarrage, comptes de démo, commandes de test et CI, paiements, et ce qui reste à configurer avant une mise en production réelle. |
+| `IMPLEMENTATION_SUMMARY.md` | Résumé fonctionnel **historique**, marqué comme tel ; non tenu à jour. |
+| `CLAUDE_TASKS.md` | File de travail et journal des validations réellement exécutées (dates, fichiers, résultats). |
 | `.gitignore` | Exclut `node_modules`, `data`, `client/dist`, `server/uploads`, `.env` et `.claude`. |
 | `.vscode/extensions.json` | Extensions VS Code recommandées. |
 | `here_tn_logo_basket.png`, `here_tn_logo_compact.png`, `here_tn_logo_icon.png` | Anciens logos « here.tn ». Le site utilise maintenant l'identité « buyhere. » de `client/public/brand/`. |
@@ -107,7 +116,7 @@ Tests du serveur : `npm test --prefix server` (base isolée `server/data/test.db
 
 | Fichier | Rôle |
 |---|---|
-| `package.json` | Dépendances : express, sequelize, sqlite3, pg, socket.io, passport (Google, Facebook), jsonwebtoken, bcryptjs, joi, helmet, express-rate-limit, multer, cloudinary, nodemailer, pdfkit, exceljs, adm-zip. Scripts : `dev` (`node --watch`), `start`, `test` (`node --test`, après suppression de `data/test.db`). |
+| `package.json` | Dépendances : express, sequelize, sqlite3, pg, socket.io, passport (Google, Facebook), jsonwebtoken, bcryptjs, joi, helmet, express-rate-limit, multer, cloudinary, nodemailer, pdfkit, exceljs, adm-zip. Scripts : `dev` (`node --watch`), `start`, `test` (`node --test`). |
 | `.env.example` | Modèle commenté de toutes les variables (voir [§9](#9-variables-denvironnement)). |
 | `.env` | Configuration locale réelle, non versionnée. |
 
@@ -210,7 +219,7 @@ Construit l'application Express dans cet ordre :
 
 | Fichier | Domaine | Accès |
 |---|---|---|
-| `healthRoutes.js` | `GET /health` → `{status:"ok"}` | public |
+| `healthRoutes.js` | `GET /health` → exécute `SELECT 1` (délai max 3 s) : 200 `{status:"ok", database:"ok"}`, ou 503 `{status:"degraded", database:"error"}` | public |
 | `marketRoutes.js` | catalogue, géographie, catégories, avis, wishlist, coupons, commandes, suivi, confirmation, moyens de paiement disponibles | mixte |
 | `authRoutes.js` | inscription, connexion, mot de passe oublié, profil `/users/me` | mixte |
 | `oauthRoutes.js` | `/auth/google`, `/auth/facebook` et leurs callbacks. Redirige vers `CLIENT_URL/oauth/callback?token=…` ou `?error=…`. | public |
@@ -287,12 +296,21 @@ Données brutes : les 24 gouvernorats (nom FR/AR, code, délégations) et la tab
 | `helpers.js` | Fait pointer SQLite vers `data/test.db`, démarre l'application sur un port éphémère et fournit l'utilitaire `api()` ainsi que les identifiants du client de démo. |
 | `api.test.js` | Parcours critiques : authentification, panier invité, commande payée à la livraison, avis après livraison, routes publiques. |
 | `productImport.test.js` | Tests unitaires du parsing Excel/CSV/ZIP et de la validation des lignes, sans base de données. |
-| `uploadDb.test.js` | Photos stockées en base : envoi, relecture à l'identique, refus d'un fichier non-image, 404. |
+| `uploadDb.test.js` | Photos stockées en base : envoi, relecture à l'identique, refus d'un fichier non-image, 404 ; suppression (URL externes et traversée de chemin ignorées) ; nettoyage au remplacement de la photo de profil, à la suppression de compte, à la modification et à la suppression de produit (photo partagée conservée). |
+| `courier.test.js` | Attribution des livreurs. |
+| `providerWebhooks.test.js` | Webhooks Konnect et Flouci : signature, montant, doublon, paiement tardif, échec ; en production, refus du secret public du dépôt. |
+| `productionPaymentGuard.test.js` | Avec `NODE_ENV=production` : simulateur, confirmation sandbox et indicateur « paiement test » désactivés, avertissement `PAYMENT_MODE`. |
+| `productionSecrets.test.js` | Démarrage refusé en production si `JWT_SECRET` est absent, trop court ou une valeur d'exemple. |
+| `notificationChannels.test.js` | SMS, push Expo et configuration SMTP : échecs journalisés, jamais de faux succès ni d'exception. |
+| `observability.test.js` | Health check (200 ou 503 sans fuite de détail) et journalisation des anomalies de paiement. |
+| `devUrls.test.js` | Liens envoyés au client (paiement, SMS) sur le port de dev 5174 sans `CLIENT_URL`. |
 | `quickAdd.test.js` | Ajout rapide : une même `Idempotency-Key` rejouée (ou envoyée deux fois en même temps) ne crée qu'un seul produit. |
 | `orderLifecycle.test.js` | Machine d'états, historique, achats simultanés du dernier article, restitution du stock, alertes stock faible, retours, audit admin, statistiques vendeur, notifications. |
 | `sandboxPayments.test.js` | Les 8 scénarios sandbox et la chaîne commande → paiement → webhook → cashback → commission → solde vendeur. |
 
-Chaque fichier de test a sa propre base SQLite (`data/test-*.db`), recréée à chaque exécution : les fichiers tournent en parallèle sans se gêner (49 tests, ~10 s).
+Chaque fichier de test a sa propre base SQLite (`data/test-*.db`), recréée à chaque exécution : les fichiers tournent en parallèle sans se gêner (105 tests, ~15 s au 2026-10-14).
+
+Tests hors serveur : `client/src/**/*.test.jsx` (Vitest, 24 tests : retour paiement, checkout, authentification) et `buyhere/mobile/src/**/*.test.ts` (Jest `jest-expo`, 47 tests : deep links, configuration de publication). Tous sont exécutés par la CI (`.github/workflows/ci.yml`).
 
 ---
 
@@ -419,7 +437,7 @@ Chaque fichier de test a sa propre base SQLite (`data/test-*.db`), recréée à 
 
 Décrit un projet « BuyHere » complet : une API Express 5 + Prisma + PostgreSQL et une application Expo.
 
-> ⚠️ **Important** : malgré ce README, **l'application mobile utilise en réalité l'API du site web** (`server/`, port 5000, préfixe `/api`) et non `buyhere/backend` (voir `mobile/src/config.ts` et `mobile/src/api/web.ts`). L'app et le site partagent donc les mêmes comptes, produits et commandes. `buyhere/backend` est une API séparée qui n'est utilisée par aucune autre partie du dépôt.
+> ⚠️ **Important** : comme l'indique l'encadré « Statut de `backend/` » du README, **l'application mobile utilise l'API du site web** (`server/`, port 5000, préfixe `/api`) et non `buyhere/backend` (voir `mobile/src/config.ts` et `mobile/src/api/web.ts`). L'app et le site partagent donc les mêmes comptes, produits et commandes. `buyhere/backend` est une API séparée qui n'est utilisée par aucune autre partie du dépôt.
 
 ### 6.2 `buyhere/backend/` — API TypeScript + Prisma (séparée)
 
@@ -550,7 +568,7 @@ Toutes les routes sont préfixées par `/api`. 🔒 = en-tête `Authorization: B
 ### Public et catalogue
 | Méthode | Route | Description |
 |---|---|---|
-| GET | `/health` | État du serveur |
+| GET | `/health` | État du serveur et de la base (503 si la base est injoignable) |
 | GET | `/config/payment-methods` | Moyens de paiement disponibles (virement seulement si un RIB est configuré) |
 | GET | `/gouvernorats` | Les 24 gouvernorats |
 | GET | `/gouvernorats/:id/delegations` | Délégations d'un gouvernorat |
@@ -670,7 +688,7 @@ Toutes les routes sont préfixées par `/api`. 🔒 = en-tête `Authorization: B
 |---|---|---|
 | `PORT` | 5000 | Port de l'API |
 | `NODE_ENV` | development | `production` désactive les simulations de paiement et les origines CORS de développement |
-| `PAYMENT_MODE` | sandbox | Mode des paiements |
+| `PAYMENT_MODE` | sandbox | Mode des paiements. `production` sur Render (`render.yaml`). Avec `NODE_ENV=production`, `sandbox` est ignoré : simulateur, confirmation sandbox et bandeau « paiement test » sont désactivés, et un avertissement `[PAYMENT]` est journalisé au démarrage. |
 | `JWT_SECRET` | — | **À changer impérativement** (secret de signature des JWT) |
 | `DATABASE_URL` | `sqlite://./data/marketplace.db` | `postgres://…` pour utiliser PostgreSQL |
 | `DATABASE_SSL` | true | `false` pour un PostgreSQL sans certificat TLS |
@@ -705,7 +723,7 @@ Toutes les routes sont préfixées par `/api`. 🔒 = en-tête `Authorization: B
 
 | Variable | Rôle |
 |---|---|
-| `EXPO_PUBLIC_API_URL` | URL de l'API du site, par exemple `https://here-tn.onrender.com/api` |
+| `EXPO_PUBLIC_API_URL` | URL de l'API du site ; en production `https://buyhere-xffq.onrender.com/api` |
 
 ---
 
@@ -728,8 +746,8 @@ Toutes les routes sont préfixées par `/api`. 🔒 = en-tête `Authorization: B
 - Le paiement en ligne n'est pas possible pour un panier qui contient plusieurs boutiques.
 
 **Code**
-- `buyhere/backend` est une API complète que ni le site ni l'app mobile n'utilisent : le README de `buyhere/` est trompeur sur ce point.
-- `IMPLEMENTATION_SUMMARY.md` est partiellement obsolète (port, fonctionnalités indiquées comme « à faire »).
+- `buyhere/backend` est une API complète que ni le site ni l'app mobile n'utilisent. Statut : alternative non branchée, conservée en l'état ; toute migration vers elle demande une décision explicite.
+- `IMPLEMENTATION_SUMMARY.md` est un document historique (bandeau en tête) ; la référence est ce fichier.
 
 ---
 
@@ -801,4 +819,209 @@ Toutes les actions admin sensibles sont journalisées avec l'état avant/après 
 
 ### 11.7 Liens d'application (mobile)
 
-L'app déclare les domaines `here.tn` / `www.here.tn` dans `app.json` : `intentFilters` Android avec `autoVerify`, `associatedDomains` iOS. Pour que la vérification réussisse, renseigner `ANDROID_SHA256_CERT_FINGERPRINTS` et `APPLE_APP_ID` côté serveur, qui sert alors `/.well-known/assetlinks.json` et `apple-app-site-association`. Le domaine doit être celui où l'API est servie. Les liens `buyhere://…` fonctionnent sans configuration.
+L'app déclare les domaines `buyhere.tn` / `www.buyhere.tn` dans `app.json` (la cohérence avec `navigation/linking.ts` est vérifiée par `linking.test.ts`) : `intentFilters` Android avec `autoVerify`, `associatedDomains` iOS. Pour que la vérification réussisse, renseigner `ANDROID_SHA256_CERT_FINGERPRINTS` et `APPLE_APP_ID` côté serveur, qui sert alors `/.well-known/assetlinks.json` et `apple-app-site-association`. Le domaine doit être celui où l'API est servie. Les liens `buyhere://…` fonctionnent sans configuration.
+
+---
+
+## 12. Exploitation : sauvegardes, health check, journaux
+
+### 12.1 Sauvegardes PostgreSQL
+
+Les données de production (comptes, commandes, paiements, et les photos quand Cloudinary n'est pas configuré) sont toutes dans la base PostgreSQL `here-tn-db`.
+
+> ⚠️ **Base gratuite Render** (`plan: free` dans `render.yaml`) : elle n'a pas de sauvegarde automatique et elle **expire** après une durée limitée (30 jours au moment de la rédaction ; vérifier la page tarifs de Render). Pour des données réelles, passer à un plan payant, qui inclut des sauvegardes quotidiennes et la restauration à un instant donné, ou au minimum faire des sauvegardes manuelles régulières.
+
+**Sauvegarde manuelle** (depuis un poste avec le client PostgreSQL de la même version majeure que la base). L'URL externe se trouve dans Render → base `here-tn-db` → *Connections* → *External Database URL*. Ne jamais la committer.
+
+```bash
+# Format custom (compressé, restauration sélective possible)
+pg_dump --format=custom --no-owner --no-acl \
+  --file="heretn-$(date +%Y%m%d-%H%M).dump" "$DATABASE_URL_EXTERNE"
+```
+
+Conserver les fichiers hors du dépôt et hors de l'hébergeur (stockage chiffré), avec plusieurs générations : par exemple 7 quotidiennes et 4 hebdomadaires.
+
+**Restauration** (vers une base vide : nouvelle base Render ou base locale de test) :
+
+```bash
+pg_restore --no-owner --no-acl --clean --if-exists \
+  --dbname="$DATABASE_URL_CIBLE" heretn-AAAAMMJJ-HHMM.dump
+```
+
+Puis pointer `DATABASE_URL` du service vers cette base et redéployer. Au démarrage, `syncDatabase()` ajoute les colonnes manquantes sans toucher aux données existantes.
+
+**Tester la restauration** au moins une fois par trimestre, et après tout changement de schéma : restaurer la dernière sauvegarde dans une base de test, y faire pointer un `npm start` local (`DATABASE_URL=…`), puis vérifier `GET /api/health` (200), une connexion et l'affichage d'une commande. Une sauvegarde jamais restaurée n'est pas une sauvegarde vérifiée.
+
+### 12.2 Health check
+
+`GET /api/health` (`healthCheckPath` de Render) exécute `SELECT 1` avec un délai maximal de 3 s. Il répond 200 quand la base répond, et 503 `{status:"degraded", database:"error"}` sinon. Render cesse alors d'envoyer du trafic à l'instance, puis la redémarre. La réponse ne contient aucun détail interne ; la cause est journalisée côté serveur (`[HEALTH]`).
+
+### 12.3 Journaux
+
+Tout passe par la sortie standard, visible dans Render → service → *Logs*. Préfixes à filtrer :
+
+| Préfixe | Contenu |
+|---|---|
+| `[SERVER] Error:` | Erreur 500 non gérée (gestionnaire d'erreurs global de `server.js`) |
+| `[PAYMENT]` | Au démarrage : configuration de paiement incohérente (`PAYMENT_MODE`, secrets de webhook). En fonctionnement : chaque anomalie enregistrée dans `PaymentLog` (signature ou montant invalide, transaction introuvable, échec d'initiation en `warn` ; paiement encaissé sur une commande close, à rembourser, en `error`) |
+| `[EMAIL]`, `[SMS]`, `[PUSH]` | Échecs d'envoi et configuration manquante (voir tâche 3.4) |
+| `[UPLOAD]` | Échecs de suppression ou de nettoyage d'images |
+| `[HEALTH]` | Base injoignable lors d'un health check |
+
+L'historique complet des paiements reste dans la table `PaymentLog` (événement, statut, montant, prestataire, IP ; jamais de données de carte). Les actions sensibles des administrateurs sont dans `AuditLog` (`GET /admin/audit-logs`).
+
+---
+
+## 13. Authentification : évaluation et proposition (tâche 4.1)
+
+> Statut : **phases A et B appliquées**. A : `tokenVersion` et rôle relu en base ; un changement de mot de passe déconnecte les autres appareils et la session courante reçoit un nouveau jeton ; `POST /auth/logout-all` (tests : `server/tests/authRevocation.test.js`). B : jeton OAuth du site dans le fragment `#token=` (tests : `oauthRedirect.test.js`, `OAuthCallbackPage.test.jsx`). Phase C : chantier dédié.
+
+### 13.1 État actuel
+
+- `generateToken` (`middleware/auth.js`) signe un JWT de **7 jours** contenant `id`, `email` et `role`. `authMiddleware` vérifie seulement la signature et la liste des comptes supprimés ; il ne relit pas l'utilisateur en base.
+- **Site** : le jeton est stocké dans `localStorage` (`token`, `userId`, `userRole`) et lu directement dans une vingtaine de composants et pages (`App.jsx`, `CheckoutPage`, `AdminDashboard`…).
+- **Mobile** : le jeton est dans `expo-secure-store` (`store/auth.ts`) et envoyé en `Authorization: Bearer`.
+- **OAuth** (`oauthRoutes.js`) : le jeton est renvoyé dans l'URL, `/oauth/callback?token=…`.
+
+### 13.2 Risques, par ordre de gravité
+
+| # | Risque | Conséquence |
+|---|---|---|
+| 1 | Rôle figé dans le jeton pendant 7 jours | Un administrateur rétrogradé ou un compte compromis garde ses droits jusqu'à 7 jours ; aucun moyen de les retirer immédiatement. |
+| 2 | Aucune révocation (hors suppression de compte) | Un changement ou une réinitialisation de mot de passe n'invalide pas un jeton volé. La déconnexion se limite à vider le stockage local. |
+| 3 | Jeton OAuth dans la query string | Il est conservé dans l'historique du navigateur, dans les logs d'accès (Render, Vercel) et potentiellement transmis dans l'en-tête `Referer`. |
+| 4 | Jeton longue durée dans `localStorage` | Toute XSS (dépendance compromise, script tiers) permet de voler une session valable 7 jours. React échappe le rendu par défaut, ce qui réduit le risque sans l'annuler. |
+
+### 13.3 Proposition par phases
+
+**Phase A, serveur seul, compatible site et mobile sans changement client (recommandée en premier).**
+Ajouter `Utilisateur.tokenVersion` (entier, défaut 0, ajouté automatiquement par `syncDatabase`) et l'inclure dans le JWT (`tv`). `authMiddleware` relit l'utilisateur (`id`, `role`, `tokenVersion`) et refuse le jeton si `tv` diffère. Le rôle vient alors de la base et non plus du jeton. `tokenVersion` est incrémenté lors d'un changement de mot de passe, d'une réinitialisation, d'un changement de rôle, et par un nouveau `POST /auth/logout-all`.
+- Corrige les risques 1 et 2 pour tous les clients.
+- Coût : une requête par appel authentifié, sur clé primaire (un cache mémoire de quelques secondes est possible ensuite).
+- Transition : les jetons existants sans `tv` sont traités comme `tv = 0`, donc personne n'est déconnecté au déploiement.
+
+**Phase B, OAuth.**
+Remplacer `?token=` par un fragment `#token=`. Le fragment n'est jamais envoyé au serveur et ne figure ni dans les logs ni dans le `Referer`. Le changement est minimal côté client (`OAuthCallbackPage.jsx` lit `location.hash`). Variante plus robuste : un code à usage unique, valable 60 s, échangé par `POST`.
+- Corrige le risque 3.
+
+**Phase C, jetons courts et refresh token (chantier dédié).**
+- Access token de 15 min, gardé en mémoire côté site.
+- Refresh token opaque, enregistré haché dans une nouvelle table `RefreshToken`, avec rotation à chaque usage et détection de réutilisation.
+- Site : refresh token en cookie `httpOnly; Secure; SameSite=Lax; Path=/api/auth`. Le site passe par le rewrite Vercel, donc il est sur la même origine : pas de CORS avec credentials.
+- Mobile : même endpoint `/auth/refresh`, avec le refresh token envoyé dans le corps et conservé dans SecureStore. Compatibilité mobile assurée.
+- Prérequis : un client HTTP central dans le site, qui remplace la vingtaine de `localStorage.getItem('token')` et gère le renouvellement sur une réponse 401 ; et les tests associés (tâche 5.2).
+- Corrige le risque 4. C'est le plus coûteux, car il touche le serveur, le site, le mobile et le schéma de base.
+
+**Recommandation** : engager A puis B, qui sont petites, testables et sans impact client ou presque. Planifier C comme un projet à part, après la mise en place de la CI (5.1) et des tests frontend (5.2).
+
+---
+
+## 14. États en mémoire : évaluation et proposition (tâche 4.2)
+
+> Statut : **reprise de la cascade livreurs implémentée** (points 1 à 4 du §14.2, testés dans `server/tests/courierRestart.test.js`). Imports en attente et idempotence produit : laissés en mémoire, comme recommandé. Contexte : une seule instance Node. L'offre gratuite Render met l'instance en veille après inactivité, puis la redémarre à la requête suivante : les redémarrages sont donc **fréquents**, et chaque redéploiement en est un aussi.
+
+### 14.1 Inventaire
+
+| État (fichier) | Contenu | Perdu au redémarrage → effet | Gravité |
+|---|---|---|---|
+| `cascadeState`, `activeTimers` (`utils/courierMatching.js`) | Liste ordonnée des livreurs candidats et minuteur d'expiration de l'offre en cours | Le minuteur disparaît : la `NotificationLivreur` reste `envoyee` sans jamais déclencher le candidat suivant. `GET /livreur/notifications/pending` la passe bien à `expiree` à la lecture, mais **sans faire avancer la cascade**. La livraison reste bloquée en `en_attente` jusqu'à une action manuelle (attribution admin). | **Haute** |
+| `store` (`utils/importStore.js`) | Imports produits en attente de confirmation (30 min) et chemins des images extraites | Le vendeur doit relancer l'import (message « import introuvable ») ; fichiers temporaires orphelins sur le disque, de toute façon effacé au redéploiement | Faible |
+| `store` (`utils/idempotency.js`) | Clés `Idempotency-Key` de création de produit (24 h) | Une nouvelle tentative juste après un redémarrage peut créer un doublon de produit | Faible |
+| `supprimes` (`utils/comptesSupprimes.js`) | Comptes supprimés | Rechargé depuis la base au démarrage (`chargerComptesSupprimes`) | Aucune |
+| `cache`, `enCours` (`utils/geocode.js`) | Cache de géocodage | Simple cache, reconstruit à la demande | Aucune |
+
+### 14.2 Proposition
+
+**Cascade livreurs : sans Redis et sans changement de schéma.** L'état utile est déjà en base : chaque offre est une `NotificationLivreur` (`livraisonId`, `livreurId`, `ordre`, `statut`, `dateExpiration`). La cascade devient reconstructible à partir de ces lignes :
+1. **Reprise au démarrage** : `reprendreCascades()` est appelée après `syncDatabase()`. Pour chaque `NotificationLivreur` encore `envoyee`, elle réarme le minuteur pour le temps restant, ou appelle tout de suite `handleNotificationTimeout` si l'offre a déjà expiré.
+2. **Reconstruction sans re-notifier** : quand `cascadeState` est perdu, `advanceCascade` recalcule les candidats en **excluant les livreurs ayant déjà une `NotificationLivreur` pour cette livraison** (refusée ou expirée). Aujourd'hui, elle repart de zéro et peut re-solliciter les mêmes livreurs.
+3. **Expiration paresseuse cohérente** : lorsque `/livreur/notifications/pending` ou l'acceptation constatent une offre expirée, appeler `handleNotificationTimeout` (qui fait avancer la cascade) au lieu d'un simple `update({ statut: 'expiree' })`.
+4. Tests : simulation d'un redémarrage (`arreterCascades()` puis `reprendreCascades()`) pour une offre expirée et une offre encore valide, et vérification qu'aucun livreur n'est sollicité deux fois.
+
+**Imports en attente : conserver en mémoire** et documenter la limite. Un import interrompu se relance en quelques secondes ; persister les fichiers demanderait un stockage partagé que la valeur ne justifie pas. Option : purger `uploads/temp` au démarrage.
+
+**Idempotence produit : conserver en mémoire pour l'instant.** Si les doublons deviennent un problème réel, ajouter une colonne `Produit.idempotencyKey`, unique par boutique, et rechercher le produit existant avant création. Ce serait un changement de schéma à engager avec la tâche 4.3 (migrations versionnées).
+
+**Plusieurs instances** : tous ces états supposent une instance unique, comme Socket.io sans adaptateur. Passer à plusieurs instances demanderait un store partagé (Redis ou base) et l'adaptateur Socket.io correspondant. Ce n'est pas nécessaire aujourd'hui.
+
+**Recommandation** : implémenter la reprise de la cascade livreurs (points 1 à 4), qui corrige un blocage réel, sans dépendance ni migration. Laisser les deux autres états en l'état.
+
+---
+
+## 15. Schéma de base : limites actuelles et migrations (tâche 4.3)
+
+> Statut : **migrations versionnées en place** (Umzug, `server/src/config/migrations.js`, fichiers dans `server/migrations/`, tracés dans `SequelizeMeta`). Elles s'exécutent dans `syncDatabase()` après `sync()` et le complément de colonnes, qui reste en place pour les colonnes simples. `0001-baseline` (sans effet) et `0002-contraintes-uniques` (§15.3, point 3 : doublons détectés avant tout ajout, tout ou rien, sans effet sur une base récente). Tests : `server/tests/migrations.test.js` sur SQLite, et sur PostgreSQL 16 via le job CI `server-postgres`. **Règle : toute nouvelle contrainte, index, renommage ou migration de données passe par un nouveau fichier `NNNN-description.js` exportant `up` et `down`.**
+>
+> ⚠️ Au premier démarrage avec la version contenant `0002`, si la base de production contient des doublons sur une des colonnes du §15.2, le serveur **refuse de démarrer** avec le message `Doublons à corriger…`, qui liste les valeurs en cause. Lancer d'abord la requête de vérification du §15.2 et corriger les doublons.
+
+### 15.1 Mécanisme actuel
+
+À chaque démarrage, `syncDatabase()` (`config/database.js`) :
+1. exécute `sequelize.sync()`, qui crée les tables manquantes (sans `alter`) ;
+2. pour chaque modèle, compare ses attributs aux colonnes réelles (`describeTable`) et ajoute chaque colonne manquante par `addColumn`, avec seulement `type`, `allowNull: true` et `defaultValue` ;
+3. en PostgreSQL, ajoute aux types ENUM les valeurs nouvellement déclarées (`ALTER TYPE … ADD VALUE IF NOT EXISTS`) ;
+4. lance les seeds (géographie, catégories, comptes de démo) et recharge les comptes supprimés.
+
+### 15.2 Limites
+
+| Limite | Conséquence concrète |
+|---|---|
+| **Une colonne ajoutée après coup perd `unique` et `NOT NULL`** (vérifié sur SQLite : colonne `unique` et `allowNull: false` ajoutée → `allowNull = true`, aucun index unique, doublons et `NULL` acceptés) | Sur une base créée avant l'ajout de ces colonnes, l'unicité n'est garantie que par le code : `Commande.numeroCommande`, `Commande.confirmationToken`, `Produit.reference`, `Categorie.slug`, `Transaction.idempotencyKey`, `Transaction.providerReference`. Pour `Transaction`, l'idempotence des paiements repose sur l'unicité de `providerReference` et `idempotencyKey`. |
+| Aucun index ajouté sur une table existante | Les `indexes` déclarés ensuite dans un modèle (ex. `Notification`, `HistoriqueCommande`, `AuditLog`, `Wishlist` unique) n'existent que sur les bases créées après leur déclaration. |
+| Pas de changement de type, de renommage ni de suppression | Un attribut renommé est ajouté comme nouvelle colonne vide ; l'ancienne reste avec ses données. Un type modifié reste l'ancien en base. |
+| Pas de migration de données | Impossible de remplir une nouvelle colonne à partir des données existantes (backfill) de façon ordonnée et tracée. |
+| Pas d'historique ni de retour arrière | On ne sait pas quelle version de schéma porte une base ; aucune annulation possible après un déploiement raté. |
+| ENUM PostgreSQL en ajout seulement | Une valeur retirée du modèle reste acceptée en base ; une valeur renommée est ajoutée à côté de l'ancienne. |
+| Exécuté à chaque démarrage | Un `describeTable` par modèle à chaque démarrage, y compris à chaque réveil de l'instance gratuite Render. Deux instances qui démarrent ensemble se concurrencent. |
+| Divergence SQLite / PostgreSQL | Le développement et les tests tournent en SQLite (ENUM sans contrainte, typage souple) ; un schéma valide en dev peut se comporter autrement en production PostgreSQL. |
+
+**Vérifier la base de production** (lecture seule, depuis `psql` sur l'URL externe Render) : les contraintes uniques attendues sont-elles présentes ?
+
+```sql
+SELECT tablename, indexname, indexdef
+FROM pg_indexes
+WHERE schemaname = 'public'
+  AND tablename IN ('Commandes', 'Produits', 'Categories', 'Transactions')
+ORDER BY tablename, indexname;
+```
+
+Une colonne de la liste ci-dessus sans index `UNIQUE` correspondant confirme la limite sur cette base. Avant d'ajouter la contrainte, chercher les doublons (`SELECT col, COUNT(*) FROM … GROUP BY col HAVING COUNT(*) > 1`).
+
+### 15.3 Proposition : migrations versionnées sans remplacement brutal
+
+1. **Outil** : Umzug, le moteur de migrations de l'écosystème Sequelize, avec une table `SequelizeMeta` qui trace les migrations appliquées. Les fichiers vont dans `server/migrations/NNNN-description.js` (`up`/`down`) et sont exécutés par `syncDatabase()` avant l'étape de complément de colonnes. C'est une nouvelle dépendance, donc à valider.
+2. **Baseline** : la première migration, `0001-baseline`, ne modifie rien ; elle marque le schéma actuel comme point de départ. Les bases existantes ne sont pas recréées.
+3. **`0002-contraintes-uniques`** : pour chaque colonne du §15.2, détecter les doublons, échouer avec un message clair s'il y en a, puis créer l'index unique s'il n'existe pas. Idem pour les index déclarés dans les modèles.
+4. **Coexistence** : garder le complément de colonnes actuel en filet de sécurité pendant la transition. Toute nouvelle modification de schéma passe par une migration ; le complément automatique sera désactivé ensuite en production.
+5. **Tests** : exécuter les migrations sur une base SQLite vierge et sur une base « ancienne » (simulée), puis sur PostgreSQL. **PostgreSQL n'est pas disponible sur le poste de développement actuel** (ni `psql` ni Docker) : prévoir un service PostgreSQL dans la CI (tâche 5.1), ce que GitHub Actions permet, avant tout déploiement de migration.
+
+**Recommandation** : (a) lancer dès maintenant la requête de vérification du §15.2 sur la base Render ; (b) mettre en place la CI avec un service PostgreSQL (5.1) ; (c) introduire ensuite Umzug avec `0001-baseline` puis `0002-contraintes-uniques`.
+
+---
+
+## 16. Publication mobile : état et checklist (tâche 5.3)
+
+### 16.1 Vérifié (tests `buyhere/mobile/src/publication.test.ts` et `navigation/linking.test.ts`)
+
+| Point | État |
+|---|---|
+| Identifiants | `tn.buyhere.app` sur iOS (`bundleIdentifier`) et Android (`package`), identique au package par défaut de `assetlinks.json` côté serveur |
+| Liens profonds | Schéma `buyhere://` ; domaines `buyhere.tn` et `www.buyhere.tn` en `autoVerify` (Android) et `associatedDomains` (iOS), cohérents avec `navigation/linking.ts` ; chaque chemin intercepté ouvre un écran connu |
+| API des builds | Profils EAS `preview` et `production` en HTTPS (`https://buyhere-xffq.onrender.com/api`), identiques à `.env.production` |
+| Signature Android | Plugin `withReleaseSigning` : clé lue dans `~/.gradle/gradle.properties` (`BUYHERE_UPLOAD_*`), jamais dans le dépôt. Sans clé, la build release est signée avec la clé de debug : Gradle l'annonce désormais par un avertissement explicite (APK de test, **non publiable**) |
+| Push | Jeton Expo demandé avec `projectId` EAS ; un échec (projet non lié, FCM absent, hors ligne) est journalisé `[PUSH]` au lieu d'être ignoré |
+
+### 16.2 Bloquants avant une publication (actions sur les comptes de l'utilisateur)
+
+1. **Lier le projet EAS** : `npx eas-cli init` dans `buyhere/mobile`. Cette commande ajoute `extra.eas.projectId` (et `owner`) à `app.json`. Sans cela, aucun jeton push n'est obtenu.
+2. **Push Android (FCM)** : créer un projet Firebase pour `tn.buyhere.app`, puis téléverser la clé de compte de service FCM V1 dans les credentials EAS (`eas credentials`). Ne jamais committer `google-services.json` s'il contient des clés non publiques.
+3. **Push iOS (APNs)** : compte Apple Developer ; la clé APNs se gère dans `eas credentials`.
+4. **Signature** : pour un AAB Play Store, utiliser les credentials EAS (keystore géré par EAS) ou la clé `BUYHERE_UPLOAD_*` pour les builds locales. Activer Play App Signing.
+5. **App Links** : renseigner sur Render `ANDROID_SHA256_CERT_FINGERPRINTS` avec l'empreinte SHA-256 du certificat **de signature de l'application Play** (Play Console → Intégrité de l'application), et non celle de la clé d'upload, puis `APPLE_APP_ID` = `<TeamID>.tn.buyhere.app`. Le domaine `buyhere.tn` doit pointer vers le serveur qui sert `/.well-known/*`. Tant que le domaine n'est pas branché, les liens `https://buyhere.tn/...` ne peuvent pas être vérifiés.
+6. **Build de production** : `npx eas-cli build --profile production --platform android` (puis `ios`), puis un test d'installation sur un appareil réel : connexion, commande, notification reçue, lien profond ouvert depuis WhatsApp.
+
+### 16.3 Propositions (non appliquées, à valider)
+
+- ~~Numéros de version~~ — appliqué : `eas.json` passe en `"appVersionSource": "remote"` avec `"autoIncrement": true` sur `production`. EAS conserve et incrémente `versionCode`/`buildNumber` ; à la première build distante, EAS propose d'initialiser la version depuis la configuration locale.
+- ~~HTTP en clair~~ — appliqué : `app.config.js` reprend `app.json` et ne garde `usesCleartextTraffic` qu'en dehors de la production (`EAS_BUILD_PROFILE=production` ou `APP_ENV=production`), ce qui a été vérifié avec `npx expo config`. Pour une build locale de production (`npm run build:apk`), définir `APP_ENV=production` avant de lancer la commande.
+- ~~Liens web sans page~~ — corrigé : sans l'app installée, `/commandes/:id` redirige vers `/commandes`, et `/promotion/:code` ou `/coupons/:code` vers `/coupons` (`client/src/App.routes.test.jsx`). Afficher directement la commande ou le coupon visé demanderait que ces pages lisent un paramètre.

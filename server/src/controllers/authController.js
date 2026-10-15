@@ -5,6 +5,7 @@ import {
   Utilisateur, PasswordResetToken, Gouvernorat, Delegation, Commande, Retour, Wishlist, Notification, PushToken, Panier,
 } from '../models/index.js';
 import { marquerCompteSupprime } from '../utils/comptesSupprimes.js';
+import { supprimerImagesSiOrphelines } from '../utils/upload.js';
 import { generateToken } from '../middleware/auth.js';
 import { sendEmail, emailResetPassword } from '../utils/email.js';
 
@@ -71,7 +72,7 @@ export async function forgotPassword(req, res) {
 
     await PasswordResetToken.create({ token, expiresAt, utilisateurId: user.id });
 
-    const resetUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/reset-password?token=${token}`;
+    const resetUrl = `${process.env.CLIENT_URL || 'http://localhost:5174'}/reset-password?token=${token}`;
     await emailResetPassword(user, resetUrl);
 
     return res.json({ success: true, message: 'Si cet email existe, un lien de réinitialisation a été envoyé.' });
@@ -93,7 +94,8 @@ export async function resetPassword(req, res) {
     }
 
     const hash = await bcrypt.hash(password, 10);
-    await resetToken.Utilisateur.update({ password: hash });
+    // Mot de passe oublié (ou volé) : toutes les sessions ouvertes sont révoquées.
+    await resetToken.Utilisateur.update({ password: hash, tokenVersion: (resetToken.Utilisateur.tokenVersion ?? 0) + 1 });
     await resetToken.update({ used: true });
 
     return res.json({ success: true, message: 'Mot de passe réinitialisé avec succès.' });
@@ -166,9 +168,24 @@ export async function changePassword(req, res) {
     if (!valid) return res.status(401).json({ success: false, message: 'Mot de passe actuel incorrect.' });
 
     const hash = await bcrypt.hash(newPassword, 10);
-    await user.update({ password: hash });
+    // Les autres appareils sont déconnectés ; cette session continue avec le
+    // nouveau jeton renvoyé (le site et l'app le remplacent aussitôt).
+    await user.update({ password: hash, tokenVersion: (user.tokenVersion ?? 0) + 1 });
 
-    return res.json({ success: true, message: 'Mot de passe modifié avec succès.' });
+    return res.json({ success: true, message: 'Mot de passe modifié avec succès.', token: generateToken(user) });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+// « Déconnecter tous les appareils » : révoque tous les jetons du compte, y
+// compris celui de la requête.
+export async function logoutAll(req, res) {
+  try {
+    const user = await Utilisateur.findByPk(req.user.id);
+    if (!user) return res.status(404).json({ success: false, message: 'Utilisateur introuvable.' });
+    await user.update({ tokenVersion: (user.tokenVersion ?? 0) + 1 });
+    return res.json({ success: true, message: 'Tous les appareils ont été déconnectés.' });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
@@ -221,6 +238,7 @@ export async function deleteMe(req, res) {
       });
     }
 
+    const anciennePhoto = user.photo;
     const transaction = await Utilisateur.sequelize.transaction();
     try {
       const where = { utilisateurId: user.id };
@@ -253,6 +271,8 @@ export async function deleteMe(req, res) {
     }
 
     marquerCompteSupprime(user.id);
+    // Photo de profil = donnée personnelle : effacée du stockage, pas seulement déréférencée.
+    await supprimerImagesSiOrphelines([anciennePhoto]);
     return res.json({ success: true, message: 'Votre compte a été supprimé.' });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });

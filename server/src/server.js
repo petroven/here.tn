@@ -27,6 +27,10 @@ import oauthRoutes from './routes/oauthRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import appLinkRoutes from './routes/appLinkRoutes.js';
 import passport from './config/passport.js';
+import { paymentConfigWarnings } from './services/payments/index.js';
+import { emailConfigWarning } from './utils/email.js';
+import { smsConfigWarning } from './utils/sms.js';
+import { reprendreCascades } from './utils/courierMatching.js';
 
 dotenv.config();
 
@@ -180,9 +184,23 @@ app.use((error, _req, res, _next) => {
 
 const startServer = async () => {
   try {
+    for (const warning of paymentConfigWarnings()) console.warn(`[PAYMENT] ${warning}`);
+    const emailWarning = emailConfigWarning();
+    if (emailWarning) console.warn(`[EMAIL] ${emailWarning}`);
+    const smsWarning = smsConfigWarning();
+    if (smsWarning) console.warn(`[SMS] ${smsWarning}`);
+
     console.log('[SERVER] Syncing database...');
     await syncDatabase();
     console.log('[SERVER] Database synced successfully.');
+
+    // Offres de course en cours avant le redémarrage : minuteurs réarmés.
+    try {
+      const reprises = await reprendreCascades();
+      if (reprises) console.log(`[MATCHING] ${reprises} offre(s) de course reprise(s) après redémarrage.`);
+    } catch (error) {
+      console.error('[MATCHING] Reprise des cascades impossible:', error.message);
+    }
 
     const httpServer = http.createServer(app);
     initIo(httpServer);

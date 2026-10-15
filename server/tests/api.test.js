@@ -219,7 +219,7 @@ test('inscription : mot de passe faible refusé (8 caractères, lettre et chiffr
 test('suivi public : aucune donnée personnelle (position, preuve, livreur)', async () => {
   const models = await import('../src/models/index.js');
   const livraison = await models.Livraison.findOne();
-  if (!livraison) return;
+  assert.ok(livraison, 'aucune livraison en base : le test ne vérifierait rien');
   await livraison.update({ latitudeArrivee: 36.8, longitudeArrivee: 10.18, preuveLivraison: '/uploads/preuve.jpg' });
   const { status, json } = await api(`/api/livraisons/track/${livraison.trackingId}`);
   assert.equal(status, 200);

@@ -8,7 +8,7 @@ import { uploadImage } from '../utils/upload.js';
 import { smsStatutLivraison } from '../utils/sms.js';
 import { calculateDistanceKm } from '../utils/geo.js';
 import { assignCourseToLivreur } from '../utils/courseAssignment.js';
-import { isEffectivelyExpired, refuseNotification, cancelPendingNotificationsForLivraison } from '../utils/courierMatching.js';
+import { isEffectivelyExpired, refuseNotification, cancelPendingNotificationsForLivraison, handleNotificationTimeout } from '../utils/courierMatching.js';
 import { crediterCashback } from '../utils/wallet.js';
 import { synchroniserStatutCommande } from '../utils/orderStatus.js';
 import { planifierGeocodage } from '../utils/geocode.js';
@@ -335,7 +335,8 @@ router.patch('/livreur/notifications/:id/accepter', authMiddleware, livreurOnly,
     if (!notification) return res.status(404).json({ success: false, message: 'Notification introuvable.' });
 
     if (isEffectivelyExpired(notification)) {
-      await notification.update({ statut: 'expiree' });
+      // Expirée sans minuteur (redémarrage) : on fait aussi avancer la cascade.
+      await handleNotificationTimeout(notification.id);
       return res.status(409).json({ success: false, message: 'Cette notification a expiré.' });
     }
     if (notification.statut !== 'envoyee') {
@@ -385,7 +386,7 @@ router.get('/livreur/notifications/pending', authMiddleware, livreurOnly, async 
     if (!notification) return res.json({ success: true, data: null });
 
     if (isEffectivelyExpired(notification)) {
-      await notification.update({ statut: 'expiree' });
+      await handleNotificationTimeout(notification.id);
       return res.json({ success: true, data: null });
     }
 

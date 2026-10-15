@@ -12,8 +12,10 @@ function pushActif() {
 // Le service Expo Push ne demande aucune clé : un jeton ExponentPushToken[…]
 // suffit. Les jetons signalés DeviceNotRegistered (app désinstallée,
 // permission retirée) sont supprimés pour ne plus être réessayés.
-async function envoyerPushExpo(tokens, { titre, message, lien, data }) {
-  if (!tokens.length || !pushActif()) return;
+// Renvoie le nombre de messages acceptés par Expo ; tout refus (HTTP ou
+// ticket en erreur) est journalisé, jamais compté comme un succès.
+export async function envoyerPushExpo(tokens, { titre, message, lien, data }) {
+  if (!tokens.length || !pushActif()) return 0;
   const messages = tokens.map((t) => ({
     to: t.token,
     title: titre,
@@ -28,13 +30,25 @@ async function envoyerPushExpo(tokens, { titre, message, lien, data }) {
       body: JSON.stringify(messages),
     });
     const json = await response.json().catch(() => null);
+    if (!response.ok) {
+      console.error(`[PUSH] Échec envoi Expo : HTTP ${response.status}`, json?.errors || '');
+      return 0;
+    }
     const tickets = Array.isArray(json?.data) ? json.data : [];
+    const erreurs = tickets.filter((ticket) => ticket?.status === 'error');
+    for (const ticket of erreurs) {
+      if (ticket?.details?.error !== 'DeviceNotRegistered') {
+        console.error('[PUSH] Message refusé par Expo :', ticket.details?.error || ticket.message);
+      }
+    }
     const invalides = tickets
       .map((ticket, index) => (ticket?.details?.error === 'DeviceNotRegistered' ? tokens[index]?.token : null))
       .filter(Boolean);
     if (invalides.length) await PushToken.destroy({ where: { token: invalides } });
+    return tickets.filter((ticket) => ticket?.status === 'ok').length;
   } catch (error) {
     console.error('[PUSH] Échec envoi Expo:', error.message);
+    return 0;
   }
 }
 

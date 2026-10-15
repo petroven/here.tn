@@ -7,7 +7,10 @@
 // once at module load — ESM import statements run before server.js's own
 // `dotenv.config()` call, so reading it at the top level here would always
 // see it as undefined and silently drop the real production domain.
-const devFallbackOrigins = ['http://localhost:5173', 'http://localhost:5174'];
+const devFallbackOrigins = [
+  'http://localhost:5173', 'http://localhost:5174',
+  'http://127.0.0.1:5173', 'http://127.0.0.1:5174',
+];
 
 function getAllowedOrigins() {
   const isProduction = process.env.NODE_ENV === 'production';

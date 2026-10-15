@@ -1,14 +1,13 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 /**
- * Animation d'ouverture « buyhere. » (≈ 3 s), une fois par session :
+ * Animation d'ouverture « buyhere. » (≈ 3 s), à chaque lancement du site :
  *  1. le point orange de la marque tombe au centre et pulse (le « ta-dum ») ;
  *  2. il éclate en rubans de lumière terracotta / sable / crème ;
  *  3. les rubans se resserrent et le logo se dévoile lettre par lettre ;
  *  4. plongée à travers le logo vers le site.
  * Cliquer ou Échap la passe ; ignorée si l'utilisateur préfère moins d'animations.
  */
-const SESSION_KEY = 'buyhere.introSeen';
 const DURATION_MS = 3300;
 
 // Rubans : teinte, position horizontale (%), largeur, délai — répartis en éventail.
@@ -30,7 +29,6 @@ function shouldPlay() {
   try {
     // ?intro dans l'adresse : rejoue l'animation à volonté (démo, test).
     if (new URLSearchParams(window.location.search).has('intro')) return true;
-    if (sessionStorage.getItem(SESSION_KEY)) return false;
     // Liens internes profonds (paiement, confirmation, OAuth) : pas d'intro.
     return !/^\/(payment|oauth|confirmer-commande|reset-password|admin|vendeur|livreur)/.test(window.location.pathname);
   } catch {
@@ -44,15 +42,14 @@ export default function IntroAnimation() {
   // — le logo apparaît en fondu, sans rubans ni zoom — plutôt que rien.
   const [calm] = useState(prefersReducedMotion);
   const [leaving, setLeaving] = useState(false);
+  const closing = useRef(false);
+  const leaveTimer = useRef(null);
 
   const close = useCallback(() => {
-    try {
-      sessionStorage.setItem(SESSION_KEY, '1');
-    } catch {
-      // stockage indisponible : l'intro rejouera au prochain chargement, sans gravité
-    }
+    if (closing.current) return;
+    closing.current = true;
     setLeaving(true);
-    window.setTimeout(() => setVisible(false), 450);
+    leaveTimer.current = window.setTimeout(() => setVisible(false), 450);
   }, []);
 
   useEffect(() => {
@@ -63,6 +60,7 @@ export default function IntroAnimation() {
     document.body.style.overflow = 'hidden';
     return () => {
       window.clearTimeout(timer);
+      if (leaveTimer.current) window.clearTimeout(leaveTimer.current);
       window.removeEventListener('keydown', onKey);
       document.body.style.overflow = '';
     };

@@ -1,8 +1,7 @@
 import { Server } from 'socket.io';
-import jwt from 'jsonwebtoken';
 import { Livreur } from '../models/index.js';
 import { corsOptions } from '../config/cors.js';
-import { JWT_SECRET } from '../middleware/auth.js';
+import { verifierJeton } from '../middleware/auth.js';
 
 let ioInstance = null;
 
@@ -11,14 +10,16 @@ export function initIo(httpServer) {
     cors: corsOptions,
   });
 
-  ioInstance.use((socket, next) => {
+  // Mêmes règles que l'API (jeton révoqué refusé, rôle relu en base).
+  ioInstance.use(async (socket, next) => {
     try {
       const token = socket.handshake.auth?.token;
-      if (!token) throw new Error('Token manquant.');
-      socket.user = jwt.verify(token, JWT_SECRET);
-      next();
+      const user = token ? await verifierJeton(token) : null;
+      if (!user) return next(new Error('unauthorized'));
+      socket.user = user;
+      return next();
     } catch (error) {
-      next(new Error('unauthorized'));
+      return next(new Error('unauthorized'));
     }
   });
 

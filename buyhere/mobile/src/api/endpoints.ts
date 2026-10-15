@@ -52,6 +52,7 @@ import type {
   User,
 } from './types';
 import { localAddresses, localCart, type StoredCart } from '@/store/local';
+import { useAuthStore } from '@/store/auth';
 import { mapBankTransfer } from './account';
 
 /**
@@ -163,8 +164,15 @@ export const meApi = {
     const r = await api.patch<WebEnvelope<WebUser>>('/users/me', body);
     return mapUser(r.data.data);
   },
-  changePassword: (currentPassword: string, newPassword: string) =>
-    api.patch('/users/me/password', { currentPassword, newPassword }),
+  /**
+   * Le serveur déconnecte les autres appareils et renvoie un nouveau jeton
+   * pour celui-ci : il remplace l'ancien, devenu invalide.
+   */
+  changePassword: async (currentPassword: string, newPassword: string) => {
+    const r = await api.patch<{ token?: string }>('/users/me/password', { currentPassword, newPassword });
+    const { user, setSession } = useAuthStore.getState();
+    if (r.data.token && user) await setSession({ user, accessToken: r.data.token });
+  },
   /**
    * Enregistre le jeton Expo Push de l'appareil sur le compte (null = le
    * retire, à la déconnexion) — le serveur envoie ensuite les push de suivi

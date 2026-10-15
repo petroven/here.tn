@@ -10,6 +10,7 @@ import { calculerFinancesBoutique, REVENUE_STATUTS } from '../utils/finance.js';
 import { changerStatutCommande, synchroniserStatutCommande } from '../utils/orderStatus.js';
 import { restaurerStockCommande, whereStockFaible } from '../utils/stock.js';
 import { journaliser } from '../utils/audit.js';
+import { supprimerImagesSiOrphelines } from '../utils/upload.js';
 import { notifierVendeur } from '../utils/notifications.js';
 import { STATUTS_COMMANDE } from '../utils/orderStatus.js';
 import { estCommandeEncaissee } from '../utils/finance.js';
@@ -639,6 +640,7 @@ router.patch('/admin/categories/:id', adminMiddleware, async (req, res) => {
     await journaliser(req, {
       action: 'categorie.image', entite: 'Categorie', entiteId: categorie.id, avant, apres: { image }, champs: ['image'],
     });
+    await supprimerImagesSiOrphelines([avant.image]);
     return res.json({ success: true, data: categorie });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });

@@ -1,6 +1,6 @@
 import multer from 'multer';
 import { Utilisateur } from '../models/index.js';
-import { uploadImage } from '../utils/upload.js';
+import { uploadImage, supprimerImagesSiOrphelines } from '../utils/upload.js';
 import express from 'express';
 import {
   register,
@@ -11,6 +11,7 @@ import {
   updateMe,
   changePassword,
   deleteMe,
+  logoutAll,
 } from '../controllers/authController.js';
 import {
   validate,
@@ -42,6 +43,7 @@ router.get('/users/me', authMiddleware, getMe);
 router.patch('/users/me', authMiddleware, validate(updateProfileSchema), updateMe);
 router.patch('/users/me/password', authMiddleware, validate(changePasswordSchema), changePassword);
 router.delete('/users/me', authMiddleware, deleteMe);
+router.post('/auth/logout-all', authMiddleware, logoutAll);
 
 // Photo de profil (tous les comptes) : une image, 5 Mo maximum.
 const photoUpload = multer({
@@ -62,8 +64,10 @@ router.put('/users/me/photo', authMiddleware, (req, res, next) => {
     if (!req.file) return res.status(400).json({ success: false, message: 'Aucune image JPEG, PNG ou WebP fournie.' });
     const user = await Utilisateur.findByPk(req.user.id);
     if (!user) return res.status(404).json({ success: false, message: 'Utilisateur introuvable.' });
+    const anciennePhoto = user.photo;
     const photo = await uploadImage(req.file, 'avatars');
     await user.update({ photo });
+    await supprimerImagesSiOrphelines([anciennePhoto]);
     return res.json({ success: true, data: { photo } });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });

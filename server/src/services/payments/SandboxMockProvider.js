@@ -5,6 +5,15 @@ import { verifyHmacSignature } from './hmac.js';
 const isSandbox = () => (process.env.PAYMENT_MODE || 'sandbox') === 'sandbox' && process.env.NODE_ENV !== 'production';
 const sandboxSecret = () => process.env.SANDBOX_WEBHOOK_SECRET || 'sandbox_webhook_secret';
 
+// En production, PAYMENT_MODE=sandbox est ignoré (isSandbox() reste false) :
+// on le signale au démarrage pour que la configuration soit corrigée plutôt
+// que de laisser croire que les paiements sont simulés.
+const paymentModeWarning = () => (
+  process.env.NODE_ENV === 'production' && process.env.PAYMENT_MODE === 'sandbox'
+    ? 'PAYMENT_MODE=sandbox est ignoré en production : simulateur et paiements de test désactivés. Définissez PAYMENT_MODE=production.'
+    : null
+);
+
 /**
  * Scénarios de bout en bout simulables sans aucune clé de prestataire
  * (POST /api/payments/sandbox/simulate) — mêmes chemins de code que les
@@ -38,7 +47,7 @@ export class SandboxMockProvider extends PaymentProvider {
     if (!isSandbox()) throw new Error('Le provider sandbox est désactivé en production.');
     const providerReference = `SANDBOX-${orderId}-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`;
     return {
-      paymentUrl: `${process.env.CLIENT_URL || 'http://localhost:5174'}/payment/return?orderId=${orderId}&ref=${providerReference}&sandbox=1`,
+      paymentUrl: `${process.env.CLIENT_URL || 'http://localhost:5174'}/payment/return?order=${orderId}&ref=${providerReference}&sandbox=1`,
       providerReference,
       raw: { amount, orderId, mock: true },
     };
@@ -98,4 +107,4 @@ export class SandboxMockProvider extends PaymentProvider {
   }
 }
 
-export { isSandbox };
+export { isSandbox, paymentModeWarning };

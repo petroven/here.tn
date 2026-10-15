@@ -60,8 +60,11 @@ async function registerForPush(N: NotificationsModule): Promise<string | null> {
   try {
     const { data } = await N.getExpoPushTokenAsync(projectId ? { projectId } : undefined);
     return data;
-  } catch {
-    return null; // hors ligne ou projet EAS non configuré : l'app fonctionne sans push
+  } catch (error) {
+    // Hors ligne, projet EAS non lié (extra.eas.projectId absent) ou FCM non
+    // configuré : l'app fonctionne sans push, mais la cause reste visible.
+    console.warn('[PUSH] Jeton Expo indisponible :', error instanceof Error ? error.message : error, projectId ? '' : '(projectId EAS absent)');
+    return null;
   }
 }
 

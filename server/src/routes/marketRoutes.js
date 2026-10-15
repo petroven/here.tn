@@ -39,6 +39,7 @@ import {
 } from '../controllers/avisController.js';
 import { Categorie } from '../models/index.js';
 import { marketplaceConfig } from '../config/marketplace.js';
+import { isSandbox } from '../services/payments/SandboxMockProvider.js';
 
 const router = express.Router();
 
@@ -56,7 +57,8 @@ router.get('/config/payment-methods', (_req, res) => {
       platformBank: virementDisponible ? platformBank : null,
       // Récapitulatif du panier (site et app) : TVA comprise et timbre par commande.
       // Mode test des paiements en ligne : le site l'indique au client (aucun débit réel).
-      paiementTest: (process.env.PAYMENT_MODE || (process.env.NODE_ENV === 'production' ? 'production' : 'sandbox')) === 'sandbox',
+      // Même règle que le simulateur : jamais de mode test avec NODE_ENV=production.
+      paiementTest: isSandbox(),
       tvaTaux: marketplaceConfig.fiscal.tvaRate,
       timbreFiscal: marketplaceConfig.fiscal.timbreFiscal,
     },
