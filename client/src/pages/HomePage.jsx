@@ -199,7 +199,7 @@ export default function HomePage({ navigate, language = 'fr', user, cartCount = 
                 <img src={HERO_FALLBACK} alt="" className="absolute inset-0 h-full w-full object-cover" style={{ filter: 'sepia(22%) saturate(140%)' }} />
               )}
               {boutiques.length > 0 && (
-                <div className="absolute bottom-10 start-0 flex -translate-x-1/3 items-center gap-3 rounded-xl bg-white px-4 py-3 text-ink shadow-2xl rtl:translate-x-1/3">
+                <div className="absolute bottom-10 start-4 flex items-center gap-3 rounded-xl bg-white px-4 py-3 text-ink shadow-2xl">
                   <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-terre-100 text-terre-700"><Store size={20} /></span>
                   <span>
                     <span className="block text-lg font-extrabold leading-none">{boutiques.length}</span>
