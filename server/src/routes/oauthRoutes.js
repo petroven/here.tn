@@ -1,5 +1,5 @@
 import express from 'express';
-import passport from '../config/passport.js';
+import passport, { oauthConfigure } from '../config/passport.js';
 import { generateToken } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -50,6 +50,14 @@ function startOAuth(strategy, scope) {
         return res.status(400).json({ success: false, message: 'URL de retour non autorisée.' });
       }
       options.state = encodeState(redirect);
+    }
+    // Clés absentes : message clair sur le site ou dans l'app, au lieu d'une
+    // page d'erreur de Google/Facebook (« client_id=missing_… »).
+    if (!oauthConfigure(strategy)) {
+      const nom = strategy === 'google' ? 'Google' : 'Facebook';
+      const message = `La connexion avec ${nom} n'est pas encore disponible. Utilisez votre email et votre mot de passe.`;
+      console.warn(`[OAUTH:${strategy}] clés absentes sur le serveur : connexion ${nom} indisponible.`);
+      return res.redirect(redirect !== undefined ? withParams(redirect, { error: message }) : urlRetourWeb({ error: message }));
     }
     return passport.authenticate(strategy, options)(req, res, next);
   };
