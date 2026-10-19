@@ -185,6 +185,13 @@ export default function HomePage({ navigate, language = 'fr', user, cartCount = 
                   ))}
                 </div>
               )}
+
+              {boutiques.length > 0 && (
+                <dl className="flex gap-6 border-t border-white/15 pt-4 text-white/70">
+                  <div><dt className="text-[11px] uppercase tracking-wide">{tr('Boutiques', 'متاجر')}</dt><dd className="text-xl font-extrabold text-white">{boutiques.length}</dd></div>
+                  <div><dt className="text-[11px] uppercase tracking-wide">{tr('Gouvernorats', 'ولايات')}</dt><dd className="text-xl font-extrabold text-white">24</dd></div>
+                </dl>
+              )}
             </div>
 
             {/* Grand écran : collage de produits réels */}
@@ -197,15 +204,6 @@ export default function HomePage({ navigate, language = 'fr', user, cartCount = 
                 </div>
               ) : (
                 <img src={HERO_FALLBACK} alt="" className="absolute inset-0 h-full w-full object-cover" style={{ filter: 'sepia(22%) saturate(140%)' }} />
-              )}
-              {boutiques.length > 0 && (
-                <div className="absolute bottom-10 start-4 flex items-center gap-3 rounded-xl bg-white px-4 py-3 text-ink shadow-2xl">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-terre-100 text-terre-700"><Store size={20} /></span>
-                  <span>
-                    <span className="block text-lg font-extrabold leading-none">{boutiques.length}</span>
-                    <span className="text-xs text-slate-500">{tr('boutiques actives', 'متجرًا نشطًا')}</span>
-                  </span>
-                </div>
               )}
             </div>
           </div>
