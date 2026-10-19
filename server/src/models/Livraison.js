@@ -27,6 +27,10 @@ const Livraison = sequelize.define('Livraison', {
   distanceKm: { type: DataTypes.FLOAT, allowNull: true },
   dateAssignation: { type: DataTypes.DATE, allowNull: true },
   preuveLivraison: { type: DataTypes.STRING, allowNull: true },
+  // Résultat du géocodage (utils/geocode.js) : précision obtenue pour le
+  // départ et l'arrivée ('adresse' | 'delegation' | 'gouvernorat' |
+  // 'introuvable'). null = pas encore tenté.
+  geocodage: { type: DataTypes.JSON, allowNull: true },
 });
 
 export default Livraison;

@@ -2,7 +2,17 @@ import { useMemo, useState } from 'react';
 import { I18nManager, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
-import { BadgeCheck, ChevronLeft, ChevronRight, MapPin, Package, Search, Star, Truck } from 'lucide-react-native';
+import {
+  BadgeCheck,
+  ChevronLeft,
+  ChevronRight,
+  MapPin,
+  MessageCircle,
+  Package,
+  Search,
+  Star,
+  Truck,
+} from 'lucide-react-native';
 import type { StoreDetail } from '@/api/types';
 import { ProductCard } from '@/components/ProductCard';
 import { StoreBanner, StoreLogo } from '@/components/StoreCard';
@@ -11,6 +21,8 @@ import { Stars } from '@/components/ui/Rating';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { EmptyState, ErrorState } from '@/components/ui/States';
 import { useFavoriteIds, useStore, withFavorites } from '@/hooks/queries';
+import { useStartChat } from '@/hooks/useStartChat';
+import { Button } from '@/components/ui/Button';
 import { useSettingsStore } from '@/store/settings';
 import { useTheme } from '@/theme/useTheme';
 import { formatDate } from '@/utils/format';
@@ -27,6 +39,7 @@ export function StoreScreen({ route, navigation }: RootScreenProps<'Store'>) {
   const { colors } = useTheme();
   const { width } = useWindowDimensions();
   const store = useStore(route.params.storeId);
+  const chat = useStartChat();
   const { data: favIds } = useFavoriteIds();
   const [tab, setTab] = useState<Tab>('products');
   const [search, setSearch] = useState('');
@@ -36,7 +49,10 @@ export function StoreScreen({ route, navigation }: RootScreenProps<'Store'>) {
 
   const products = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return withFavorites((s?.products ?? []).filter((p) => p.name.toLowerCase().includes(q)), favIds);
+    return withFavorites(
+      (s?.products ?? []).filter((p) => p.name.toLowerCase().includes(q)),
+      favIds,
+    );
   }, [s, search, favIds]);
 
   if (store.isError) {
@@ -49,7 +65,11 @@ export function StoreScreen({ route, navigation }: RootScreenProps<'Store'>) {
 
   return (
     <View className="flex-1 bg-surface-page dark:bg-surface-dark">
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerClassName="pb-10" keyboardShouldPersistTaps="handled">
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerClassName="pb-10"
+        keyboardShouldPersistTaps="handled"
+      >
         <View className="bg-ink">
           <StoreBanner store={{ bannerUrl: s?.bannerUrl ?? null }} height={190} />
           <SafeAreaView edges={['top']} className="absolute start-3 top-0">
@@ -78,7 +98,9 @@ export function StoreScreen({ route, navigation }: RootScreenProps<'Store'>) {
                 <View className="flex-1">
                   <Text className="text-xl font-extrabold text-ink dark:text-gray-100">{s.name}</Text>
                   <View className="mt-1.5 flex-row flex-wrap gap-1.5">
-                    <View className={`flex-row items-center gap-1 rounded-full px-2 py-0.5 ${s.verified ? 'bg-green-50 dark:bg-green-900/30' : 'bg-surface-muted dark:bg-surface-dark-muted'}`}>
+                    <View
+                      className={`flex-row items-center gap-1 rounded-full px-2 py-0.5 ${s.verified ? 'bg-green-50 dark:bg-green-900/30' : 'bg-surface-muted dark:bg-surface-dark-muted'}`}
+                    >
                       {s.verified ? <BadgeCheck size={13} color={colors.success} /> : null}
                       <Text className={`text-xs font-bold ${s.verified ? 'text-success' : 'text-ink-muted'}`}>
                         {s.verified ? t('stores.verified') : t('stores.active')}
@@ -95,12 +117,30 @@ export function StoreScreen({ route, navigation }: RootScreenProps<'Store'>) {
                   </View>
                 </View>
               </View>
-              <Text className="mt-3 text-sm text-ink-muted dark:text-gray-400">{s.description || t('stores.defaultDescription')}</Text>
+              <Text className="mt-3 text-sm text-ink-muted dark:text-gray-400">
+                {s.description || t('stores.defaultDescription')}
+              </Text>
               <View className="mt-3 flex-row flex-wrap gap-4">
-                <InfoChip icon={<Package size={14} color={colors.muted} />} label={t('stores.products', { count: s.productCount })} />
-                {s.governorate ? <InfoChip icon={<MapPin size={14} color={colors.muted} />} label={s.governorate} /> : null}
+                <InfoChip
+                  icon={<Package size={14} color={colors.muted} />}
+                  label={t('stores.products', { count: s.productCount })}
+                />
+                {s.governorate ? (
+                  <InfoChip icon={<MapPin size={14} color={colors.muted} />} label={s.governorate} />
+                ) : null}
                 <InfoChip icon={<Truck size={14} color={colors.muted} />} label={t('stores.nationalDelivery')} />
               </View>
+              {s.vendorId ? (
+                <Button
+                  title={t('messages.contactStore')}
+                  variant="secondary"
+                  size="sm"
+                  className="mt-4 self-start"
+                  loading={chat.opening}
+                  icon={<MessageCircle size={16} color={colors.primary} />}
+                  onPress={() => chat.start(s.vendorId, s.name)}
+                />
+              ) : null}
             </View>
 
             {/* Onglets */}
@@ -119,7 +159,9 @@ export function StoreScreen({ route, navigation }: RootScreenProps<'Store'>) {
                   accessibilityRole="tab"
                   accessibilityState={{ selected: tab === value }}
                 >
-                  <Text className={`text-sm font-bold ${tab === value ? 'text-primary' : 'text-ink-muted'}`}>{label}</Text>
+                  <Text className={`text-sm font-bold ${tab === value ? 'text-primary' : 'text-ink-muted'}`}>
+                    {label}
+                  </Text>
                 </Pressable>
               ))}
             </View>
@@ -133,7 +175,11 @@ export function StoreScreen({ route, navigation }: RootScreenProps<'Store'>) {
                   leftIcon={<Search size={16} color={colors.muted} />}
                 />
                 {products.length === 0 ? (
-                  <EmptyState icon={<Package size={36} color={colors.primary} />} title={t('stores.noProducts')} text="" />
+                  <EmptyState
+                    icon={<Package size={36} color={colors.primary} />}
+                    title={t('stores.noProducts')}
+                    text=""
+                  />
                 ) : (
                   <View className="mt-4 flex-row flex-wrap justify-between">
                     {products.map((p) => (
@@ -178,14 +224,20 @@ function AboutTab({ store }: { store: StoreDetail }) {
     <View className="gap-3 px-4 pt-4">
       <View className="rounded-2xl border border-[#E2D9CB] bg-white p-5 dark:border-gray-800 dark:bg-surface-dark-card">
         <Text className="text-lg font-extrabold text-ink dark:text-gray-100">{t('stores.aboutTitle')}</Text>
-        <Text className="mt-2 text-sm leading-6 text-ink-muted dark:text-gray-400">{store.description || t('stores.aboutDefault')}</Text>
+        <Text className="mt-2 text-sm leading-6 text-ink-muted dark:text-gray-400">
+          {store.description || t('stores.aboutDefault')}
+        </Text>
       </View>
       <AboutCard
         title={t('stores.averageRating')}
         value={store.rating.count ? `${store.rating.average} / 5` : '—'}
         hint={t('stores.verifiedReviews', { count: store.rating.count })}
       />
-      <AboutCard title={t('stores.address')} value={store.address || t('stores.notProvided')} hint={store.governorate ?? undefined} />
+      <AboutCard
+        title={t('stores.address')}
+        value={store.address || t('stores.notProvided')}
+        hint={store.governorate ?? undefined}
+      />
       <AboutCard
         title={t('stores.verification')}
         value={store.verified ? t('stores.identityVerified') : t('stores.identityNotVerified')}
@@ -211,7 +263,9 @@ function ReviewsTab({ store }: { store: StoreDetail }) {
             <Text className="text-3xl font-extrabold text-ink dark:text-gray-100">{rating.average}</Text>
             <View>
               <Stars value={Math.round(rating.average)} size={16} />
-              <Text className="mt-0.5 text-xs text-ink-muted">{t('stores.verifiedReviews', { count: rating.count })}</Text>
+              <Text className="mt-0.5 text-xs text-ink-muted">
+                {t('stores.verifiedReviews', { count: rating.count })}
+              </Text>
             </View>
           </View>
           {rating.reviews.map((r) => (

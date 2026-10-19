@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   FlatList,
   I18nManager,
@@ -18,6 +18,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Heart,
+  MessageCircle,
   RotateCcw,
   Share2,
   ShoppingBag,
@@ -26,6 +27,8 @@ import {
   Zap,
 } from 'lucide-react-native';
 import { errorMessage } from '@/api/client';
+import { useStartChat } from '@/hooks/useStartChat';
+import { WEB_URL } from '@/config';
 import type { ProductVariant } from '@/api/types';
 import { FlashCountdown } from '@/components/FlashCountdown';
 import { ProductRow } from '@/components/ProductGrid';
@@ -62,6 +65,7 @@ export function ProductDetailScreen({ route, navigation }: RootScreenProps<'Prod
   const reviews = useReviews(p?.id ?? '');
   const { data: favIds } = useFavoriteIds();
   const toggleFavorite = useToggleFavorite();
+  const chat = useStartChat();
   const addToCart = useAddToCart();
   const requireAuth = useRequireAuth();
 
@@ -72,9 +76,10 @@ export function ProductDetailScreen({ route, navigation }: RootScreenProps<'Prod
   const [expanded, setExpanded] = useState(false);
   const [variantError, setVariantError] = useState(false);
 
-  const onViewable = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
+  // FlatList exige un rappel stable (jamais recréé) pour onViewableItemsChanged.
+  const [onViewable] = useState(() => ({ viewableItems }: { viewableItems: ViewToken[] }) => {
     if (viewableItems[0]?.index != null) setImageIndex(viewableItems[0].index);
-  }).current;
+  });
 
   const hasVariants = (p?.variants.length ?? 0) > 0;
   const needsSize = (p?.options.sizes.length ?? 0) > 0;
@@ -124,7 +129,13 @@ export function ProductDetailScreen({ route, navigation }: RootScreenProps<'Prod
       );
     });
 
-  const onShare = () => p && Share.share({ message: `${p.name} — BuyHere` });
+  // Lien du site : ouvert dans l'app si elle est installée (liens d'application,
+  // voir navigation/linking.ts), sinon sur la fiche produit du site.
+  const onShare = () => {
+    if (!p) return;
+    const url = `${WEB_URL}/produits/${p.id}`;
+    Share.share({ message: `${p.name} — BuyHere\n${url}`, url });
+  };
 
   return (
     <View className="flex-1 bg-white dark:bg-surface-dark">
@@ -141,7 +152,12 @@ export function ProductDetailScreen({ route, navigation }: RootScreenProps<'Prod
               onViewableItemsChanged={onViewable}
               viewabilityConfig={{ itemVisiblePercentThreshold: 60 }}
               renderItem={({ item }) => (
-                <Image source={{ uri: item.url }} style={{ width, height: width * 1.05 }} contentFit="cover" transition={200} />
+                <Image
+                  source={{ uri: item.url }}
+                  style={{ width, height: width * 1.05 }}
+                  contentFit="cover"
+                  transition={200}
+                />
               )}
             />
           ) : (
@@ -166,12 +182,24 @@ export function ProductDetailScreen({ route, navigation }: RootScreenProps<'Prod
                 <Share2 size={19} color={colors.text} />
               </Pressable>
               <Pressable
-                onPress={() => p && requireAuth(() => toggleFavorite.mutate({ productId: p.id, favorite: !isFavorite }))}
+                onPress={() =>
+                  p &&
+                  requireAuth(() =>
+                    toggleFavorite.mutate({
+                      productId: p.id,
+                      favorite: !isFavorite,
+                    }),
+                  )
+                }
                 className="h-10 w-10 items-center justify-center rounded-full bg-white/90 dark:bg-black/60"
                 accessibilityLabel={t('tabs.favorites')}
                 accessibilityState={{ selected: isFavorite }}
               >
-                <Heart size={20} color={isFavorite ? colors.primary : colors.text} fill={isFavorite ? colors.primary : 'transparent'} />
+                <Heart
+                  size={20}
+                  color={isFavorite ? colors.primary : colors.text}
+                  fill={isFavorite ? colors.primary : 'transparent'}
+                />
               </Pressable>
             </View>
           </SafeAreaView>
@@ -179,7 +207,10 @@ export function ProductDetailScreen({ route, navigation }: RootScreenProps<'Prod
           {p && p.images.length > 1 ? (
             <View className="absolute bottom-4 w-full flex-row justify-center gap-1.5">
               {p.images.map((img, i) => (
-                <View key={img.id} className={`h-1.5 rounded-full ${i === imageIndex ? 'w-5 bg-primary' : 'w-1.5 bg-white/80'}`} />
+                <View
+                  key={img.id}
+                  className={`h-1.5 rounded-full ${i === imageIndex ? 'w-5 bg-primary' : 'w-1.5 bg-white/80'}`}
+                />
               ))}
             </View>
           ) : null}
@@ -210,12 +241,16 @@ export function ProductDetailScreen({ route, navigation }: RootScreenProps<'Prod
               </View>
             ) : null}
 
-            {p.brand ? <Text className="text-xs font-semibold uppercase tracking-wide text-primary">{p.brand}</Text> : null}
+            {p.brand ? (
+              <Text className="text-xs font-semibold uppercase tracking-wide text-primary">{p.brand}</Text>
+            ) : null}
             <Text className="mt-1 text-xl font-bold leading-7 text-ink dark:text-gray-100">{p.name}</Text>
 
             <View className="mt-2 flex-row items-center gap-3">
               <RatingBadge rating={p.rating} count={p.ratingCount} />
-              {p.soldCount > 0 ? <Text className="text-xs text-ink-muted">{t('product.sold', { count: p.soldCount })}</Text> : null}
+              {p.soldCount > 0 ? (
+                <Text className="text-xs text-ink-muted">{t('product.sold', { count: p.soldCount })}</Text>
+              ) : null}
             </View>
 
             <View className="mt-3 flex-row items-center gap-2">
@@ -230,7 +265,11 @@ export function ProductDetailScreen({ route, navigation }: RootScreenProps<'Prod
             {/* Stock */}
             <Text
               className={`mt-2 text-sm font-medium ${
-                !p.inStock || stock === 0 ? 'text-danger' : stock !== null && stock <= 5 ? 'text-warning' : 'text-success'
+                !p.inStock || stock === 0
+                  ? 'text-danger'
+                  : stock !== null && stock <= 5
+                    ? 'text-warning'
+                    : 'text-success'
               }`}
             >
               {!p.inStock || stock === 0
@@ -257,7 +296,15 @@ export function ProductDetailScreen({ route, navigation }: RootScreenProps<'Prod
                     };
                     // Les variantes du site n'ont qu'un nom de couleur (pas de code hex) : puce texte.
                     if (!c.hex) {
-                      return <Chip key={c.name} label={c.name} selected={active} disabled={!available && !active} onPress={select} />;
+                      return (
+                        <Chip
+                          key={c.name}
+                          label={c.name}
+                          selected={active}
+                          disabled={!available && !active}
+                          onPress={select}
+                        />
+                      );
                     }
                     return (
                       <Pressable
@@ -272,7 +319,10 @@ export function ProductDetailScreen({ route, navigation }: RootScreenProps<'Prod
                         } ${!available ? 'opacity-30' : ''}`}
                         accessibilityRole="radio"
                         accessibilityLabel={c.name}
-                        accessibilityState={{ selected: active, disabled: !available }}
+                        accessibilityState={{
+                          selected: active,
+                          disabled: !available,
+                        }}
                       >
                         <View
                           className="h-8 w-8 rounded-full border border-gray-200 dark:border-gray-600"
@@ -342,11 +392,25 @@ export function ProductDetailScreen({ route, navigation }: RootScreenProps<'Prod
                 <Text className="text-sm font-semibold text-primary">{t('stores.visit')}</Text>
               </Pressable>
             ) : null}
+            {p.store?.vendorId ? (
+              <Pressable
+                onPress={() => chat.start(p.store!.vendorId, p.store!.name, p.name)}
+                disabled={chat.opening}
+                className="mt-2 flex-row items-center justify-center gap-2 rounded-2xl border border-primary py-3 active:opacity-80"
+                accessibilityRole="button"
+              >
+                <MessageCircle size={17} color={colors.primary} />
+                <Text className="font-semibold text-primary">{t('messages.askQuestion')}</Text>
+              </Pressable>
+            ) : null}
 
             {/* Description */}
             <View className="mt-6">
               <Text className="mb-2 text-lg font-bold text-ink dark:text-gray-100">{t('product.description')}</Text>
-              <Text className="text-sm leading-6 text-ink-muted dark:text-gray-300" numberOfLines={expanded ? undefined : 4}>
+              <Text
+                className="text-sm leading-6 text-ink-muted dark:text-gray-300"
+                numberOfLines={expanded ? undefined : 4}
+              >
                 {p.description}
               </Text>
               {p.description.length > 180 ? (
@@ -363,7 +427,12 @@ export function ProductDetailScreen({ route, navigation }: RootScreenProps<'Prod
                   {t('product.reviews')} <Text className="text-sm font-normal text-ink-muted">({p.ratingCount})</Text>
                 </Text>
                 <Pressable
-                  onPress={() => navigation.navigate('Reviews', { productId: p.id, productName: p.name })}
+                  onPress={() =>
+                    navigation.navigate('Reviews', {
+                      productId: p.id,
+                      productName: p.name,
+                    })
+                  }
                   hitSlop={8}
                 >
                   <Text className="text-sm font-semibold text-primary">

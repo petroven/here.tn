@@ -3,8 +3,9 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from 'react-i18next';
 import {
+  Bell,
+  Bike,
   Heart,
-  MapPin,
   Package,
   PackageCheck,
   Search,
@@ -14,6 +15,7 @@ import {
   Store,
   Tag,
   Truck,
+  MessageCircle,
   Wallet,
   type LucideIcon,
 } from 'lucide-react-native';
@@ -26,15 +28,27 @@ import { StoreCard } from '@/components/StoreCard';
 import { Screen } from '@/components/ui/Screen';
 import { ProductRowSkeleton, Skeleton } from '@/components/ui/Skeleton';
 import { ErrorState } from '@/components/ui/States';
-import { useCart, useCategoriesWithPhotos, useFavoriteIds, useHome, useStores, withFavorites } from '@/hooks/queries';
+import {
+  useCart,
+  useCategoriesWithPhotos,
+  useFavoriteIds,
+  useHome,
+  useStores,
+  useUnreadCount,
+  withFavorites,
+} from '@/hooks/queries';
 import { useAuthStore } from '@/store/auth';
+import { useIsSeller } from '@/hooks/useSeller';
+import { useIsCourier } from '@/hooks/useCourier';
+import { useIsAdmin } from '@/hooks/useAdmin';
 import { useSettingsStore } from '@/store/settings';
 import { useTheme } from '@/theme/useTheme';
 import { formatPrice } from '@/utils/format';
 import type { TabScreenProps } from '@/navigation/types';
 
 /** Même photo que le bandeau d'accueil du site (client/src/App.jsx). */
-const HERO_IMAGE = 'https://images.unsplash.com/photo-1781455816406-c3dead3a643e?fm=jpg&q=80&w=1200&auto=format&fit=crop';
+const HERO_IMAGE =
+  'https://images.unsplash.com/photo-1781455816406-c3dead3a643e?fm=jpg&q=80&w=1200&auto=format&fit=crop';
 
 /**
  * Accueil — mêmes rubriques, dans le même ordre, que la page d'accueil du site :
@@ -53,11 +67,16 @@ export function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
   const { data: cart } = useCart();
   const data = home.data;
   const isClient = user?.role === 'client';
+  const isSeller = useIsSeller();
+  const isCourier = useIsCourier();
+  const isAdmin = useIsAdmin();
 
-  const seeAll = (title: string, filters: ProductFilters) => navigation.navigate('CategoryProducts', { title, filters });
+  const seeAll = (title: string, filters: ProductFilters) =>
+    navigation.navigate('CategoryProducts', { title, filters });
   const openCategory = (c: Category) => navigation.navigate('CategoryProducts', { slug: c.slug, title: c.name });
   const openStore = (s: StoreType) => navigation.navigate('Store', { storeId: s.id });
   const sellers = (stores.data ?? []).filter((s) => s.seller);
+  const unread = useUnreadCount().data ?? 0;
 
   const refresh = () => {
     home.refetch();
@@ -75,58 +94,150 @@ export function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
 
   return (
     <Screen muted>
-      {/* En-tête : logo + panier */}
+      {/* En-tête : logo + notifications + panier */}
       <View className="flex-row items-center justify-between px-4 pb-2 pt-2">
         <LogoWordmark height={26} color={isDark ? BRAND_CREAM : BRAND_DARK} />
-        <Pressable
-          onPress={() => navigation.navigate('Cart')}
-          className="h-11 w-11 items-center justify-center rounded-full bg-white dark:bg-surface-dark-muted"
-          accessibilityRole="button"
-          accessibilityLabel={t('cart.title')}
-        >
-          <ShoppingBag size={22} color={colors.text} />
-          {cart && cart.itemCount > 0 ? (
-            <View className="absolute end-2 top-2 h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1">
-              <Text className="text-2xs font-bold text-white">{cart.itemCount > 9 ? '9+' : cart.itemCount}</Text>
-            </View>
+        <View className="flex-row items-center gap-2">
+          {user ? (
+            <Pressable
+              onPress={() => navigation.navigate('Notifications')}
+              className="h-11 w-11 items-center justify-center rounded-full bg-white dark:bg-surface-dark-muted"
+              accessibilityRole="button"
+              accessibilityLabel={unread ? t('notifications.unreadLabel', { count: unread }) : t('notifications.title')}
+            >
+              <Bell size={22} color={colors.text} />
+              {unread ? (
+                <View className="absolute end-2 top-2 h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1">
+                  <Text className="text-2xs font-bold text-white">{unread > 9 ? '9+' : unread}</Text>
+                </View>
+              ) : null}
+            </Pressable>
           ) : null}
-        </Pressable>
+          <Pressable
+            onPress={() => navigation.navigate('Cart')}
+            className="h-11 w-11 items-center justify-center rounded-full bg-white dark:bg-surface-dark-muted"
+            accessibilityRole="button"
+            accessibilityLabel={t('cart.title')}
+          >
+            <ShoppingBag size={22} color={colors.text} />
+            {cart && cart.itemCount > 0 ? (
+              <View className="absolute end-2 top-2 h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1">
+                <Text className="text-2xs font-bold text-white">{cart.itemCount > 9 ? '9+' : cart.itemCount}</Text>
+              </View>
+            ) : null}
+          </Pressable>
+        </View>
       </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={home.isRefetching} onRefresh={refresh} tintColor={colors.primary} colors={[colors.primary]} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={home.isRefetching}
+            onRefresh={refresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
         contentContainerClassName="pb-10"
       >
         {user ? (
           /* Espace personnel — tableau de bord du site pour un client connecté */
           <View className="mx-4 mt-1 overflow-hidden rounded-3xl p-5" style={{ backgroundColor: BRAND_DARK }}>
-            <Text className="text-xs font-semibold uppercase tracking-wider text-primary-300">{t('home.yourSpace')}</Text>
-            <Text className="mt-1 text-2xl font-extrabold text-white">{t('home.hello', { name: user.firstName })} 👋</Text>
-            <SearchBar onPress={() => navigation.navigate('Search', { focus: true })} placeholder={t('home.searchToday')} />
+            <Text className="text-xs font-semibold uppercase tracking-wider text-primary-300">
+              {t('home.yourSpace')}
+            </Text>
+            <Text className="mt-1 text-2xl font-extrabold text-white">
+              {t('home.hello', { name: user.firstName })} 👋
+            </Text>
+            <SearchBar
+              onPress={() => navigation.navigate('Search', { focus: true })}
+              placeholder={t('home.searchToday')}
+            />
             {isClient ? (
               <>
-                <View className="mt-4 flex-row items-center gap-3 rounded-2xl bg-white/10 p-3.5">
+                <Pressable
+                  onPress={() => navigation.navigate('Wallet')}
+                  className="mt-4 flex-row items-center gap-3 rounded-2xl bg-white/10 p-3.5 active:opacity-80"
+                  accessibilityRole="button"
+                >
                   <View className="h-10 w-10 items-center justify-center rounded-xl bg-primary">
                     <Wallet size={18} color="#fff" />
                   </View>
                   <View className="flex-1">
                     <Text className="text-xs text-white/60">{t('home.wallet')}</Text>
-                    <Text className="text-lg font-extrabold text-white">{formatPrice(user.walletBalance ?? 0, lang)}</Text>
+                    <Text className="text-lg font-extrabold text-white">
+                      {formatPrice(user.walletBalance ?? 0, lang)}
+                    </Text>
                   </View>
-                </View>
+                </Pressable>
                 <View className="mt-3 flex-row gap-2">
-                  <DashAction icon={Package} label={t('profile.myOrders')} onPress={() => navigation.navigate('Orders')} />
-                  <DashAction icon={Heart} label={t('favorites.title')} onPress={() => navigation.navigate('Favorites')} />
-                  <DashAction icon={MapPin} label={t('profile.addresses')} onPress={() => navigation.navigate('Addresses')} />
+                  <DashAction
+                    icon={Package}
+                    label={t('profile.myOrders')}
+                    onPress={() => navigation.navigate('Orders')}
+                  />
+                  <DashAction
+                    icon={Heart}
+                    label={t('favorites.title')}
+                    onPress={() => navigation.navigate('Favorites')}
+                  />
+                  <DashAction
+                    icon={MessageCircle}
+                    label={t('messages.title')}
+                    onPress={() => navigation.navigate('Conversations')}
+                  />
                 </View>
               </>
+            ) : null}
+            {isSeller ? (
+              <Pressable
+                onPress={() => navigation.navigate('SellerHome')}
+                className="mt-4 flex-row items-center gap-3 rounded-2xl bg-primary p-3.5 active:opacity-90"
+                accessibilityRole="button"
+              >
+                <Store size={20} color="#fff" />
+                <View className="flex-1">
+                  <Text className="font-bold text-white">{t('seller.title')}</Text>
+                  <Text className="text-xs text-white/80">{t('seller.homeCta')}</Text>
+                </View>
+              </Pressable>
+            ) : null}
+            {isAdmin ? (
+              <Pressable
+                onPress={() => navigation.navigate('AdminHome')}
+                className="mt-4 flex-row items-center gap-3 rounded-2xl bg-ink p-3.5 active:opacity-90"
+                accessibilityRole="button"
+              >
+                <ShieldCheck size={20} color="#fff" />
+                <View className="flex-1">
+                  <Text className="font-bold text-white">{t('admin.title')}</Text>
+                  <Text className="text-xs text-white/80">{t('admin.homeCta')}</Text>
+                </View>
+              </Pressable>
+            ) : null}
+            {isCourier ? (
+              <Pressable
+                onPress={() => navigation.navigate('CourierHome')}
+                className="mt-4 flex-row items-center gap-3 rounded-2xl bg-primary p-3.5 active:opacity-90"
+                accessibilityRole="button"
+              >
+                <Bike size={20} color="#fff" />
+                <View className="flex-1">
+                  <Text className="font-bold text-white">{t('courier.title')}</Text>
+                  <Text className="text-xs text-white/80">{t('courier.homeCta')}</Text>
+                </View>
+              </Pressable>
             ) : null}
           </View>
         ) : (
           /* Bandeau visiteur — même message et mêmes boutons que le site */
           <View className="mx-4 mt-1 overflow-hidden rounded-3xl bg-primary">
-            <Image source={{ uri: HERO_IMAGE }} style={{ position: 'absolute', width: '100%', height: '100%' }} contentFit="cover" />
+            <Image
+              source={{ uri: HERO_IMAGE }}
+              style={{ position: 'absolute', width: '100%', height: '100%' }}
+              contentFit="cover"
+            />
             <LinearGradient
               colors={['rgba(196,83,44,0.97)', 'rgba(196,83,44,0.85)', 'rgba(110,46,25,0.55)']}
               start={{ x: 0, y: 0 }}
@@ -139,12 +250,21 @@ export function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
               </View>
               <Text className="mt-4 text-3xl font-extrabold leading-9 text-white">{t('home.heroTitle')}</Text>
               <Text className="mt-2 text-sm leading-5 text-white/85">{t('home.heroText')}</Text>
-              <SearchBar onPress={() => navigation.navigate('Search', { focus: true })} placeholder={t('home.searchPlaceholder')} />
+              <SearchBar
+                onPress={() => navigation.navigate('Search', { focus: true })}
+                placeholder={t('home.searchPlaceholder')}
+              />
               <View className="mt-4 flex-row gap-2.5">
-                <Pressable onPress={() => seeAll(t('home.catalogue'), { sort: 'newest' })} className="flex-1 items-center rounded-xl bg-white py-3 active:opacity-90">
+                <Pressable
+                  onPress={() => seeAll(t('home.catalogue'), { sort: 'newest' })}
+                  className="flex-1 items-center rounded-xl bg-white py-3 active:opacity-90"
+                >
                   <Text className="text-sm font-bold text-primary-700">{t('home.discover')}</Text>
                 </Pressable>
-                <Pressable onPress={() => navigation.navigate('BecomeVendor')} className="flex-1 items-center rounded-xl border border-white/50 py-3 active:bg-white/10">
+                <Pressable
+                  onPress={() => navigation.navigate('BecomeVendor')}
+                  className="flex-1 items-center rounded-xl border border-white/50 py-3 active:bg-white/10"
+                >
                   <Text className="text-sm font-bold text-white">{t('vendor.cta')}</Text>
                 </Pressable>
               </View>
@@ -164,10 +284,19 @@ export function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
           ) : (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="gap-3 px-4">
               {(categories.data ?? data?.categories ?? []).map((c) => (
-                <Pressable key={c.id} onPress={() => openCategory(c)} className="w-[78px] items-center active:opacity-80" accessibilityRole="button">
+                <Pressable
+                  key={c.id}
+                  onPress={() => openCategory(c)}
+                  className="w-[78px] items-center active:opacity-80"
+                  accessibilityRole="button"
+                >
                   <View className="h-[72px] w-[72px] items-center justify-center overflow-hidden rounded-full border-2 border-white bg-primary-100 dark:border-surface-dark-card dark:bg-primary-900/30">
                     {c.imageUrl ? (
-                      <Image source={{ uri: c.imageUrl }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+                      <Image
+                        source={{ uri: c.imageUrl }}
+                        style={{ width: '100%', height: '100%' }}
+                        contentFit="cover"
+                      />
                     ) : (
                       <CategoryIcon name={c.icon} />
                     )}
@@ -208,7 +337,10 @@ export function HomeScreen({ navigation }: TabScreenProps<'Home'>) {
             </View>
 
             <View className="mt-5">
-              <SectionHeader title={t('home.newArrivals')} onSeeAll={() => seeAll(t('home.newArrivals'), { sort: 'newest' })} />
+              <SectionHeader
+                title={t('home.newArrivals')}
+                onSeeAll={() => seeAll(t('home.newArrivals'), { sort: 'newest' })}
+              />
               <ProductRow products={withFavorites(data.newest, favIds)} />
             </View>
           </>
@@ -288,7 +420,11 @@ function SearchBar({ onPress, placeholder }: { onPress: () => void; placeholder:
 
 function DashAction({ icon: Icon, label, onPress }: { icon: LucideIcon; label: string; onPress: () => void }) {
   return (
-    <Pressable onPress={onPress} className="flex-1 items-center gap-1.5 rounded-2xl bg-white/10 py-3 active:bg-white/20" accessibilityRole="button">
+    <Pressable
+      onPress={onPress}
+      className="flex-1 items-center gap-1.5 rounded-2xl bg-white/10 py-3 active:bg-white/20"
+      accessibilityRole="button"
+    >
       <Icon size={20} color="#fff" />
       <Text className="text-center text-xs font-semibold text-white" numberOfLines={1}>
         {label}

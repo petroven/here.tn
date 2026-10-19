@@ -63,7 +63,7 @@ export default function LivreurNotificationOverlay({ notification, onAccepter, o
   return (
     <div className="fixed inset-0 bg-slate-900/80 flex items-center justify-center z-[70] p-4">
       <div className="bg-white rounded-lg w-full max-w-sm p-6 space-y-4 text-center relative">
-        <div className="mx-auto w-16 h-16 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center animate-pulse">
+        <div className="mx-auto w-16 h-16 rounded-full bg-terre-100 text-terre-700 flex items-center justify-center animate-pulse">
           <Bike size={30} />
         </div>
 
@@ -72,13 +72,13 @@ export default function LivreurNotificationOverlay({ notification, onAccepter, o
           <p className="text-xs text-slate-500 mt-1">Répondez avant expiration</p>
         </div>
 
-        <div className="text-4xl font-black text-amber-600 tabular-nums">
+        <div className="text-4xl font-black text-terre-700 tabular-nums">
           {secondsLeft !== null ? `${secondsLeft}s` : '--'}
         </div>
 
         <div className="rounded-2xl bg-slate-50 border border-slate-100 p-4 space-y-2 text-left text-xs text-slate-600">
           <div className="flex items-start gap-1.5">
-            <MapPin size={14} className="text-amber-600 shrink-0 mt-0.5" />
+            <MapPin size={14} className="text-terre-700 shrink-0 mt-0.5" />
             <span><strong className="text-slate-800">Retrait :</strong> {notification.adresseDepart || 'Non renseigné'}</span>
           </div>
           <div className="flex items-start gap-1.5">
@@ -102,7 +102,7 @@ export default function LivreurNotificationOverlay({ notification, onAccepter, o
           <button
             onClick={handleAccepter}
             disabled={loading}
-            className="flex-1 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white font-bold py-3 text-sm transition disabled:opacity-50"
+            className="flex-1 rounded-2xl bg-terre-700 hover:bg-terre-800 text-white font-bold py-3 text-sm transition disabled:opacity-50"
           >
             Accepter
           </button>

@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 /** Compte à rebours (offres flash) : renvoie heures / minutes / secondes restantes. */
 export function useCountdown(endsAt: string | null | undefined) {
   const target = endsAt ? new Date(endsAt).getTime() : 0;
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     if (!target) return;

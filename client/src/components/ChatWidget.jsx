@@ -329,7 +329,7 @@ export default function ChatWidget({ defaultVendeurId, defaultSujet, defaultMess
 
                 {/* Sender Form */}
                 <form onSubmit={handleSendMessage} className="p-3 border-t border-slate-100 flex gap-2">
-                  <input
+                  <input aria-label={tr('Écrivez votre message...', 'اكتبوا رسالتكم...')}
                     type="text"
                     placeholder={tr('Écrivez votre message...', 'اكتبوا رسالتكم...')}
                     value={newMessage}

@@ -64,7 +64,7 @@ export default function TrackingPage({ language = 'fr' }) {
         <form onSubmit={handleSearch} className="mb-8 flex gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-4 top-3.5 text-slate-400 rtl:left-auto rtl:right-4" size={20} />
-            <input
+            <input aria-label={tr('Ex: MPTN-LS7X8W-9Z2B', 'مثال: MPTN-LS7X8W-9Z2B')}
               type="text"
               placeholder={tr('Ex: MPTN-LS7X8W-9Z2B', 'مثال: MPTN-LS7X8W-9Z2B')}
               value={trackingId}

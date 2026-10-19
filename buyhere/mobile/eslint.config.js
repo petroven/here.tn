@@ -5,6 +5,12 @@ const expoConfig = require("eslint-config-expo/flat");
 module.exports = defineConfig([
   expoConfig,
   {
-    ignores: ["dist/*"],
-  }
+    ignores: ["dist/*", "android/*", "ios/*"],
+  },
+  {
+    // Alias « @/… » de tsconfig.json : sans ce résolveur, chaque import est signalé à tort.
+    settings: {
+      "import/resolver": { typescript: { project: "./tsconfig.json" } },
+    },
+  },
 ]);

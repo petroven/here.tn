@@ -11,6 +11,15 @@ const transporter = nodemailer.createTransport({
     : undefined,
 });
 
+// Sans SMTP_HOST, le transport vise smtp.ethereal.email (boîte de test) :
+// en production aucun email n'atteindrait les clients.
+export function emailConfigWarning() {
+  if (process.env.NODE_ENV !== 'production') return null;
+  if (!process.env.SMTP_HOST) return 'SMTP_HOST absent : aucun email (commande, facture, mot de passe) n\'atteindra les clients.';
+  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) return 'SMTP_USER/SMTP_PASS absents : le serveur SMTP refusera probablement les envois.';
+  return null;
+}
+
 export async function sendEmail({ to, subject, html, text, attachments }) {
   const mailOptions = {
     from: process.env.SMTP_FROM || 'here.tn <noreply@here.tn>',

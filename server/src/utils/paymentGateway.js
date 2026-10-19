@@ -36,8 +36,8 @@ export async function initKonnectPayment({ amount, orderId, email, phone }) {
         // NOTE: confirmer ces noms de champs (successUrl/failUrl/webhook)
         // contre la documentation Konnect réelle avant mise en production —
         // je n'ai pas d'accès live à leur API pour les vérifier.
-        successUrl: `${process.env.CLIENT_URL || 'http://localhost:5173'}/payment/return?order=${orderId}&status=success`,
-        failUrl: `${process.env.CLIENT_URL || 'http://localhost:5173'}/payment/return?order=${orderId}&status=fail`,
+        successUrl: `${process.env.CLIENT_URL || 'http://localhost:5174'}/payment/return?order=${orderId}&status=success`,
+        failUrl: `${process.env.CLIENT_URL || 'http://localhost:5174'}/payment/return?order=${orderId}&status=fail`,
         webhook: `${process.env.API_BASE_URL || 'http://localhost:5000'}/api/payments/webhook/konnect`,
       }),
     });
@@ -74,8 +74,8 @@ export async function initFlouciPayment({ amount, orderId, email }) {
         amount: Math.round(amount * 1000),
         accept_card: true,
         session_timeout_secs: 1800,
-        success_link: `${process.env.CLIENT_URL || 'http://localhost:5173'}/payment/return?order=${orderId}&status=success`,
-        fail_link: `${process.env.CLIENT_URL || 'http://localhost:5173'}/payment/return?order=${orderId}&status=fail`,
+        success_link: `${process.env.CLIENT_URL || 'http://localhost:5174'}/payment/return?order=${orderId}&status=success`,
+        fail_link: `${process.env.CLIENT_URL || 'http://localhost:5174'}/payment/return?order=${orderId}&status=fail`,
         developer_tracking_id: String(orderId),
       }),
     });
@@ -103,7 +103,7 @@ function mockPaymentResponse(provider, amount, orderId) {
   return {
     success: true,
     provider,
-    paymentUrl: `${process.env.CLIENT_URL || 'http://localhost:5173'}/payment/sandbox?ref=${ref}&amount=${amount}`,
+    paymentUrl: `${process.env.CLIENT_URL || 'http://localhost:5174'}/payment/sandbox?ref=${ref}&amount=${amount}`,
     paymentRef: ref,
     sandbox: true,
     mock: true,

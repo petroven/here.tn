@@ -3,8 +3,11 @@ import { Livraison, Livreur, Commande, Boutique, NotificationLivreur } from '../
 import { calculateDistanceKm } from './geo.js';
 import { marketplaceConfig } from '../config/marketplace.js';
 import { getIo } from '../realtime/io.js';
+import { pousser } from './notifications.js';
 
-// Cascade state lost on server restart (documented MVP limitation — see plan).
+// État en mémoire, perdu au redémarrage : reconstruit depuis les lignes
+// NotificationLivreur (reprendreCascades au démarrage, advanceCascade sinon)
+// — voir DOCUMENTATION.md §14.
 // Map<livraisonId, { candidates: [{livreurId, distanceKm}], index: number }>
 const cascadeState = new Map();
 // Map<notificationId, NodeJS.Timeout>
@@ -22,9 +25,10 @@ export function isEffectivelyExpired(notification) {
   return notification.statut === 'envoyee' && new Date(notification.dateExpiration) < new Date();
 }
 
-async function buildCandidateList(livraison) {
+async function buildCandidateList(livraison, exclus = new Set()) {
   const boutique = livraison.Commande?.boutique;
-  const disponibles = await Livreur.findAll({ where: { statut: 'disponible' } });
+  const disponibles = (await Livreur.findAll({ where: { statut: 'disponible' } }))
+    .filter((l) => !exclus.has(l.id));
 
   if (!boutique?.latitude || !boutique?.longitude) {
     // Degraded mode: no pickup coordinates known — every disponible courier is a candidate,
@@ -86,12 +90,29 @@ async function notifyNextCandidate(livraisonId, candidates, index) {
     console.error('[MATCHING] Socket.io non initialisé, notification créée sans push:', error.message);
   }
 
+  // Push Expo pour l'app mobile (sans socket, ou en arrière-plan) : le toucher
+  // ouvre l'espace livreur, qui relit l'offre via /livreur/notifications/pending.
+  const livreur = await Livreur.findByPk(candidate.livreurId, { attributes: ['id', 'utilisateurId'] });
+  const frais = Number(livraison?.fraisLivraison || 0).toFixed(3);
+  pousser(livreur?.utilisateurId, {
+    type: 'course_proposee',
+    titre: 'Nouvelle course',
+    message: `${frais} TND — ${livraison?.Commande?.adresseLivraison || 'adresse à consulter'}. Répondez vite !`,
+    lien: 'livreur',
+    data: { livraisonId, notificationId: notification.id },
+  });
+
+  armerMinuteur(notification.id, notificationTimeoutSeconds * 1000);
+}
+
+function armerMinuteur(notificationId, delaiMs) {
+  clearTimerFor(notificationId);
   const timer = setTimeout(() => {
-    handleNotificationTimeout(notification.id).catch((err) =>
+    handleNotificationTimeout(notificationId).catch((err) =>
       console.error('[MATCHING] Erreur lors du cascade/timeout:', err),
     );
-  }, notificationTimeoutSeconds * 1000);
-  activeTimers.set(notification.id, timer);
+  }, Math.max(0, delaiMs));
+  activeTimers.set(notificationId, timer);
 }
 
 async function advanceCascade(livraisonId, index) {
@@ -101,10 +122,11 @@ async function advanceCascade(livraisonId, index) {
     return;
   }
 
-  // In-memory cascade state was lost (e.g. server restart) — re-derive candidates from scratch.
+  // État perdu (redémarrage) : candidats recalculés, sans re-solliciter les
+  // livreurs qui ont déjà reçu (et refusé ou laissé expirer) cette course.
   const livraison = await Livraison.findByPk(livraisonId);
   if (!livraison || livraison.statutAssignation !== 'en_attente' || livraison.livreurId) return;
-  await matchAndNotifyCourierForLivraison(livraisonId);
+  await matchAndNotifyCourierForLivraison(livraisonId, { exclureDejaSollicites: true });
 }
 
 export async function handleNotificationTimeout(notificationId) {
@@ -145,7 +167,7 @@ export async function cancelPendingNotificationsForLivraison(livraisonId, except
   cascadeState.delete(livraisonId);
 }
 
-export async function matchAndNotifyCourierForLivraison(livraisonId) {
+export async function matchAndNotifyCourierForLivraison(livraisonId, { exclureDejaSollicites = false } = {}) {
   const livraison = await Livraison.findByPk(livraisonId, {
     include: [{ model: Commande, include: [{ model: Boutique, as: 'boutique' }] }],
   });
@@ -155,11 +177,40 @@ export async function matchAndNotifyCourierForLivraison(livraisonId) {
     return { notified: false, reason: 'deja_assignee' };
   }
 
-  const candidates = await buildCandidateList(livraison);
+  const exclus = exclureDejaSollicites
+    ? new Set((await NotificationLivreur.findAll({ where: { livraisonId }, attributes: ['livreurId'] })).map((n) => n.livreurId))
+    : new Set();
+  const candidates = await buildCandidateList(livraison, exclus);
   if (candidates.length === 0) {
     return { notified: false, reason: 'aucun_livreur_disponible' };
   }
 
   await notifyNextCandidate(livraisonId, candidates, 0);
   return { notified: true, reason: 'notification_envoyee' };
+}
+
+/**
+ * Reprise au démarrage : les minuteurs des offres en cours ont disparu avec
+ * l'ancien processus. Chaque offre encore « envoyee » est réarmée pour son
+ * temps restant, ou traitée tout de suite si elle a expiré entre-temps (la
+ * cascade passe alors au livreur suivant). Renvoie le nombre d'offres reprises.
+ */
+export async function reprendreCascades() {
+  const enCours = await NotificationLivreur.findAll({ where: { statut: 'envoyee' } });
+  let reprises = 0;
+  for (const notification of enCours) {
+    if (activeTimers.has(notification.id)) continue;
+    const restantMs = new Date(notification.dateExpiration).getTime() - Date.now();
+    if (restantMs <= 0) await handleNotificationTimeout(notification.id);
+    else armerMinuteur(notification.id, restantMs);
+    reprises += 1;
+  }
+  return reprises;
+}
+
+/** Annule toutes les cascades en cours (arrêt propre du serveur, tests). */
+export function arreterCascades() {
+  for (const timer of activeTimers.values()) clearTimeout(timer);
+  activeTimers.clear();
+  cascadeState.clear();
 }

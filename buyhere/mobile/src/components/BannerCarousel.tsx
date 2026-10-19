@@ -25,9 +25,10 @@ export function BannerCarousel({ banners, onPress }: Props) {
     return () => clearTimeout(id);
   }, [index, banners.length]);
 
-  const onViewable = useRef(({ viewableItems }: { viewableItems: ViewToken<Banner>[] }) => {
+  // FlatList exige un rappel stable (jamais recréé) pour onViewableItemsChanged.
+  const [onViewable] = useState(() => ({ viewableItems }: { viewableItems: ViewToken<Banner>[] }) => {
     if (viewableItems[0]?.index != null) setIndex(viewableItems[0].index);
-  }).current;
+  });
 
   if (banners.length === 0) return null;
 

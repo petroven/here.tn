@@ -10,6 +10,7 @@ import {
   FileArchive,
 } from 'lucide-react';
 import { API_URL } from '../../config/api.js';
+import { useDialog } from '../../hooks/useDialog.js';
 
 const STATUS_ICON = {
   ok: <CheckCircle2 size={16} className="text-emerald-500 flex-shrink-0" />,
@@ -23,6 +24,8 @@ const STATUS_ICON = {
 export default function ProductImportModal({ vendorId, token, language = 'fr', onClose, onImported }) {
   const isAr = language === 'ar';
   const tr = (fr, ar) => (isAr ? ar : fr);
+  // closeAndCleanup est déclarée plus bas : appelée seulement à la fermeture.
+  const dialog = useDialog(true, () => closeAndCleanup(), 'import-dialog-title');
 
   const [step, setStep] = useState('upload'); // 'upload' | 'preview' | 'result'
   const [uploading, setUploading] = useState(false);
@@ -125,14 +128,14 @@ export default function ProductImportModal({ vendorId, token, language = 'fr', o
 
   return (
     <div dir={isAr ? 'rtl' : 'ltr'} className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/70 p-4 font-sans">
-      <div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-lg bg-white shadow-soft">
+      <div {...dialog} className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-lg bg-white shadow-soft">
         <div className="flex items-center justify-between border-b border-slate-100 p-5">
           <div>
-            <h2 className="text-lg font-black text-slate-900">{tr('Importer des produits en masse', 'استيراد المنتجات بالجملة')}</h2>
+            <h2 id="import-dialog-title" className="text-lg font-black text-slate-900">{tr('Importer des produits en masse', 'استيراد المنتجات بالجملة')}</h2>
             <p className="text-xs font-semibold text-slate-400">{tr('Créez des dizaines de produits en quelques minutes', 'أنشئوا عشرات المنتجات في دقائق')}</p>
           </div>
-          <button onClick={closeAndCleanup} className="text-slate-400 hover:text-slate-600">
-            <X size={20} />
+          <button onClick={closeAndCleanup} aria-label={tr('Fermer', 'إغلاق')} className="text-slate-400 hover:text-slate-600">
+            <X size={20} aria-hidden="true" />
           </button>
         </div>
 

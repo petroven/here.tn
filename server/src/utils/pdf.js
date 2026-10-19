@@ -1,9 +1,10 @@
+import { marketplaceConfig } from '../config/marketplace.js';
 import PDFDocument from 'pdfkit';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const LOGO_PATH = path.join(__dirname, '../../../client/public/logo-icon.png');
+const LOGO_PATH = path.join(__dirname, '../../../client/public/brand/icon-512.png');
 
 const BRAND = '#6366F1';
 const BRAND_DARK = '#4338CA';
@@ -120,6 +121,9 @@ export function generateInvoicePDF(commande, client, boutique, lignes, lang = 'f
     if (commande.walletUtilise > 0) {
       summary.push([t('Solde utilisé', 'الرصيد المستخدم'), `-${money(commande.walletUtilise)}`]);
     }
+    if (commande.timbreFiscal > 0) {
+      summary.push([t('Timbre fiscal', 'الطابع الجبائي'), money(commande.timbreFiscal)]);
+    }
 
     const boxWidth = 230;
     const boxX = tableX + tableWidth - boxWidth;
@@ -133,8 +137,17 @@ export function generateInvoicePDF(commande, client, boutique, lignes, lang = 'f
     y += 4;
     doc.rect(boxX, y, boxWidth, 30).fill(BRAND);
     doc.font('Helvetica-Bold').fontSize(12).fillColor('#FFFFFF');
-    doc.text(t('TOTAL', 'المجموع'), boxX + 14, y + 9);
+    doc.text(t('TOTAL TTC', 'المجموع'), boxX + 14, y + 9);
     doc.text(money(commande.total), boxX, y + 9, { width: boxWidth - 14, align: 'right' });
+
+    // TVA comprise (prix TTC) — commandes antérieures à son enregistrement : non affichée.
+    if (commande.montantTva != null) {
+      y += 38;
+      const taux = Math.round(marketplaceConfig.fiscal.tvaRate * 100);
+      doc.font('Helvetica').fontSize(9).fillColor(MUTED)
+        .text(t(`Dont TVA (${taux} %)`, `منها الأداء على القيمة المضافة (${taux}٪)`), boxX, y, { width: 130 });
+      doc.fillColor(TEXT).text(money(commande.montantTva), boxX, y, { width: boxWidth, align: 'right' });
+    }
 
     // --- Footer ---
     doc.font('Helvetica').fontSize(8).fillColor(MUTED).text(

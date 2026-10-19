@@ -11,12 +11,12 @@ export default function BoutiqueCard({ store, onOpen, language = 'fr' }) {
     <article className="group overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft transition hover:-translate-y-1 hover:border-terre-200">
       <div className="relative h-36 bg-slate-900">
         {store.bannière ? (
-          <img src={store.bannière} alt="" className="h-full w-full object-cover opacity-80" />
+          <img loading="lazy" decoding="async" src={store.bannière} alt="" className="h-full w-full object-cover opacity-80" />
         ) : (
           <div className="h-full w-full bg-gradient-to-br from-slate-800 to-terre-900" />
         )}
         <div className="absolute -bottom-8 left-5 flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border-4 border-white bg-white text-xl font-black text-[#C4532C] shadow">
-          {store.logo ? <img src={store.logo} alt={store.nom} className="h-full w-full object-cover" /> : store.nom?.slice(0, 1).toUpperCase()}
+          {store.logo ? <img loading="lazy" decoding="async" src={store.logo} alt={store.nom} className="h-full w-full object-cover" /> : store.nom?.slice(0, 1).toUpperCase()}
         </div>
       </div>
       <div className="space-y-4 p-5 pt-12">

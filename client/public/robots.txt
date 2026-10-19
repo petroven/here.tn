@@ -1,0 +1,16 @@
+User-agent: *
+Allow: /
+# Pages de recrutement publiques.
+Allow: /vendeur/inscription
+Allow: /livreur/inscription
+# Espaces privés : rien à indexer.
+Disallow: /admin
+Disallow: /vendeur
+Disallow: /livreur
+Disallow: /compte
+Disallow: /checkout
+Disallow: /commandes
+Disallow: /messages
+Disallow: /favoris
+Disallow: /confirmer-commande/
+Disallow: /api/

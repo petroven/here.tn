@@ -8,6 +8,17 @@ import crypto from 'crypto';
  * vary per real provider — adjust when wiring real Flouci/Konnect
  * credentials; this is the single place that needs to change.
  */
+/**
+ * Secret de webhook d'un prestataire. La valeur de repli est publique (dans
+ * ce dépôt) : elle n'est utilisable qu'en développement. En production, un
+ * secret absent donne null et verifyHmacSignature refuse alors tout webhook,
+ * sinon n'importe qui pourrait signer un faux « paiement validé ».
+ */
+export function webhookSecret(envName, devFallback) {
+  if (process.env[envName]) return process.env[envName];
+  return process.env.NODE_ENV === 'production' ? null : devFallback;
+}
+
 export function verifyHmacSignature({ rawBody, signatureHeader, secret }) {
   if (!rawBody || !signatureHeader || !secret) return false;
   const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');

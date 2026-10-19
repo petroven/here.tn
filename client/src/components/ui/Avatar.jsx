@@ -6,7 +6,7 @@ export default function Avatar({ nom, prenom, photo, className = 'h-9 w-9' }) {
   const initials = `${prenom?.[0] || ''}${nom?.[0] || ''}`.toUpperCase() || '?';
 
   if (photo) {
-    return <img src={photo} alt="" className={`${className} shrink-0 rounded-full object-cover`} />;
+    return <img loading="lazy" decoding="async" src={photo} alt="" className={`${className} shrink-0 rounded-full object-cover`} />;
   }
 
   return (

@@ -36,7 +36,7 @@ export class PaymentProvider {
    * Turn a verified webhook body into a normalized shape the route
    * handler can act on uniformly across providers.
    * @param {object} _body
-   * @returns {{ providerReference: string, statut: 'validee'|'echec', montant?: number }}
+   * @returns {{ providerReference: string, statut: 'validee'|'echec'|'annulee', montant?: number }}
    */
   parseWebhookPayload(_body) {
     throw new Error('PaymentProvider.parseWebhookPayload must be implemented.');

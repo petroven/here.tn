@@ -7,6 +7,7 @@ import { useTranslation } from '../i18n';
 import { API_URL } from '../config/api.js';
 import PolicyConsentModal from '../components/PolicyConsentModal';
 import Logo from '../components/ui/Logo.jsx';
+import { passwordError } from '../utils/password.js';
 
 export function VendorRegistration({ onClose, onSuccess, onOpenTerms }) {
   const [language, setLanguage] = useState('fr');
@@ -57,7 +58,8 @@ export function VendorRegistration({ onClose, onSuccess, onOpenTerms }) {
       return false;
     }
     if (accountData.password !== accountData.confirmPassword) { setError(t('passwordsDontMatch')); return false; }
-    if (accountData.password.length < 6) { setError('Le mot de passe doit contenir au moins 6 caractères.'); return false; }
+    const pwdError = passwordError(accountData.password);
+    if (pwdError) { setError(pwdError); return false; }
     return true;
   };
 
@@ -320,13 +322,13 @@ export function VendorRegistration({ onClose, onSuccess, onOpenTerms }) {
               <div className="space-y-4">
                 <h2 className="mb-1 text-lg font-bold text-slate-800">Créer votre compte vendeur</h2>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <input type="text" name="prenom" placeholder={t('firstName')} value={accountData.prenom} onChange={handleAccountChange} className={inputClass} required />
-                  <input type="text" name="nom" placeholder={t('lastName')} value={accountData.nom} onChange={handleAccountChange} className={inputClass} required />
+                  <input aria-label={t('firstName')} type="text" name="prenom" placeholder={t('firstName')} value={accountData.prenom} onChange={handleAccountChange} className={inputClass} required />
+                  <input aria-label={t('lastName')} type="text" name="nom" placeholder={t('lastName')} value={accountData.nom} onChange={handleAccountChange} className={inputClass} required />
                 </div>
-                <input type="email" name="email" placeholder={t('email')} value={accountData.email} onChange={handleAccountChange} className={inputClass} required />
+                <input aria-label={t('email')} type="email" name="email" placeholder={t('email')} value={accountData.email} onChange={handleAccountChange} className={inputClass} required />
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <input type="password" name="password" placeholder={t('password')} value={accountData.password} onChange={handleAccountChange} className={inputClass} required />
-                  <input type="password" name="confirmPassword" placeholder={t('repeatPassword')} value={accountData.confirmPassword} onChange={handleAccountChange} className={inputClass} required />
+                  <input aria-label={t('password')} type="password" name="password" placeholder={t('password')} value={accountData.password} onChange={handleAccountChange} className={inputClass} required />
+                  <input aria-label={t('repeatPassword')} type="password" name="confirmPassword" placeholder={t('repeatPassword')} value={accountData.confirmPassword} onChange={handleAccountChange} className={inputClass} required />
                 </div>
               </div>
             )}
@@ -334,9 +336,9 @@ export function VendorRegistration({ onClose, onSuccess, onOpenTerms }) {
             {step === 2 && (
               <div className="space-y-4">
                 <h2 className="mb-1 text-lg font-bold text-slate-800">Informations de votre boutique</h2>
-                <input type="text" name="nom" placeholder={t('storeName')} value={storeData.nom} onChange={handleStoreChange} className={inputClass} required />
-                <textarea name="description" placeholder={t('storeDescription')} value={storeData.description} onChange={handleStoreChange} className={inputClass} rows="3" />
-                <input type="text" name="logo" placeholder="URL du logo" value={storeData.logo} onChange={handleStoreChange} className={inputClass} />
+                <input aria-label={t('storeName')} type="text" name="nom" placeholder={t('storeName')} value={storeData.nom} onChange={handleStoreChange} className={inputClass} required />
+                <textarea aria-label={t('storeDescription')} name="description" placeholder={t('storeDescription')} value={storeData.description} onChange={handleStoreChange} className={inputClass} rows="3" />
+                <input aria-label="URL du logo" type="text" name="logo" placeholder="URL du logo" value={storeData.logo} onChange={handleStoreChange} className={inputClass} />
 
                 <div>
                   <label className="mb-2 block text-sm font-bold text-slate-700">Comment souhaitez-vous recevoir vos paiements ?</label>
@@ -361,23 +363,23 @@ export function VendorRegistration({ onClose, onSuccess, onOpenTerms }) {
                 </div>
 
                 {storeData.modePaiement === 'iban' ? (
-                  <input type="text" name="iban" placeholder={t('ibanNumber')} value={storeData.iban} onChange={handleStoreChange} className={inputClass} required />
+                  <input aria-label={t('ibanNumber')} type="text" name="iban" placeholder={t('ibanNumber')} value={storeData.iban} onChange={handleStoreChange} className={inputClass} required />
                 ) : (
-                  <input type="text" name="flouciNumero" placeholder="Numéro de téléphone Flouci" value={storeData.flouciNumero} onChange={handleStoreChange} className={inputClass} required />
+                  <input aria-label="Numéro de téléphone Flouci" type="text" name="flouciNumero" placeholder="Numéro de téléphone Flouci" value={storeData.flouciNumero} onChange={handleStoreChange} className={inputClass} required />
                 )}
 
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <select name="gouvernoratId" value={storeData.gouvernoratId} onChange={handleStoreChange} className={inputClass} required>
+                  <select aria-label="Gouvernorat" name="gouvernoratId" value={storeData.gouvernoratId} onChange={handleStoreChange} className={inputClass} required>
                     <option value="">Sélectionner Gouvernorat</option>
                     {gouvernorats.map((gov) => <option key={gov.id} value={gov.id}>{gov.nom}</option>)}
                   </select>
-                  <select name="delegationId" value={storeData.delegationId} onChange={handleStoreChange} className={`${inputClass} disabled:opacity-50`} disabled={!storeData.gouvernoratId || loadingGeo} required>
+                  <select aria-label="Délégation" name="delegationId" value={storeData.delegationId} onChange={handleStoreChange} className={`${inputClass} disabled:opacity-50`} disabled={!storeData.gouvernoratId || loadingGeo} required>
                     <option value="">{loadingGeo ? 'Chargement...' : 'Sélectionner Délégation'}</option>
                     {delegations.map((del) => <option key={del.id} value={del.id}>{del.nom}</option>)}
                   </select>
                 </div>
 
-                <input type="text" name="adresse" placeholder="Adresse de la boutique (Rue, Local...)" value={storeData.adresse} onChange={handleStoreChange} className={inputClass} required />
+                <input aria-label="Adresse de la boutique (Rue, Local...)" type="text" name="adresse" placeholder="Adresse de la boutique (Rue, Local...)" value={storeData.adresse} onChange={handleStoreChange} className={inputClass} required />
 
                 <div className="rounded-2xl border border-[#DDD6FE] bg-[#F8E4DE] p-4">
                   <p className="text-sm text-[#5B21B6]">

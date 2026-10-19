@@ -1,19 +1,28 @@
-import { Commande, Retrait, Livraison, LigneCommande, Produit, Categorie, Retour } from '../models/index.js';
+import { Commande, Retrait, Livraison, LigneCommande, Produit, Categorie, Retour, Paiement } from '../models/index.js';
 import { resolveDelaiRetourCommande, dateLimiteRetour } from './returnPolicy.js';
 
 function roundMoney(value) {
   return Math.round((Number(value) + Number.EPSILON) * 1000) / 1000;
 }
 
-// Un Commande.statut ne redevient jamais 'payee' une fois la commande
-// expédiée/livrée (Commande.statut='livree' reste tel quel — nécessaire pour
-// que les retours RMA restent ouvrables, voir retourRoutes.js). Toute requête
-// financière qui filtrait strictement sur statut === 'payee' perdait donc le
-// chiffre d'affaires des commandes payées en ligne dès qu'elles étaient
-// livrées (l'encaissement COD est lui aussi tracé sur le Paiement, la
-// commande restant 'livree'). Ces trois statuts sont les seuls où l'argent du
-// vendeur est réellement acquis.
-export const REVENUE_STATUTS = ['payee', 'expediee', 'livree'];
+// Statuts « après paiement » d'une commande (voir utils/orderStatus.js).
+// Être dans l'un d'eux ne suffit pas à dire que l'argent est acquis : une
+// commande COD passe en préparation/expédition AVANT d'être encaissée (à la
+// livraison). L'encaissement se lit donc sur le Paiement — voir
+// estCommandeEncaissee. 'retour'/'litige' restent comptés : la vente n'est
+// annulée qu'au remboursement ('retournee'), et le séquestre bloque déjà le
+// retrait tant qu'un retour est ouvert.
+export const REVENUE_STATUTS = ['payee', 'preparation', 'expediee', 'en_cours_livraison', 'livree', 'retour', 'litige'];
+const PAIEMENT_ENCAISSE = ['valide', 'paye_livraison'];
+
+export function estCommandeEncaissee(commande) {
+  if (!REVENUE_STATUTS.includes(commande.statut)) return false;
+  // Commandes antérieures sans Paiement chargé : on retombe sur le statut,
+  // comme avant (livrée = encaissée, y compris en COD).
+  if (!commande.paiement) return true;
+  return PAIEMENT_ENCAISSE.includes(commande.paiement.statut)
+    || ['livree', 'retour', 'litige'].includes(commande.statut);
+}
 
 // Une commande est "séquestrée" tant que sa fenêtre de retour n'est pas
 // terminée, ou qu'un retour est encore ouvert/en médiation dessus — son
@@ -49,11 +58,15 @@ export async function calculerFinancesBoutique(boutiqueId) {
       { model: Livraison, as: 'livraison', attributes: ['dateLivraison'] },
       { model: LigneCommande, as: 'lignes', include: [{ model: Produit, as: 'produit', include: [{ model: Categorie, as: 'categorie', attributes: ['delaiRetourJours'] }], attributes: ['id', 'delaiRetourJoursOverride'] }] },
       { model: Retour, as: 'retours', attributes: ['statut'] },
+      { model: Paiement, as: 'paiement', attributes: ['statut', 'methode'] },
     ],
   });
-  const commandesRevenu = commandes.filter((c) => REVENUE_STATUTS.includes(c.statut));
+  const commandesRevenu = commandes.filter(estCommandeEncaissee);
 
-  const totalVentesBrutes = roundMoney(commandesRevenu.reduce((sum, c) => sum + Number(c.total || 0), 0));
+  // Le timbre fiscal est collecté pour l'État : il ne fait pas partie des ventes de la boutique.
+  const totalVentesBrutes = roundMoney(
+    commandesRevenu.reduce((sum, c) => sum + Number(c.total || 0) - Number(c.timbreFiscal || 0), 0),
+  );
   const totalVentesNettes = roundMoney(commandesRevenu.reduce((sum, c) => sum + Number(c.montantVendeur || 0), 0));
   const totalCommissions = roundMoney(commandesRevenu.reduce((sum, c) => sum + Number(c.montantCommission || 0), 0));
   const nombreCommandes = commandes.filter((c) => c.statut !== 'annulee').length;

@@ -3,12 +3,23 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
+  // Tests (npm test → vitest run) : DOM simulé par jsdom.
+  test: {
+    environment: 'jsdom',
+    include: ['src/**/*.test.{js,jsx}'],
+    restoreMocks: true,
+  },
   server: {
     port: 5174,
     strictPort: true,
     host: '0.0.0.0',
     proxy: {
       '/api': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+      },
+      // Photos envoyées par les vendeurs (servies par le serveur en /uploads/...).
+      '/uploads': {
         target: 'http://localhost:5000',
         changeOrigin: true,
       },

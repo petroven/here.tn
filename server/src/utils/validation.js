@@ -1,10 +1,16 @@
 import Joi from 'joi';
 
+// Même règle partout (site, app, serveur) : 8 caractères, au moins une lettre et un chiffre.
+const motDePasse = () => Joi.string().min(8).max(128).pattern(/[A-Za-z]/).pattern(/\d/).messages({
+  'string.min': 'Le mot de passe doit contenir au moins 8 caractères.',
+  'string.pattern.base': 'Le mot de passe doit contenir au moins une lettre et un chiffre.',
+});
+
 export const registerSchema = Joi.object({
   nom: Joi.string().min(2).max(100).required(),
   prenom: Joi.string().min(2).max(100).required(),
   email: Joi.string().email().required(),
-  password: Joi.string().min(6).max(128).required(),
+  password: motDePasse().required(),
   role: Joi.string().valid('client', 'vendeur').default('client'),
   telephone: Joi.string().pattern(/^(\+216)?[2-9][0-9]{7}$/).optional(),
   // Bloqué côté serveur, pas seulement côté UI : sans acceptation explicite
@@ -18,6 +24,15 @@ export const registerSchema = Joi.object({
 export const loginSchema = Joi.object({
   email: Joi.string().email().required(),
   password: Joi.string().required(),
+});
+
+export const livreurRegisterSchema = Joi.object({
+  nom: Joi.string().trim().min(2).max(100).required(),
+  prenom: Joi.string().trim().min(2).max(100).required(),
+  email: Joi.string().trim().lowercase().email().required(),
+  password: motDePasse().required(),
+  telephone: Joi.string().pattern(/^(\+216)?[2-9][0-9]{7}$/).required(),
+  vehiculeType: Joi.string().valid('moto', 'voiture', 'velo', 'camionnette').default('moto'),
 });
 
 export const commandeSchema = Joi.object({
@@ -70,7 +85,7 @@ export const resetPasswordSchema = Joi.object({
 
 export const newPasswordSchema = Joi.object({
   token: Joi.string().required(),
-  password: Joi.string().min(6).max(128).required(),
+  password: motDePasse().required(),
 });
 
 // Espace client (/compte) — mise à jour du profil : email et rôle exclus
@@ -86,7 +101,7 @@ export const updateProfileSchema = Joi.object({
 
 export const changePasswordSchema = Joi.object({
   currentPassword: Joi.string().required(),
-  newPassword: Joi.string().min(6).max(128).required(),
+  newPassword: motDePasse().required(),
 });
 
 export function validate(schema) {

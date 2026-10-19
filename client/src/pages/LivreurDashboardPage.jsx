@@ -8,6 +8,7 @@ import LivreurStatsPanel from '../components/livreur/LivreurStatsPanel';
 import LivreurNotificationOverlay from '../components/livreur/LivreurNotificationOverlay';
 import { API_URL, SERVER_ORIGIN } from '../config/api.js';
 import Logo from '../components/ui/Logo.jsx';
+import ToastHost, { toast } from '../components/ui/Toast.jsx';
 
 const STATUT_OPTIONS = [
   { value: 'disponible', label: 'Disponible', icon: Wifi },
@@ -143,8 +144,10 @@ export default function LivreurDashboardPage({ onLogout }) {
       });
       const data = await response.json();
       if (data.success) setProfil(data.data);
+      else toast.error(data.message || 'Changement de disponibilité impossible.');
     } catch (err) {
       console.error('Erreur changement statut:', err);
+      toast.error('Connexion impossible. Réessayez.');
     } finally {
       setStatutUpdating(false);
     }
@@ -158,11 +161,12 @@ export default function LivreurDashboardPage({ onLogout }) {
       });
       const data = await response.json();
       if (!response.ok || !data.success) {
-        alert(data.message || 'Cette course vient d\'être prise par un autre livreur.');
+        toast.error(data.message || 'Cette course vient d\'être prise par un autre livreur.');
       }
       fetchCourses();
     } catch (err) {
       console.error('Erreur acceptation course:', err);
+      toast.error('Connexion impossible. Réessayez.');
     }
   };
 
@@ -180,10 +184,11 @@ export default function LivreurDashboardPage({ onLogout }) {
       });
       const data = await response.json();
       if (!response.ok || !data.success) {
-        alert(data.message || 'Cette course vient d\'être prise par un autre livreur.');
+        toast.error(data.message || 'Cette course vient d\'être prise par un autre livreur.');
       }
     } catch (err) {
       console.error('Erreur acceptation notification:', err);
+      toast.error('Connexion impossible. Réessayez.');
     } finally {
       setPendingNotification(null);
       fetchCourses();
@@ -212,10 +217,11 @@ export default function LivreurDashboardPage({ onLogout }) {
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans pb-20">
+      <ToastHost />
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
         <div className="px-4 py-3.5 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center overflow-hidden p-1">
+            <div className="w-9 h-9 rounded-xl bg-terre-50 border border-terre-200 flex items-center justify-center overflow-hidden p-1">
               <Logo variant="symbole" className="h-full w-full" />
             </div>
             <h1 className="text-sm font-black text-slate-900">Espace Livreur</h1>
@@ -231,7 +237,7 @@ export default function LivreurDashboardPage({ onLogout }) {
                 onClick={() => handleStatutChange(opt.value)}
                 disabled={statutUpdating}
                 className={`flex items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-bold transition disabled:opacity-50 ${
-                  active ? 'bg-amber-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  active ? 'bg-terre-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
                 <Icon size={13} /> {opt.label}
@@ -300,7 +306,7 @@ export default function LivreurDashboardPage({ onLogout }) {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex flex-col items-center gap-0.5 py-1.5 rounded-xl transition ${active ? 'text-amber-600' : 'hover:text-amber-600'}`}
+                className={`flex flex-col items-center gap-0.5 py-1.5 rounded-xl transition ${active ? 'text-terre-700' : 'hover:text-terre-700'}`}
               >
                 <Icon size={18} />
                 <span>{tab.label}</span>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { KeyRound, Mail, ShieldAlert, CheckCircle } from 'lucide-react';
 import { API_URL } from '../config/api.js';
+import { passwordError, PASSWORD_HINT } from '../utils/password.js';
 
 export default function ResetPasswordPage() {
   const [token, setToken] = useState('');
@@ -54,6 +55,11 @@ export default function ResetPasswordPage() {
       setStatus({ type: 'error', message: 'Les mots de passe ne correspondent pas.' });
       return;
     }
+    const pwdError = passwordError(password);
+    if (pwdError) {
+      setStatus({ type: 'error', message: pwdError });
+      return;
+    }
 
     setLoading(true);
     setStatus({ type: '', message: '' });
@@ -96,7 +102,7 @@ export default function ResetPasswordPage() {
           <form onSubmit={handleReset} className="space-y-4">
             <h1 className="text-2xl font-black text-slate-900 text-center">Nouveau mot de passe</h1>
             <p className="text-slate-500 text-sm text-center mb-6">
-              Choisissez un mot de passe sécurisé à 6 caractères minimum.
+              Choisissez un mot de passe sécurisé : {PASSWORD_HINT.fr}
             </p>
 
             {status.message && (
@@ -118,7 +124,7 @@ export default function ResetPasswordPage() {
 
             <div className="space-y-1">
               <label className="text-xs font-semibold text-slate-500">Mot de passe</label>
-              <input
+              <input aria-label="••••••"
                 type="password"
                 placeholder="••••••"
                 value={password}
@@ -130,7 +136,7 @@ export default function ResetPasswordPage() {
 
             <div className="space-y-1">
               <label className="text-xs font-semibold text-slate-500">Confirmer le mot de passe</label>
-              <input
+              <input aria-label="••••••"
                 type="password"
                 placeholder="••••••"
                 value={confirmPassword}
@@ -175,7 +181,7 @@ export default function ResetPasswordPage() {
 
             <div className="relative">
               <Mail className="absolute left-4 top-3.5 text-slate-400" size={18} />
-              <input
+              <input aria-label="Votre adresse email"
                 type="email"
                 placeholder="Votre adresse email"
                 value={email}

@@ -61,7 +61,7 @@ export default function LivreurCourseDetail({ course, onClose, onChanged }) {
 
         <div className="rounded-2xl border border-slate-200 p-4 space-y-3">
           <div className="flex items-start gap-2">
-            <Package size={16} className="text-amber-600 mt-0.5" />
+            <Package size={16} className="text-terre-700 mt-0.5" />
             <div>
               <p className="text-xs font-bold text-slate-400 uppercase">Retrait</p>
               <p className="text-sm font-semibold text-slate-800">{boutique.nom || 'Boutique'}</p>
@@ -99,7 +99,7 @@ export default function LivreurCourseDetail({ course, onClose, onChanged }) {
           {client.id && (
             <button
               onClick={() => setShowChat(true)}
-              className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-amber-50 text-amber-700 text-xs font-bold py-2.5 hover:bg-amber-100 transition"
+              className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-terre-50 text-terre-800 text-xs font-bold py-2.5 hover:bg-terre-100 transition"
             >
               <MessageSquare size={14} /> Discuter avec le client
             </button>
@@ -110,7 +110,7 @@ export default function LivreurCourseDetail({ course, onClose, onChanged }) {
           <button
             onClick={() => patchStatut('en_cours')}
             disabled={loading}
-            className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-3.5 rounded-2xl text-sm transition disabled:opacity-50"
+            className="w-full bg-terre-700 hover:bg-terre-800 text-white font-bold py-3.5 rounded-2xl text-sm transition disabled:opacity-50"
           >
             {loading ? 'Mise à jour...' : 'Colis récupéré'}
           </button>

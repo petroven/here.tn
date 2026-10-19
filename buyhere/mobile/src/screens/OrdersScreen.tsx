@@ -13,7 +13,9 @@ import { flattenPages, useOrders } from '@/hooks/queries';
 import { useTheme } from '@/theme/useTheme';
 import type { RootScreenProps } from '@/navigation/types';
 
-const FILTERS: (OrderStatus | undefined)[] = [undefined, 'PENDING', 'CONFIRMED', 'SHIPPED', 'DELIVERED', 'CANCELLED'];
+// Un filtre couvre aussi les statuts voisins (voir ordersApi.list) :
+// Confirmée ⊃ En préparation, Expédiée ⊃ En livraison, Retour ⊃ Remboursée.
+const FILTERS: (OrderStatus | undefined)[] = [undefined, 'PENDING', 'CONFIRMED', 'SHIPPED', 'DELIVERED', 'RETURN_REQUESTED', 'CANCELLED'];
 
 /** Historique des commandes, filtrable par statut, avec scroll infini. */
 export function OrdersScreen({ navigation }: RootScreenProps<'Orders'>) {

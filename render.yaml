@@ -12,15 +12,18 @@ services:
         value: "20"
       - key: NODE_ENV
         value: production
+      # Paiements réels uniquement : le simulateur est de toute façon refusé
+      # avec NODE_ENV=production (voir SandboxMockProvider.isSandbox).
       - key: PAYMENT_MODE
-        value: sandbox
+        value: production
       - key: JWT_SECRET
         generateValue: true
       - key: DATABASE_URL
         fromDatabase:
           name: here-tn-db
           property: connectionString
-      # Set these to your Render URL (e.g. https://here-tn.onrender.com) or https://here.tn
+      # Set these to the official Render URL https://buyhere-xffq.onrender.com
+      # (or https://buyhere.tn once the custom domain is attached)
       - key: CLIENT_URL
         sync: false
       - key: FRONTEND_URL
@@ -34,10 +37,26 @@ services:
         generateValue: true
       - key: DEMO_SUPER_ADMIN_PASSWORD
         sync: false
+      # Secrets de signature des webhooks (tableau de bord Konnect/Flouci).
+      # Absents en production = tous les webhooks du prestataire refusés (401).
+      - key: KONNECT_WEBHOOK_SECRET
+        sync: false
+      - key: FLOUCI_WEBHOOK_SECRET
+        sync: false
       - key: COMMISSION_RATE
         value: "0.15"
       - key: MIN_WITHDRAWAL_AMOUNT
         value: "50"
+      # Emails transactionnels (commande, facture, mot de passe). Sans SMTP_HOST,
+      # un avertissement [EMAIL] est journalisé au démarrage et rien n'est envoyé.
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      # mock = aucun SMS réel (chaque envoi journalisé « Non envoyé », jamais
+      # compté comme réussi). twilio ou winsms + leurs identifiants pour envoyer.
       - key: SMS_PROVIDER
         value: mock
 

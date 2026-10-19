@@ -39,12 +39,12 @@ export default function LivreurLoginPage({ onBack, onLoginSuccess, onRegister })
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 font-sans">
       <div className="bg-white rounded-lg border border-slate-200 shadow-soft max-w-md w-full p-8">
-        <button onClick={onBack} className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-amber-600 mb-6">
+        <button onClick={onBack} className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-terre-700 mb-6">
           <ArrowLeft size={14} /> Retour à l'accueil
         </button>
 
         <div className="flex justify-center mb-6">
-          <div className="w-14 h-14 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center">
+          <div className="w-14 h-14 bg-terre-50 text-terre-700 rounded-2xl flex items-center justify-center">
             <Bike size={26} />
           </div>
         </div>
@@ -62,24 +62,24 @@ export default function LivreurLoginPage({ onBack, onLoginSuccess, onRegister })
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="relative">
             <Mail className="absolute left-4 top-3.5 text-slate-400" size={18} />
-            <input
+            <input aria-label="Adresse email"
               type="email"
               placeholder="Adresse email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-slate-50/50"
+              className="w-full pl-12 pr-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-terre-500 focus:border-transparent bg-slate-50/50"
               required
             />
           </div>
 
           <div className="relative">
             <Lock className="absolute left-4 top-3.5 text-slate-400" size={18} />
-            <input
+            <input aria-label="Mot de passe"
               type="password"
               placeholder="Mot de passe"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-slate-50/50"
+              className="w-full pl-12 pr-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-terre-500 focus:border-transparent bg-slate-50/50"
               required
             />
           </div>
@@ -87,7 +87,7 @@ export default function LivreurLoginPage({ onBack, onLoginSuccess, onRegister })
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-3 px-4 rounded-xl text-sm transition disabled:opacity-50"
+            className="w-full bg-terre-700 hover:bg-terre-800 text-white font-bold py-3 px-4 rounded-xl text-sm transition disabled:opacity-50"
           >
             {loading ? 'Connexion...' : 'Se connecter'}
           </button>
@@ -97,7 +97,7 @@ export default function LivreurLoginPage({ onBack, onLoginSuccess, onRegister })
           <button
             type="button"
             onClick={onRegister}
-            className="text-xs font-semibold text-slate-500 hover:text-amber-600 transition"
+            className="text-xs font-semibold text-slate-500 hover:text-terre-700 transition"
           >
             Pas encore livreur ? Créer un compte
           </button>

@@ -1,6 +1,6 @@
 import { PaymentProvider } from './PaymentProvider.js';
 import { initFlouciPayment } from '../../utils/paymentGateway.js';
-import { verifyHmacSignature } from './hmac.js';
+import { verifyHmacSignature, webhookSecret } from './hmac.js';
 
 export class FlouciProvider extends PaymentProvider {
   get name() {
@@ -16,7 +16,7 @@ export class FlouciProvider extends PaymentProvider {
     return verifyHmacSignature({
       rawBody: req.rawBody,
       signatureHeader: req.headers['x-flouci-signature'],
-      secret: process.env.FLOUCI_WEBHOOK_SECRET || 'sandbox_flouci_webhook_secret',
+      secret: webhookSecret('FLOUCI_WEBHOOK_SECRET', 'sandbox_flouci_webhook_secret'),
     });
   }
 

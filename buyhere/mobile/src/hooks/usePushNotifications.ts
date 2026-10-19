@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 import { isRunningInExpoGo } from 'expo';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
+import * as Linking from 'expo-linking';
 import { useQueryClient } from '@tanstack/react-query';
 import { meApi } from '@/api/endpoints';
 import { useIsLoggedIn } from '@/store/auth';
@@ -59,9 +60,33 @@ async function registerForPush(N: NotificationsModule): Promise<string | null> {
   try {
     const { data } = await N.getExpoPushTokenAsync(projectId ? { projectId } : undefined);
     return data;
-  } catch {
-    return null; // hors ligne ou projet EAS non configuré : l'app fonctionne sans push
+  } catch (error) {
+    // Hors ligne, projet EAS non lié (extra.eas.projectId absent) ou FCM non
+    // configuré : l'app fonctionne sans push, mais la cause reste visible.
+    console.warn('[PUSH] Jeton Expo indisponible :', error instanceof Error ? error.message : error, projectId ? '' : '(projectId EAS absent)');
+    return null;
   }
+}
+
+// Dernier jeton enregistré sur le compte — retiré à la déconnexion pour que
+// le téléphone ne reçoive plus les notifications d'un compte quitté.
+let registeredToken: string | null = null;
+
+/** À appeler AVANT d'effacer la session (le jeton d'API est encore valide). */
+export async function unregisterPushToken() {
+  const token = registeredToken;
+  registeredToken = null;
+  if (!token) return;
+  await meApi.setPushToken(null, token).catch(() => undefined);
+}
+
+/**
+ * Ouvre le lien d'app d'une notification (ex. 'commande/12',
+ * 'messages/3') via le deep linking — la même table de routes que les liens
+ * buyhere:// et https:// partagés (navigation/linking.ts).
+ */
+export function openAppLink(link: string) {
+  Linking.openURL(Linking.createURL(link.replace(/^\/+/, '')));
 }
 
 /** Enregistre l'appareil une fois connecté et ouvre la commande au tap d'une notification. */
@@ -72,7 +97,11 @@ export function usePushNotifications() {
   useEffect(() => {
     if (!loggedIn || !Notifications) return;
     registerForPush(Notifications)
-      .then((token) => (token ? meApi.setPushToken(token) : undefined))
+      .then(async (token) => {
+        if (!token) return;
+        await meApi.setPushToken(token);
+        registeredToken = token;
+      })
       .catch(() => undefined);
   }, [loggedIn]);
 
@@ -83,12 +112,19 @@ export function usePushNotifications() {
       qc.invalidateQueries({ queryKey: qk.unread });
       qc.invalidateQueries({ queryKey: qk.notifications });
       qc.invalidateQueries({ queryKey: ['orders'] });
+      // Livreur : « Nouvelle course » → l'offre s'affiche sans attendre le sondage.
+      qc.invalidateQueries({ queryKey: ['courier'] });
     });
-    // Tap sur une notification : navigue vers la commande concernée.
+    // Tap sur une notification : ouvre l'écran visé par son lien d'app
+    // (commande, message…), sinon la liste des notifications.
     const tapped = Notifications.addNotificationResponseReceivedListener((response) => {
+      const data = response.notification.request.content.data as { lien?: unknown; commandeId?: unknown } | undefined;
+      if (typeof data?.lien === 'string' && data.lien) {
+        openAppLink(data.lien);
+        return;
+      }
       if (!navigationRef.isReady()) return;
-      const orderId = response.notification.request.content.data?.orderId;
-      if (typeof orderId === 'string') navigationRef.navigate('OrderDetail', { orderId });
+      if (data?.commandeId) navigationRef.navigate('OrderDetail', { orderId: String(data.commandeId) });
       else navigationRef.navigate('Notifications');
     });
     return () => {

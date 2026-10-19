@@ -4,19 +4,13 @@ import {
   Wallet, PackageCheck, ChevronRight, CheckCircle2,
 } from 'lucide-react';
 import Avatar from '../ui/Avatar';
-import { API_URL } from '../../config/api.js';
-
-const STATUT_LABELS = {
-  en_attente: { fr: 'En attente', ar: 'قيد الانتظار' },
-  payee: { fr: 'Payée', ar: 'مدفوعة' },
-  expediee: { fr: 'Expédiée', ar: 'تم الشحن' },
-  livree: { fr: 'Livrée', ar: 'تم التسليم' },
-  annulee: { fr: 'Annulée', ar: 'ملغاة' },
-  retournee: { fr: 'Retournée', ar: 'مرتجعة' },
-};
+import { API_URL, absoluteImageUrl } from '../../config/api.js';
+import { STATUT_LABELS } from '../../utils/orderStatus.js';
 
 // Étape atteinte dans la barre de progression d'une commande en cours.
-const STEP_INDEX = { en_attente: 0, payee: 0, expediee: 1, livree: 2 };
+const STEP_INDEX = { en_attente: 0, payee: 0, preparation: 0, expediee: 1, en_cours_livraison: 1, livree: 2 };
+// Commandes encore « en cours » côté client (ni livrées ni closes).
+const STATUTS_EN_COURS = ['en_attente', 'payee', 'preparation', 'expediee', 'en_cours_livraison'];
 
 function formatTnd(value) {
   return `${Number(value || 0).toFixed(3)} TND`;
@@ -49,7 +43,7 @@ export default function HomeDashboard({ language = 'fr', navigate, cartCount = 0
     load('/wishlist', setFavoris, (items) => items.map((i) => i.produit).filter(Boolean));
   }, []);
 
-  const enCours = commandes.filter((c) => ['en_attente', 'payee', 'expediee'].includes(c.statut));
+  const enCours = commandes.filter((c) => STATUTS_EN_COURS.includes(c.statut));
   const derniere = enCours[0] || commandes[0] || null;
 
   const actions = [
@@ -170,7 +164,7 @@ export default function HomeDashboard({ language = 'fr', navigate, cartCount = 0
                 <button key={p.id} onClick={() => onOpenProduct(p.id)} className="group text-left rtl:text-right">
                   <div className="aspect-square overflow-hidden rounded-xl bg-slate-100">
                     {p.image
-                      ? <img src={p.image} alt={p.nom} className="h-full w-full object-cover transition duration-300 group-hover:scale-105" />
+                      ? <img loading="lazy" decoding="async" src={absoluteImageUrl(p.image)} alt={p.nom} className="h-full w-full object-cover transition duration-300 group-hover:scale-105" />
                       : <div className="flex h-full items-center justify-center text-slate-300"><ShoppingBag size={20} /></div>}
                   </div>
                   <p className="mt-1.5 truncate text-xs font-bold text-slate-800">{p.nom}</p>
@@ -204,7 +198,7 @@ function OrderProgress({ commande, tr }) {
         <div className="flex -space-x-3 rtl:space-x-reverse">
           {lignes.slice(0, 3).map((l) => (
             <div key={l.id} className="h-12 w-12 overflow-hidden rounded-xl border-2 border-white bg-slate-100">
-              {l.produit?.image && <img src={l.produit.image} alt="" className="h-full w-full object-cover" />}
+              {l.produit?.image && <img loading="lazy" decoding="async" src={l.produit.image} alt="" className="h-full w-full object-cover" />}
             </div>
           ))}
         </div>

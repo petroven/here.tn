@@ -1,6 +1,11 @@
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
-import { Utilisateur, PasswordResetToken, Gouvernorat, Delegation } from '../models/index.js';
+import { Op } from 'sequelize';
+import {
+  Utilisateur, PasswordResetToken, Gouvernorat, Delegation, Commande, Retour, Wishlist, Notification, PushToken, Panier,
+} from '../models/index.js';
+import { marquerCompteSupprime } from '../utils/comptesSupprimes.js';
+import { supprimerImagesSiOrphelines } from '../utils/upload.js';
 import { generateToken } from '../middleware/auth.js';
 import { sendEmail, emailResetPassword } from '../utils/email.js';
 
@@ -67,7 +72,7 @@ export async function forgotPassword(req, res) {
 
     await PasswordResetToken.create({ token, expiresAt, utilisateurId: user.id });
 
-    const resetUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/reset-password?token=${token}`;
+    const resetUrl = `${process.env.CLIENT_URL || 'http://localhost:5174'}/reset-password?token=${token}`;
     await emailResetPassword(user, resetUrl);
 
     return res.json({ success: true, message: 'Si cet email existe, un lien de réinitialisation a été envoyé.' });
@@ -89,7 +94,8 @@ export async function resetPassword(req, res) {
     }
 
     const hash = await bcrypt.hash(password, 10);
-    await resetToken.Utilisateur.update({ password: hash });
+    // Mot de passe oublié (ou volé) : toutes les sessions ouvertes sont révoquées.
+    await resetToken.Utilisateur.update({ password: hash, tokenVersion: (resetToken.Utilisateur.tokenVersion ?? 0) + 1 });
     await resetToken.update({ used: true });
 
     return res.json({ success: true, message: 'Mot de passe réinitialisé avec succès.' });
@@ -162,9 +168,112 @@ export async function changePassword(req, res) {
     if (!valid) return res.status(401).json({ success: false, message: 'Mot de passe actuel incorrect.' });
 
     const hash = await bcrypt.hash(newPassword, 10);
-    await user.update({ password: hash });
+    // Les autres appareils sont déconnectés ; cette session continue avec le
+    // nouveau jeton renvoyé (le site et l'app le remplacent aussitôt).
+    await user.update({ password: hash, tokenVersion: (user.tokenVersion ?? 0) + 1 });
 
-    return res.json({ success: true, message: 'Mot de passe modifié avec succès.' });
+    return res.json({ success: true, message: 'Mot de passe modifié avec succès.', token: generateToken(user) });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+// « Déconnecter tous les appareils » : révoque tous les jetons du compte, y
+// compris celui de la requête.
+export async function logoutAll(req, res) {
+  try {
+    const user = await Utilisateur.findByPk(req.user.id);
+    if (!user) return res.status(404).json({ success: false, message: 'Utilisateur introuvable.' });
+    await user.update({ tokenVersion: (user.tokenVersion ?? 0) + 1 });
+    return res.json({ success: true, message: 'Tous les appareils ont été déconnectés.' });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+// Statuts d'une commande encore « vivante » : on ne peut pas effacer le
+// client tant qu'il faut le livrer, l'encaisser ou traiter son retour.
+const COMMANDES_EN_COURS = ['en_attente', 'payee', 'preparation', 'expediee', 'en_cours_livraison', 'retour', 'litige'];
+
+/**
+ * Suppression du compte par son titulaire (exigée par Google Play et l'App
+ * Store). Les commandes et factures sont conservées (obligations
+ * comptables) mais anonymisées : nom, email, téléphone, adresse et photo
+ * sont effacés ; favoris, panier, notifications et appareils aussi. Les
+ * sessions ouvertes sont immédiatement refusées. Comptes vendeur, livreur et
+ * admin : fermeture via le support (boutique, soldes et courses à solder).
+ */
+export async function deleteMe(req, res) {
+  try {
+    const user = await Utilisateur.findByPk(req.user.id);
+    if (!user || user.compteSupprime) return res.status(404).json({ success: false, message: 'Utilisateur introuvable.' });
+
+    if (user.role !== 'client') {
+      return res.status(409).json({
+        success: false,
+        message: 'Les comptes vendeur, livreur et administrateur se ferment via le support (boutique, soldes ou courses à solder).',
+      });
+    }
+
+    // Compte classique : le mot de passe confirme que c'est bien son titulaire.
+    if (!user.provider || user.provider === 'local') {
+      const valid = req.body.password && await bcrypt.compare(req.body.password, user.password);
+      if (!valid) return res.status(401).json({ success: false, message: 'Mot de passe incorrect.' });
+    } else if (req.body.confirmation !== 'SUPPRIMER') {
+      return res.status(400).json({ success: false, message: 'Tapez SUPPRIMER pour confirmer la suppression.' });
+    }
+
+    const enCours = await Commande.count({ where: { clientId: user.id, statut: { [Op.in]: COMMANDES_EN_COURS } } });
+    const retoursOuverts = await Retour.count({ where: { clientId: user.id, statut: { [Op.in]: ['demande', 'approuve', 'litige'] } } });
+    if (enCours > 0 || retoursOuverts > 0) {
+      return res.status(409).json({
+        success: false,
+        message: 'Vous avez des commandes ou des retours en cours : attendez leur fin (ou annulez-les) avant de supprimer votre compte.',
+      });
+    }
+    if (Number(user.soldeWallet || 0) > 0.0005) {
+      return res.status(409).json({
+        success: false,
+        message: `Il reste ${Number(user.soldeWallet).toFixed(3)} DT sur votre solde : utilisez-le avant de supprimer votre compte, ou contactez le support.`,
+      });
+    }
+
+    const anciennePhoto = user.photo;
+    const transaction = await Utilisateur.sequelize.transaction();
+    try {
+      const where = { utilisateurId: user.id };
+      await Promise.all([
+        Wishlist.destroy({ where, transaction }),
+        Notification.destroy({ where, transaction }),
+        PushToken.destroy({ where, transaction }),
+        Panier.destroy({ where, transaction }),
+        PasswordResetToken.destroy({ where, transaction }).catch(() => undefined),
+      ]);
+      await user.update({
+        nom: 'supprimé',
+        prenom: 'Compte',
+        email: `supprime-${user.id}-${Date.now()}@comptes-supprimes.invalid`,
+        telephone: null,
+        adresse: null,
+        photo: null,
+        gouvernoratId: null,
+        delegationId: null,
+        provider: 'local',
+        providerId: null,
+        // Hash d'un secret aléatoire jamais conservé : plus aucune connexion possible.
+        password: await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10),
+        compteSupprime: true,
+      }, { transaction });
+      await transaction.commit();
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+
+    marquerCompteSupprime(user.id);
+    // Photo de profil = donnée personnelle : effacée du stockage, pas seulement déréférencée.
+    await supprimerImagesSiOrphelines([anciennePhoto]);
+    return res.json({ success: true, message: 'Votre compte a été supprimé.' });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
