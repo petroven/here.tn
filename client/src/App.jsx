@@ -525,8 +525,8 @@ function App() {
         />
         <Route path="/messages" element={<MessagesPage language={language} />} />
         <Route path="/suivi" element={<TrackingPage language={language} />} />
-        <Route path="/compte" element={<AccountPage language={language} navigate={navigate} />} />
-        <Route path="/commandes" element={<ClientOrdersPage onStartChat={handleStartChat} language={language} />} />
+        <Route path="/compte" element={<AccountPage language={language} navigate={navigate} onRequireLogin={openLoginModal} />} />
+        <Route path="/commandes" element={<ClientOrdersPage onStartChat={handleStartChat} onRequireLogin={openLoginModal} language={language} />} />
         {/* Liens partagés que l'app mobile intercepte (app.json, navigation/linking.ts) :
             sans l'app installée, ils mènent à la page la plus proche du site
             plutôt qu'à la page introuvable. */}
