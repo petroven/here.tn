@@ -51,3 +51,16 @@ test('production : comptes existants sur le mot de passe public corrigés au dé
   assert.equal((await connexion('client.demo@here.tn', 'ClientDemo2026!')).status, 401, 'client : public refusé (aléatoire)');
   assert.equal((await connexion('vendeur1.demo@here.tn', 'VendeurDemo2026!')).status, 401, 'vendeur : public refusé');
 });
+
+test('production : variable recopiée avec le mot de passe public → ignorée', async () => {
+  process.env.NODE_ENV = 'production';
+  process.env.DEMO_CLIENT_PASSWORD = 'ClientDemo2026!';
+  try {
+    assert.notEqual(seed.motDePasseDemo('DEMO_CLIENT_PASSWORD', 'ClientDemo2026!'), 'ClientDemo2026!');
+    await seed.seedDemoAccounts();
+  } finally {
+    process.env.NODE_ENV = 'test';
+    delete process.env.DEMO_CLIENT_PASSWORD;
+  }
+  assert.equal((await connexion('client.demo@here.tn', 'ClientDemo2026!')).status, 401);
+});

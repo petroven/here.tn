@@ -51,8 +51,18 @@ export const demoUsers = [
 // le mot de passe de sa variable d'environnement (DEMO_*_PASSWORD) si elle est
 // définie, sinon un mot de passe aléatoire que personne ne connaît. Lu au moment
 // du seed (pas au chargement du module, qui précède dotenv.config()).
+// Une variable égale au mot de passe public (recopié du README sur
+// l'hébergeur) est ignorée en production : elle ne protégerait rien.
+function variableDemo(variable, motDePassePublic) {
+  const valeur = process.env[variable];
+  if (!valeur) return null;
+  if (process.env.NODE_ENV === 'production' && valeur === motDePassePublic) return null;
+  return valeur;
+}
+
 export function motDePasseDemo(variable, motDePassePublic) {
-  if (process.env[variable]) return process.env[variable];
+  const configure = variableDemo(variable, motDePassePublic);
+  if (configure) return configure;
   if (process.env.NODE_ENV === 'production') return crypto.randomBytes(24).toString('base64url');
   return motDePassePublic;
 }
@@ -61,7 +71,7 @@ export function motDePasseDemo(variable, motDePassePublic) {
 // déploiement) : en production, il est remplacé au démarrage.
 async function retirerMotDePassePublic(user, variable, motDePassePublic) {
   if (process.env.NODE_ENV !== 'production') return;
-  const aConfigurer = process.env[variable];
+  const aConfigurer = variableDemo(variable, motDePassePublic);
   const encorePublic = await bcrypt.compare(motDePassePublic, user.password);
   const aChanger = encorePublic || (aConfigurer && !(await bcrypt.compare(aConfigurer, user.password)));
   if (!aChanger) return;
