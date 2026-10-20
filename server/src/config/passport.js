@@ -101,7 +101,7 @@ passport.use(new FacebookStrategy(
     // passport-facebook defaults to the long-deprecated Graph API v3.2 dialog
     // when this isn't set, which Facebook's current backend rejects the
     // 'email' scope against ("Invalid Scopes: email").
-    graphAPIVersion: 'v19.0',
+    graphAPIVersion: 'v26.0',
   },
   async (_accessToken, _refreshToken, profile, done) => {
     try {

@@ -12,7 +12,9 @@ const sauvegarde = Object.fromEntries(cles.map((k) => [k, process.env[k]]));
 const ouvrir = (chemin) => fetch(`${helpers.BASE_URL}${chemin}`, { redirect: 'manual' });
 
 before(async () => {
-  for (const k of cles) delete process.env[k];
+  // Vidées plutôt que supprimées : passport.js charge server/.env, qui ne
+  // remplace jamais une variable déjà définie (même vide).
+  for (const k of cles) process.env[k] = '';
   await startTestServer({ db: 'test-oauth-configuration' });
 });
 
