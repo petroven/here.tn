@@ -34,7 +34,7 @@ export default function FavoritesPage({ language = 'fr', onBack, onOpenProduct, 
   return (
     <div dir={isAr ? 'rtl' : 'ltr'} className="mx-auto max-w-5xl p-4 pb-24 sm:p-6 md:pb-6 font-sans">
       <div className="mb-6 flex items-center gap-3">
-        <button onClick={onBack} className="rounded-xl border border-slate-200 p-2.5 text-slate-500 hover:bg-slate-50">
+        <button onClick={onBack} aria-label={tr('Retour', 'رجوع')} className="rounded-xl border border-slate-200 p-2.5 text-slate-500 hover:bg-slate-50">
           <ArrowLeft size={18} className="rtl:rotate-180" />
         </button>
         <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-50 text-rose-500">

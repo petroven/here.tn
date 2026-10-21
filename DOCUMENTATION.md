@@ -87,6 +87,8 @@ Au premier démarrage, le serveur crée les tables et insère automatiquement :
 | Super admin | `super.admin@here.tn` | `SuperAdminDemo2026!` |
 | Livreur | `livreur.demo@here.tn` | `LivreurDemo2026!` |
 
+**Ces mots de passe ne valent qu'en développement et dans les tests.** En production (`NODE_ENV=production`), chaque compte de démonstration prend le mot de passe de sa variable d'environnement (`DEMO_CLIENT_PASSWORD`, `DEMO_BOUTIQUE_ADMIN_PASSWORD`, `DEMO_SUPER_ADMIN_PASSWORD`, `DEMO_LIVREUR_PASSWORD`, `DEMO_VENDEUR_PASSWORD`) ; sans variable, un mot de passe aléatoire que personne ne connaît.
+
 Deux autres comptes vendeurs (`vendeur1.demo@here.tn` pour *Atelier Kairouan*, `vendeur2.demo@here.tn` pour *GadgetPro Sfax*) reçoivent un mot de passe non documenté.
 
 Tests : `npm test --prefix server` (bases SQLite isolées `server/data/test-*.db`), `npm test --prefix client`, `npm test --prefix buyhere/mobile`. Voir §4.12 et la CI.

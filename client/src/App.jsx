@@ -541,8 +541,8 @@ function App() {
           element={<ComparePage language={language} onBack={() => navigate('/catalogue')} onOpenProduct={openProduct} onAddToCart={handleAddToCart} />}
         />
         <Route path="/contact" element={<ContactPage language={language} onBack={() => navigate('/')} onOpenHelp={() => navigate('/aide')} />} />
-        <Route path="/compte" element={<AccountPage language={language} navigate={navigate} />} />
-        <Route path="/commandes" element={<ClientOrdersPage onStartChat={handleStartChat} language={language} />} />
+        <Route path="/compte" element={<AccountPage language={language} navigate={navigate} onRequireLogin={openLoginModal} />} />
+        <Route path="/commandes" element={<ClientOrdersPage onStartChat={handleStartChat} onRequireLogin={openLoginModal} language={language} />} />
         {/* Liens partagés que l'app mobile intercepte (app.json, navigation/linking.ts) :
             sans l'app installée, ils mènent à la page la plus proche du site
             plutôt qu'à la page introuvable. */}

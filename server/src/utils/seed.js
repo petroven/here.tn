@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import { Boutique, Categorie, Produit, Utilisateur, Variante, Livreur, Gouvernorat } from '../models/index.js';
 
@@ -45,12 +46,46 @@ export const demoUsers = [
   { id: 3, nom: 'Sonia', prenom: 'Leroy', email: 'sonia@example.com', role: 'client' },
 ];
 
+// Mots de passe de démonstration : publics (README, documentation, dépôt).
+// En production, ils ne doivent jamais ouvrir de session : chaque compte prend
+// le mot de passe de sa variable d'environnement (DEMO_*_PASSWORD) si elle est
+// définie, sinon un mot de passe aléatoire que personne ne connaît. Lu au moment
+// du seed (pas au chargement du module, qui précède dotenv.config()).
+// Une variable égale au mot de passe public (recopié du README sur
+// l'hébergeur) est ignorée en production : elle ne protégerait rien.
+function variableDemo(variable, motDePassePublic) {
+  const valeur = process.env[variable];
+  if (!valeur) return null;
+  if (process.env.NODE_ENV === 'production' && valeur === motDePassePublic) return null;
+  return valeur;
+}
+
+export function motDePasseDemo(variable, motDePassePublic) {
+  const configure = variableDemo(variable, motDePassePublic);
+  if (configure) return configure;
+  if (process.env.NODE_ENV === 'production') return crypto.randomBytes(24).toString('base64url');
+  return motDePassePublic;
+}
+
+// Compte déjà créé avec le mot de passe public (base persistante, ancien
+// déploiement) : en production, il est remplacé au démarrage.
+async function retirerMotDePassePublic(user, variable, motDePassePublic) {
+  if (process.env.NODE_ENV !== 'production') return;
+  const aConfigurer = variableDemo(variable, motDePassePublic);
+  const encorePublic = await bcrypt.compare(motDePassePublic, user.password);
+  const aChanger = encorePublic || (aConfigurer && !(await bcrypt.compare(aConfigurer, user.password)));
+  if (!aChanger) return;
+  await user.update({ password: await bcrypt.hash(motDePasseDemo(variable, motDePassePublic), 10) });
+  console.log(`[SEED] Mot de passe de démonstration remplacé pour ${user.email} (production).`);
+}
+
 export const demoAccounts = [
   {
     nom: 'Ben Salah',
     prenom: 'Amine',
     email: process.env.DEMO_CLIENT_EMAIL || 'client.demo@here.tn',
-    password: process.env.DEMO_CLIENT_PASSWORD || 'ClientDemo2026!',
+    password: 'ClientDemo2026!',
+    variable: 'DEMO_CLIENT_PASSWORD',
     role: 'client',
     telephone: '20123456',
   },
@@ -58,7 +93,8 @@ export const demoAccounts = [
     nom: 'Trabelsi',
     prenom: 'Meriem',
     email: process.env.DEMO_BOUTIQUE_ADMIN_EMAIL || 'boutique.admin@here.tn',
-    password: process.env.DEMO_BOUTIQUE_ADMIN_PASSWORD || 'BoutiqueDemo2026!',
+    password: 'BoutiqueDemo2026!',
+    variable: 'DEMO_BOUTIQUE_ADMIN_PASSWORD',
     role: 'admin_boutique',
     telephone: '22123456',
   },
@@ -66,7 +102,8 @@ export const demoAccounts = [
     nom: 'Admin',
     prenom: 'Super',
     email: process.env.DEMO_SUPER_ADMIN_EMAIL || 'super.admin@here.tn',
-    password: process.env.DEMO_SUPER_ADMIN_PASSWORD || 'SuperAdminDemo2026!',
+    password: 'SuperAdminDemo2026!',
+    variable: 'DEMO_SUPER_ADMIN_PASSWORD',
     role: 'super_admin',
     telephone: '70123456',
   },
@@ -74,7 +111,8 @@ export const demoAccounts = [
     nom: 'Chaabane',
     prenom: 'Karim',
     email: process.env.DEMO_LIVREUR_EMAIL || 'livreur.demo@here.tn',
-    password: process.env.DEMO_LIVREUR_PASSWORD || 'LivreurDemo2026!',
+    password: 'LivreurDemo2026!',
+    variable: 'DEMO_LIVREUR_PASSWORD',
     role: 'livreur',
     telephone: '25123456',
   },
@@ -175,8 +213,8 @@ const additionalDemoBoutiques = [
 export async function seedDemoAccounts() {
   let demoBoutique = null;
   for (const account of demoAccounts) {
-    const password = await bcrypt.hash(account.password, 10);
-    const [user] = await Utilisateur.findOrCreate({
+    const password = await bcrypt.hash(motDePasseDemo(account.variable, account.password), 10);
+    const [user, cree] = await Utilisateur.findOrCreate({
       where: { email: account.email },
       defaults: {
         nom: account.nom,
@@ -187,6 +225,7 @@ export async function seedDemoAccounts() {
         telephone: account.telephone,
       },
     });
+    if (!cree) await retirerMotDePassePublic(user, account.variable, account.password);
 
     if (account.role === 'livreur') {
       await Livreur.findOrCreate({ where: { utilisateurId: user.id }, defaults: { utilisateurId: user.id, statut: 'disponible' } });
@@ -212,11 +251,12 @@ export async function seedDemoAccounts() {
 
   const autresBoutiques = [];
   for (const item of additionalDemoBoutiques) {
-    const password = await bcrypt.hash('VendeurDemo2026!', 10);
-    const [vendeur] = await Utilisateur.findOrCreate({
+    const password = await bcrypt.hash(motDePasseDemo('DEMO_VENDEUR_PASSWORD', 'VendeurDemo2026!'), 10);
+    const [vendeur, cree] = await Utilisateur.findOrCreate({
       where: { email: item.email },
       defaults: { nom: item.nom, prenom: item.prenom, email: item.email, password, role: 'vendeur', telephone: item.telephone },
     });
+    if (!cree) await retirerMotDePassePublic(vendeur, 'DEMO_VENDEUR_PASSWORD', 'VendeurDemo2026!');
     const [boutique] = await Boutique.findOrCreate({
       where: { vendeurId: vendeur.id },
       defaults: {

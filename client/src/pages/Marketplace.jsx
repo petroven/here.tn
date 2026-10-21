@@ -412,8 +412,8 @@ export function Marketplace({ cartItems = [], onUpdateCart, onStartChat, onViewC
                 </button>
 
                 <div className="hidden items-center gap-1 rounded-xl border border-slate-200 bg-white p-1 sm:flex">
-                  <button onClick={() => setViewMode('grid')} className={`rounded-lg p-1.5 transition ${viewMode === 'grid' ? 'bg-[#F8E4DE] text-[#C4532C]' : 'text-slate-400'}`}><LayoutGrid size={16} /></button>
-                  <button onClick={() => setViewMode('list')} className={`rounded-lg p-1.5 transition ${viewMode === 'list' ? 'bg-[#F8E4DE] text-[#C4532C]' : 'text-slate-400'}`}><List size={16} /></button>
+                  <button onClick={() => setViewMode('grid')} aria-label={tr('Affichage en grille', 'عرض شبكي')} aria-pressed={viewMode === 'grid'} className={`rounded-lg p-1.5 transition ${viewMode === 'grid' ? 'bg-[#F8E4DE] text-[#C4532C]' : 'text-slate-400'}`}><LayoutGrid size={16} /></button>
+                  <button onClick={() => setViewMode('list')} aria-label={tr('Affichage en liste', 'عرض قائمة')} aria-pressed={viewMode === 'list'} className={`rounded-lg p-1.5 transition ${viewMode === 'list' ? 'bg-[#F8E4DE] text-[#C4532C]' : 'text-slate-400'}`}><List size={16} /></button>
                 </div>
 
                 <select aria-label={tr('Trier par', 'ترتيب حسب')}
@@ -489,6 +489,7 @@ export function Marketplace({ cartItems = [], onUpdateCart, onStartChat, onViewC
                 <button
                   disabled={currentPage === 1}
                   onClick={() => setCurrentPage((page) => page - 1)}
+                  aria-label={tr('Page précédente', 'الصفحة السابقة')}
                   className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 disabled:opacity-40"
                 >
                   <ChevronLeft size={16} className="rtl:rotate-180" />
@@ -505,6 +506,7 @@ export function Marketplace({ cartItems = [], onUpdateCart, onStartChat, onViewC
                 <button
                   disabled={currentPage >= totalPages}
                   onClick={() => setCurrentPage((page) => page + 1)}
+                  aria-label={tr('Page suivante', 'الصفحة التالية')}
                   className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 disabled:opacity-40"
                 >
                   <ChevronRight size={16} className="rtl:rotate-180" />

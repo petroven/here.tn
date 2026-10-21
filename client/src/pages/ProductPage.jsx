@@ -336,6 +336,7 @@ export default function ProductPage({ productId, language = 'fr', onBack, onOpen
               <div className="inline-flex items-center rounded-xl border border-slate-200">
                 <button
                   onClick={() => setQty((q) => Math.max(1, q - 1))}
+                  aria-label={tr('Diminuer la quantité', 'إنقاص الكمية')}
                   disabled={qty <= 1}
                   className="flex h-10 w-10 items-center justify-center text-slate-600 transition hover:text-[#C4532C] disabled:opacity-30"
                 >
@@ -344,6 +345,7 @@ export default function ProductPage({ productId, language = 'fr', onBack, onOpen
                 <span className="w-10 text-center text-sm font-bold text-slate-900">{qty}</span>
                 <button
                   onClick={() => setQty((q) => Math.min(q + 1, variant ? variant.stock : product.stock))}
+                  aria-label={tr('Augmenter la quantité', 'زيادة الكمية')}
                   disabled={qty >= (variant ? variant.stock : product.stock)}
                   className="flex h-10 w-10 items-center justify-center text-slate-600 transition hover:text-[#C4532C] disabled:opacity-30"
                 >

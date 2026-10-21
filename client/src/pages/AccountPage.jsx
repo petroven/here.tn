@@ -13,7 +13,7 @@ import DeleteAccountSection from '../components/DeleteAccountSection.jsx';
 // existants (commandes/retours, favoris, coupons, suivi). Volontairement ne
 // duplique pas ces pages : elles restent leurs propres routes dédiées, ce hub
 // ne fait qu'ajouter ce qui manquait vraiment — la gestion du profil lui-même.
-export default function AccountPage({ language = 'fr', navigate }) {
+export default function AccountPage({ language = 'fr', navigate, onRequireLogin }) {
   const isAr = language === 'ar';
   const tr = (fr, ar) => (isAr ? ar : fr);
 
@@ -172,8 +172,14 @@ export default function AccountPage({ language = 'fr', navigate }) {
   if (!token) {
     return (
       <div className="mx-auto max-w-3xl p-4 pb-24 sm:p-6 md:pb-6 font-sans">
-        <div className="rounded-lg border border-slate-200 bg-white p-12 text-center shadow-soft">
-          <p className="text-slate-500">{tr('Connectez-vous pour accéder à votre compte.', 'يرجى تسجيل الدخول للوصول إلى حسابك.')}</p>
+        <div className="rounded-lg border border-slate-200 bg-white p-10 text-center shadow-soft">
+          <h1 className="text-xl font-black text-slate-900">{tr('Mon compte', 'حسابي')}</h1>
+          <p className="mt-2 text-sm text-slate-500">{tr('Connectez-vous pour accéder à votre compte.', 'يرجى تسجيل الدخول للوصول إلى حسابك.')}</p>
+          {onRequireLogin && (
+            <button onClick={onRequireLogin} className="mt-5 rounded-xl bg-[#C4532C] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#A9441F]">
+              {tr('Se connecter', 'تسجيل الدخول')}
+            </button>
+          )}
         </div>
       </div>
     );
