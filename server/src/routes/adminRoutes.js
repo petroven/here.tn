@@ -11,7 +11,7 @@ import { changerStatutCommande, synchroniserStatutCommande } from '../utils/orde
 import { restaurerStockCommande, whereStockFaible } from '../utils/stock.js';
 import { journaliser } from '../utils/audit.js';
 import { supprimerImagesSiOrphelines } from '../utils/upload.js';
-import { notifierVendeur } from '../utils/notifications.js';
+import { notifierVendeur, diffuserAuxClients, audienceClients } from '../utils/notifications.js';
 import { STATUTS_COMMANDE } from '../utils/orderStatus.js';
 import { estCommandeEncaissee } from '../utils/finance.js';
 import { marketplaceConfig } from '../config/marketplace.js';
@@ -31,6 +31,60 @@ const adminMiddleware = (req, res, next) => authMiddleware(req, res, () => {
     return res.status(403).json({ success: false, message: 'Accès refusé.' });
   }
   return next();
+});
+
+// --- Annonces à tous les clients (push + cloche) -------------------------
+
+// Liens qu'une annonce peut ouvrir : chemins courts compris à la fois par
+// l'app mobile (navigation/linking.ts) et par la cloche du site.
+const LIEN_ANNONCE_RE = /^(coupons|boutiques|produit\/\d+|boutique\/\d+)$/;
+const TITRE_MAX = 65;
+const MESSAGE_MAX = 240;
+// Empêche un double envoi (double clic, onglet rouvert) du même message.
+const DELAI_DOUBLON_MS = 60 * 1000;
+let derniereAnnonce = null;
+
+router.get('/admin/annonces/audience', adminMiddleware, async (_req, res) => {
+  try {
+    return res.json({ success: true, data: await audienceClients() });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.post('/admin/annonces', adminMiddleware, async (req, res) => {
+  try {
+    const titre = typeof req.body?.titre === 'string' ? req.body.titre.trim() : '';
+    const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
+    const lien = typeof req.body?.lien === 'string' && req.body.lien.trim() ? req.body.lien.trim() : null;
+
+    if (!titre || titre.length > TITRE_MAX) {
+      return res.status(400).json({ success: false, message: `Le titre est obligatoire (${TITRE_MAX} caractères maximum).` });
+    }
+    if (!message || message.length > MESSAGE_MAX) {
+      return res.status(400).json({ success: false, message: `Le message est obligatoire (${MESSAGE_MAX} caractères maximum).` });
+    }
+    if (lien && !LIEN_ANNONCE_RE.test(lien)) {
+      return res.status(400).json({ success: false, message: 'Lien non pris en charge.' });
+    }
+
+    const empreinte = `${titre}\n${message}\n${lien || ''}`;
+    if (derniereAnnonce && derniereAnnonce.empreinte === empreinte && Date.now() - derniereAnnonce.date < DELAI_DOUBLON_MS) {
+      return res.status(429).json({ success: false, message: 'Cette annonce vient déjà d’être envoyée.' });
+    }
+    derniereAnnonce = { empreinte, date: Date.now() };
+
+    const resultat = await diffuserAuxClients({ titre, message, lien });
+    await journaliser(req, {
+      action: 'annonce_clients',
+      entite: 'Notification',
+      apres: { titre, message, lien, ...resultat },
+    });
+    return res.json({ success: true, data: resultat });
+  } catch (error) {
+    derniereAnnonce = null; // envoi en échec : l'admin peut réessayer tout de suite
+    return res.status(500).json({ success: false, message: error.message });
+  }
 });
 
 // Get all vendors
