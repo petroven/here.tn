@@ -21,6 +21,7 @@ import { API_URL } from '../config/api.js';
 import Logo from '../components/ui/Logo.jsx';
 import AdminAuditLog from '../components/admin/AdminAuditLog.jsx';
 import AdminCategories from '../components/admin/AdminCategories.jsx';
+import AdminAnnonces from '../components/admin/AdminAnnonces.jsx';
 import ToastHost, { toast } from '../components/ui/Toast.jsx';
 import { STATUT_LABELS as STATUTS_COMMANDE } from '../utils/orderStatus.js';
 
@@ -370,7 +371,7 @@ export function AdminDashboard({ onLogout, language = 'fr', setLanguage = () => 
   const pendingVirements = virements.filter((v) => v.statut === 'en_attente_validation');
   const recentOrders = [...orders].slice(0, 6);
 
-  const tabs = ['overview', 'vendors', 'kyc', 'products', 'withdrawals', 'virements', 'retours', 'avis', 'users', 'orders', 'categories', 'settlement', 'audit'];
+  const tabs = ['overview', 'vendors', 'kyc', 'products', 'withdrawals', 'virements', 'retours', 'avis', 'users', 'orders', 'categories', 'annonces', 'settlement', 'audit'];
   const litigesEnCours = retours.filter((r) => r.statut === 'litige').length;
   const kycEnAttente = vendors.filter((v) => v.kycStatut === 'en_attente').length;
   const avisEnAttente = avisList.filter((a) => !a.valide).length;
@@ -388,6 +389,7 @@ export function AdminDashboard({ onLogout, language = 'fr', setLanguage = () => 
     orders: t('orders'),
     settlement: t('commissionBreakdown'),
     categories: tr('Catégories', 'الفئات'),
+    annonces: tr('Annonces', 'الإعلانات'),
     audit: tr("Journal d'audit", 'سجل التدقيق'),
   };
   const produitsStockFaible = products.filter((p) => p.status !== 'inactif' && p.stock <= seuilStockFaible);
@@ -958,6 +960,7 @@ export function AdminDashboard({ onLogout, language = 'fr', setLanguage = () => 
         {/* Orders Tab */}
         {activeTab === 'audit' && <AdminAuditLog token={token} language={language} />}
         {activeTab === 'categories' && <AdminCategories token={token} language={language} />}
+        {activeTab === 'annonces' && <AdminAnnonces token={token} language={language} />}
 
         {activeTab === 'orders' && (
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-soft">

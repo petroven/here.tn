@@ -1,6 +1,9 @@
-import { Notification, PushToken, Boutique } from '../models/index.js';
+import { Op } from 'sequelize';
+import { Notification, PushToken, Boutique, Utilisateur } from '../models/index.js';
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
+// Expo refuse plus de 100 messages par requête.
+const EXPO_LOT_MAX = 100;
 
 // Pas d'envoi réseau pendant les tests automatisés, ni quand l'opérateur le
 // coupe explicitement (PUSH_NOTIFICATIONS=off) — la notification in-app est
@@ -14,8 +17,16 @@ function pushActif() {
 // permission retirée) sont supprimés pour ne plus être réessayés.
 // Renvoie le nombre de messages acceptés par Expo ; tout refus (HTTP ou
 // ticket en erreur) est journalisé, jamais compté comme un succès.
-export async function envoyerPushExpo(tokens, { titre, message, lien, data }) {
+export async function envoyerPushExpo(tokens, contenu) {
   if (!tokens.length || !pushActif()) return 0;
+  let acceptes = 0;
+  for (let debut = 0; debut < tokens.length; debut += EXPO_LOT_MAX) {
+    acceptes += await envoyerLotExpo(tokens.slice(debut, debut + EXPO_LOT_MAX), contenu);
+  }
+  return acceptes;
+}
+
+async function envoyerLotExpo(tokens, { titre, message, lien, data }) {
   const messages = tokens.map((t) => ({
     to: t.token,
     title: titre,
@@ -113,4 +124,46 @@ export function apresCommit(transaction, fn) {
     return Promise.resolve();
   }
   return run();
+}
+
+// Comptes clients joignables : les comptes supprimés (anonymisés) sont exclus.
+async function idsClients() {
+  const clients = await Utilisateur.findAll({
+    where: { role: 'client', compteSupprime: { [Op.not]: true } },
+    attributes: ['id'],
+    raw: true,
+  });
+  return clients.map((client) => client.id);
+}
+
+/**
+ * Annonce à tous les clients (promotion, nouveauté…) envoyée depuis le
+ * tableau de bord admin : une Notification par client (cloche du site,
+ * écran Notifications de l'app) et un push Expo sur chacun de leurs
+ * appareils. Les comptes supprimés sont exclus.
+ *
+ * Renvoie { clients, appareils, envoyes } : envoyes compte les messages
+ * acceptés par Expo (0 si le push est coupé, voir pushActif).
+ */
+export async function diffuserAuxClients({ titre, message, lien = null }) {
+  const ids = await idsClients();
+  if (!ids.length) return { clients: 0, appareils: 0, envoyes: 0 };
+
+  const LOT_SQL = 500;
+  for (let debut = 0; debut < ids.length; debut += LOT_SQL) {
+    await Notification.bulkCreate(ids.slice(debut, debut + LOT_SQL).map((utilisateurId) => ({
+      utilisateurId, type: 'annonce', titre, message, lien,
+    })));
+  }
+
+  const tokens = await PushToken.findAll({ where: { utilisateurId: ids }, attributes: ['token'] });
+  const envoyes = await envoyerPushExpo(tokens, { titre, message, lien, data: { type: 'annonce' } });
+  return { clients: ids.length, appareils: tokens.length, envoyes };
+}
+
+/** Nombre de clients et d'appareils qu'atteindrait une annonce. */
+export async function audienceClients() {
+  const ids = await idsClients();
+  const appareils = ids.length ? await PushToken.count({ where: { utilisateurId: ids } }) : 0;
+  return { clients: ids.length, appareils };
 }

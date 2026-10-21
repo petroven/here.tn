@@ -640,6 +640,10 @@ function MainShell({
                   onOuvrirLien={(lien) => {
                     if (lien.startsWith('messages')) navigate('/messages');
                     else if (lien.startsWith('vendeur')) navigate('/vendeur');
+                    // Liens des annonces admin (voir AdminAnnonces.jsx).
+                    else if (lien === 'coupons' || lien === 'boutiques') navigate(`/${lien}`);
+                    else if (/^produit\/\d+$/.test(lien)) navigate(`/produits/${lien.split('/')[1]}`);
+                    else if (/^boutique\/\d+$/.test(lien)) navigate(`/boutiques/${lien.split('/')[1]}`);
                     else navigate('/commandes');
                   }}
                 />
