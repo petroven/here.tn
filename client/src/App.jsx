@@ -12,6 +12,8 @@ import {
   User,
   AlertCircle,
   X,
+  Moon,
+  Sun,
   LayoutGrid,
   ShoppingBag,
 } from 'lucide-react';
@@ -33,6 +35,9 @@ const ConfirmOrderPage = lazy(() => import('./pages/ConfirmOrderPage'));
 const LivreurLoginPage = lazy(() => import('./pages/LivreurLoginPage'));
 const LivreurRegistrationPage = lazy(() => import('./pages/LivreurRegistrationPage'));
 const LivreurDashboardPage = lazy(() => import('./pages/LivreurDashboardPage'));
+const AboutPage = lazy(() => import('./pages/AboutPage'));
+const ContactPage = lazy(() => import('./pages/ContactPage'));
+const ComparePage = lazy(() => import('./pages/ComparePage'));
 import FavoritesPage from './pages/FavoritesPage';
 const CouponsPage = lazy(() => import('./pages/CouponsPage'));
 const OAuthCallbackPage = lazy(() => import('./pages/OAuthCallbackPage'));
@@ -47,6 +52,8 @@ import ToastHost from './components/ui/Toast.jsx';
 import NotificationBell from './components/NotificationBell.jsx';
 import { useTranslation } from './i18n';
 import { API_URL } from './config/api.js';
+import { CONTACT } from './config/contact.js';
+import { useTheme } from './utils/theme.js';
 import NotFoundPage from './pages/NotFoundPage.jsx';
 import IntroAnimation from './components/IntroAnimation.jsx';
 import { useDialog } from './hooks/useDialog.js';
@@ -357,7 +364,7 @@ function App() {
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/legal" element={<Navigate to="/legal/cgu" replace />} />
       <Route path="/legal/:type" element={<LegalRoute language={language} onBack={() => navigate('/')} />} />
-      <Route path="/aide" element={<HelpCenterPage language={language} onBack={() => navigate('/')} />} />
+      <Route path="/aide" element={<HelpCenterPage language={language} onBack={() => navigate('/')} onContact={() => navigate('/contact')} />} />
       <Route path="/confirmer-commande/:token" element={<ConfirmOrderRoute />} />
 
       <Route
@@ -525,6 +532,15 @@ function App() {
         />
         <Route path="/messages" element={<MessagesPage language={language} />} />
         <Route path="/suivi" element={<TrackingPage language={language} />} />
+        <Route
+          path="/a-propos"
+          element={<AboutPage language={language} onBack={() => navigate('/')} onOpenCatalog={() => navigate('/catalogue')} onBecomeVendor={() => navigate('/vendeur/inscription')} />}
+        />
+        <Route
+          path="/comparer"
+          element={<ComparePage language={language} onBack={() => navigate('/catalogue')} onOpenProduct={openProduct} onAddToCart={handleAddToCart} />}
+        />
+        <Route path="/contact" element={<ContactPage language={language} onBack={() => navigate('/')} onOpenHelp={() => navigate('/aide')} />} />
         <Route path="/compte" element={<AccountPage language={language} navigate={navigate} onRequireLogin={openLoginModal} />} />
         <Route path="/commandes" element={<ClientOrdersPage onStartChat={handleStartChat} onRequireLogin={openLoginModal} language={language} />} />
         {/* Liens partagés que l'app mobile intercepte (app.json, navigation/linking.ts) :
@@ -552,6 +568,7 @@ function MainShell({
   performAuthSubmit, setAuthError,
 }) {
   const navigate = useNavigate();
+  const theme = useTheme();
   const { pathname } = useLocation();
   const isAr = language === 'ar';
   const tr = (fr, ar) => (isAr ? ar : fr);
@@ -607,6 +624,14 @@ function MainShell({
             >
               FR | العربية
             </button>
+            <button
+              onClick={theme.toggle}
+              aria-label={theme.dark ? tr('Passer en mode clair', 'الوضع الفاتح') : tr('Passer en mode sombre', 'الوضع الداكن')}
+              title={theme.dark ? tr('Mode clair', 'الوضع الفاتح') : tr('Mode sombre', 'الوضع الداكن')}
+              className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 hover:bg-[#F8E4DE]"
+            >
+              {theme.dark ? <Sun size={16} /> : <Moon size={16} />}
+            </button>
 
             {user ? (
               <>
@@ -615,6 +640,10 @@ function MainShell({
                   onOuvrirLien={(lien) => {
                     if (lien.startsWith('messages')) navigate('/messages');
                     else if (lien.startsWith('vendeur')) navigate('/vendeur');
+                    // Liens des annonces admin (voir AdminAnnonces.jsx).
+                    else if (lien === 'coupons' || lien === 'boutiques') navigate(`/${lien}`);
+                    else if (/^produit\/\d+$/.test(lien)) navigate(`/produits/${lien.split('/')[1]}`);
+                    else if (/^boutique\/\d+$/.test(lien)) navigate(`/boutiques/${lien.split('/')[1]}`);
                     else navigate('/commandes');
                   }}
                 />
@@ -723,6 +752,9 @@ function MainShell({
               <button onClick={() => { navigate('/messages'); setShowMobileMenu(false); }} className="block w-full text-left py-2">{tr('Messagerie', 'المراسلة')}</button>
             )}
             <button onClick={() => { setLanguage(language === 'fr' ? 'ar' : 'fr'); }} className="block w-full text-left py-2">FR | العربية</button>
+            <button onClick={theme.toggle} className="flex w-full items-center gap-2 py-2 text-left">
+              {theme.dark ? <Sun size={16} /> : <Moon size={16} />} {theme.dark ? tr('Mode clair', 'الوضع الفاتح') : tr('Mode sombre', 'الوضع الداكن')}
+            </button>
             <div className="pt-2 border-t border-slate-200 flex gap-2">
               {user ? (
                 <button onClick={() => { handleLogout(); setShowMobileMenu(false); }} className="w-full text-center py-2 text-red-600 bg-red-50 rounded-xl">{tr('Déconnexion', 'تسجيل الخروج')}</button>
@@ -789,6 +821,7 @@ function MainShell({
           <div className="space-y-3">
             <h4 className="font-bold text-white text-sm">{tr('À propos de BuyHere', 'حول BuyHere')}</h4>
             <p>{tr('La marketplace tunisienne bilingue : boutiques locales, livraison dans les 24 gouvernorats, paiement à la livraison et retours simplifiés.', 'السوق التونسية ثنائية اللغة: متاجر محلية، توصيل إلى الولايات الـ24، دفع عند الاستلام وإرجاع مبسّط.')}</p>
+            <button onClick={() => navigate('/a-propos')} className="block text-left font-bold text-[#E39B82] hover:text-white">{tr('Qui sommes-nous ?', 'من نحن؟')}</button>
           </div>
           <div className="space-y-2">
             <h4 className="font-bold text-white text-sm">{tr('Liens Utiles', 'روابط مفيدة')}</h4>
@@ -798,6 +831,7 @@ function MainShell({
             <button onClick={() => navigate('/livreur/connexion')} className="block hover:text-white">{tr('Espace Livreur', 'فضاء الموصّل')}</button>
             {user && <button onClick={() => navigate('/messages')} className="block hover:text-white">{tr('Messagerie', 'المراسلة')}</button>}
             <button onClick={() => navigate('/legal/cgu')} className="block text-left hover:text-[#E39B82]">{tr('Conditions générales', 'الشروط العامة')}</button>
+            <button onClick={() => navigate('/legal/cgv')} className="block text-left hover:text-[#E39B82]">{tr('Conditions de vente', 'شروط البيع')}</button>
             <button onClick={() => navigate('/legal/privacy')} className="block text-left hover:text-[#E39B82]">{tr('Confidentialité', 'الخصوصية')}</button>
             <button onClick={() => navigate('/legal/returns')} className="block text-left hover:text-[#E39B82]">{tr('Retours', 'الإرجاع')}</button>
             <button onClick={() => navigate('/legal/shipping')} className="block text-left hover:text-[#E39B82]">{tr('Livraison', 'التوصيل')}</button>
@@ -805,8 +839,10 @@ function MainShell({
           </div>
           <div className="space-y-2">
             <h4 className="font-bold text-white text-sm">{tr('Contact & Support', 'التواصل والدعم')}</h4>
-            <p>Email: yassingasmi75@gmail.com</p>
-            <p>{tr('Téléphone', 'الهاتف')}: +216 27 991 953</p>
+            <p>Email: {CONTACT.email}</p>
+            <p>{tr('Téléphone', 'الهاتف')}: {CONTACT.phoneDisplay}</p>
+            <button onClick={() => navigate('/contact')} className="block text-left hover:text-white">{tr('Nous écrire', 'راسلنا')}</button>
+            <button onClick={() => navigate('/aide')} className="block text-left hover:text-white">{tr('Questions fréquentes', 'الأسئلة الشائعة')}</button>
           </div>
         </div>
         <div className="border-t border-slate-800 pt-8 text-center text-xs text-slate-500 font-bold">

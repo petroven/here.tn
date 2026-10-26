@@ -1,10 +1,10 @@
 import React from 'react';
-import { Star, Heart, ShoppingCart } from 'lucide-react';
+import { Star, Heart, ShoppingCart, GitCompare } from 'lucide-react';
 import Card from './ui/Card';
 import Badge from './ui/Badge';
 import { absoluteImageUrl } from '../config/api.js';
 
-export default function ProductCard({ product, isFavorite, onToggleFavorite, onOpen, onAddToCart, language = 'fr' }) {
+export default function ProductCard({ product, isFavorite, onToggleFavorite, isCompared, onToggleCompare, onOpen, onAddToCart, language = 'fr' }) {
   const isAr = language === 'ar';
   const hasPromo = product.prixAvant && product.prixAvant > product.prix;
   const promoPercent = hasPromo ? Math.round((1 - product.prix / product.prixAvant) * 100) : 0;
@@ -40,6 +40,18 @@ export default function ProductCard({ product, isFavorite, onToggleFavorite, onO
               className="absolute right-2.5 top-2.5 flex h-8 w-8 items-center justify-center rounded-full glass-badge max-sm:bg-white/90 max-sm:shadow-sm text-slate-600 transition hover:text-rose-500 rtl:right-auto rtl:left-2.5"
             >
               <Heart size={15} className={isFavorite ? 'fill-rose-500 text-rose-500' : ''} />
+            </button>
+          )}
+
+          {onToggleCompare && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onToggleCompare(product.id); }}
+              aria-label={isAr ? 'قارن' : 'Comparer'}
+              aria-pressed={Boolean(isCompared)}
+              title={isAr ? 'قارن' : 'Comparer'}
+              className={`absolute right-2.5 top-12 flex h-8 w-8 items-center justify-center rounded-full transition rtl:right-auto rtl:left-2.5 ${isCompared ? 'bg-[#C4532C] text-white' : 'glass-badge text-slate-600 hover:text-[#C4532C]'}`}
+            >
+              <GitCompare size={15} />
             </button>
           )}
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  Search, Store, ShieldCheck, PackageCheck, Truck, ArrowRight, Sparkles, TicketPercent, Bike, BadgeCheck,
+  Search, Store, ShieldCheck, PackageCheck, Truck, ArrowRight, Sparkles, TicketPercent, Bike, BadgeCheck, MapPin,
 } from 'lucide-react';
 import HomeDashboard from '../components/home/HomeDashboard.jsx';
 import ProductCard from '../components/ProductCard';
@@ -8,6 +8,7 @@ import BoutiqueCard from '../components/BoutiqueCard';
 import Avatar from '../components/ui/Avatar';
 import { iconForCategory } from '../utils/categoryIcons.js';
 import { API_URL, absoluteImageUrl } from '../config/api.js';
+import { regionsFromBoutiques } from '../utils/regions.js';
 
 // Photo de repli du hero quand aucun produit n'a encore d'image.
 const HERO_FALLBACK = 'https://images.unsplash.com/photo-1781455816406-c3dead3a643e?fm=jpg&q=80&w=1200&auto=format&fit=crop';
@@ -58,6 +59,8 @@ export default function HomePage({ navigate, language = 'fr', user, cartCount = 
   const [categoryPhotos, setCategoryPhotos] = useState({}); // { [categoryId]: imageUrl }
   const [populaires, setPopulaires] = useState([]);
   const [nouveautes, setNouveautes] = useState([]);
+  const [meilleuresVentes, setMeilleuresVentes] = useState([]);
+  const [promos, setPromos] = useState({ count: 0, maxPercent: 0 });
   const [boutiques, setBoutiques] = useState([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [recherche, setRecherche] = useState('');
@@ -95,11 +98,27 @@ export default function HomePage({ navigate, language = 'fr', user, cartCount = 
         .then((data) => { if (data.success) setNouveautes(data.data); })
         .catch(() => setNouveautes([])),
     ]).finally(() => setLoadingProducts(false));
+    // « Meilleures ventes » n'apparaît qu'une fois des ventes enregistrées :
+    // sans commande, ce tri ne serait qu'un ordre arbitraire.
+    fetch(`${API_URL}/produits?limit=8&sort=best_sellers`)
+      .then((response) => response.json())
+      .then((data) => { if (data.success) setMeilleuresVentes(data.data.filter((product) => Number(product.ventes) > 0)); })
+      .catch(() => setMeilleuresVentes([]));
+    fetch(`${API_URL}/produits?limit=60&promotion=true`)
+      .then((response) => response.json())
+      .then((data) => {
+        if (!data.success) return;
+        const percents = data.data.map((product) => Math.round((1 - product.prix / product.prixAvant) * 100));
+        setPromos({ count: data.count ?? data.data.length, maxPercent: Math.max(0, ...percents) });
+      })
+      .catch(() => {});
     fetch(`${API_URL}/boutiques`)
       .then((response) => response.json())
       .then((data) => { if (data.success) setBoutiques(data.data); })
       .catch(() => setBoutiques([]));
   }, []);
+
+  const regions = regionsFromBoutiques(boutiques);
 
   const goToCategory = (categoryId) => {
     setSelectedCategoryId?.(categoryId);
@@ -272,6 +291,29 @@ export default function HomePage({ navigate, language = 'fr', user, cartCount = 
         </section>
       )}
 
+      {/* Promotions — calculées depuis les produits réellement en promo */}
+      {promos.count > 0 && (
+        <section className="mx-auto max-w-7xl px-4 sm:px-6">
+          <button
+            onClick={() => navigate('/catalogue?promo=1')}
+            className="flex w-full flex-col gap-3 rounded-xl bg-ink p-5 text-start text-white transition hover:bg-[#2A2622] sm:flex-row sm:items-center sm:justify-between sm:p-6"
+          >
+            <span className="flex items-center gap-4">
+              <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-terre-700 text-lg font-black">-{promos.maxPercent}%</span>
+              <span>
+                <span className="block text-[11px] font-bold uppercase tracking-wider text-terre-300">{tr('Promotions en cours', 'تخفيضات جارية')}</span>
+                <span className="mt-0.5 block text-base font-extrabold sm:text-lg">
+                  {tr(`Jusqu'à -${promos.maxPercent}% sur ${promos.count} produits`, `حتى -${promos.maxPercent}% على ${promos.count} منتجات`)}
+                </span>
+              </span>
+            </span>
+            <span className="inline-flex items-center gap-1.5 self-start rounded-xl bg-white px-4 py-2.5 text-xs font-bold text-ink sm:self-auto">
+              {tr('Voir les promotions', 'شاهد التخفيضات')} <ArrowRight size={14} className="rtl:rotate-180" />
+            </span>
+          </button>
+        </section>
+      )}
+
       {/* Codes promo — une vraie page, pas un bandeau décoratif */}
       <section className="mx-auto max-w-7xl px-4 sm:px-6">
         <button
@@ -297,6 +339,46 @@ export default function HomePage({ navigate, language = 'fr', user, cartCount = 
             onAction={() => navigate('/catalogue')}
           />
           <ProductRow products={nouveautes} loading={loadingProducts} language={language} onOpenProduct={onOpenProduct} onAddToCart={onAddToCart} />
+        </section>
+      )}
+
+      {/* Meilleures ventes */}
+      {meilleuresVentes.length > 0 && (
+        <section className="mx-auto max-w-7xl px-4 sm:px-6">
+          <SectionHeader
+            title={tr('Meilleures ventes', 'الأكثر مبيعًا')}
+            subtitle={tr('Les produits les plus commandés', 'المنتجات الأكثر طلبًا')}
+            actionLabel={tr('Tout voir', 'عرض الكل')}
+            onAction={() => navigate('/catalogue')}
+          />
+          <ProductRow products={meilleuresVentes} loading={false} language={language} onOpenProduct={onOpenProduct} onAddToCart={onAddToCart} />
+        </section>
+      )}
+
+      {/* Acheter par région */}
+      {regions.length > 0 && (
+        <section className="mx-auto max-w-7xl px-4 sm:px-6">
+          <SectionHeader
+            title={tr('Acheter par région', 'تسوق حسب الجهة')}
+            subtitle={tr('Les boutiques près de chez vous', 'المتاجر القريبة منكم')}
+          />
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            {regions.map((region) => (
+              <button
+                key={region.id}
+                onClick={() => navigate(`/catalogue?region=${region.id}`)}
+                className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 text-start transition hover:border-terre-300"
+              >
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-terre-100 text-terre-700"><MapPin size={18} /></span>
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-extrabold text-slate-900">{(isAr && region.nomAr) || region.nom}</span>
+                  <span className="block text-[11px] text-slate-500">
+                    {tr(`${region.produits} produits · ${region.boutiques} boutique${region.boutiques > 1 ? 's' : ''}`, `${region.produits} منتج · ${region.boutiques} متجر`)}
+                  </span>
+                </span>
+              </button>
+            ))}
+          </div>
         </section>
       )}
 
