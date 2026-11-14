@@ -7,6 +7,7 @@ import type { RootStackParamList } from './types';
  *  - les liens d'app : buyhere://produit/123, buyhere://boutique/5,
  *    buyhere://commande/789, buyhere://promotion/ETE2026 ;
  *  - les liens du site partagés (WhatsApp, SMS…) : https://buyhere.tn/produits/123
+ *    (ou https://buyhere.com/produits/123)
  *    s'ouvre directement dans l'app quand elle est installée (Android App
  *    Links / iOS Universal Links, voir app.json et server/src/routes/appLinkRoutes.js) ;
  *  - le toucher d'une notification push (son « lien » passe par ici).
@@ -14,7 +15,11 @@ import type { RootStackParamList } from './types';
  * Les chemins du site (pluriel : /produits, /boutiques) sont des alias des
  * chemins courts de l'app, pour qu'un même lien fonctionne partout.
  */
-const WEB_ORIGINS = ['https://buyhere.tn', 'https://www.buyhere.tn', process.env.EXPO_PUBLIC_WEB_URL]
+const WEB_ORIGINS = [
+  'https://buyhere.tn', 'https://www.buyhere.tn',
+  'https://buyhere.com', 'https://www.buyhere.com',
+  process.env.EXPO_PUBLIC_WEB_URL,
+]
   .filter((origin): origin is string => Boolean(origin))
   .map((origin) => origin.replace(/\/$/, ''));
 

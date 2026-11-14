@@ -23,7 +23,8 @@ services:
           name: here-tn-db
           property: connectionString
       # Set these to the official Render URL https://buyhere-xffq.onrender.com
-      # (or https://buyhere.tn once the custom domain is attached)
+      # (or https://buyhere.tn / https://buyhere.com once the custom domains are
+      # attached — both are always allowed by CORS, see server/src/config/cors.js)
       - key: CLIENT_URL
         sync: false
       - key: FRONTEND_URL

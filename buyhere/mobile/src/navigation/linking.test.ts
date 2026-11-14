@@ -75,8 +75,8 @@ describe('deep links : chemins du site (alias pluriels)', () => {
 });
 
 describe('deep links : préfixes', () => {
-  it('accepte le schéma buyhere:// et les deux domaines du site', () => {
-    expect(linking.prefixes).toEqual(expect.arrayContaining(['buyhere://', 'https://buyhere.tn', 'https://www.buyhere.tn']));
+  it('accepte le schéma buyhere:// et les domaines du site (.tn et .com)', () => {
+    expect(linking.prefixes).toEqual(expect.arrayContaining(['buyhere://', 'https://buyhere.tn', 'https://www.buyhere.tn', 'https://buyhere.com', 'https://www.buyhere.com']));
   });
 
   it('le schéma de app.json est celui des liens d’app', () => {

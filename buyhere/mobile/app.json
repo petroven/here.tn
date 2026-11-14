@@ -15,7 +15,9 @@
       },
       "associatedDomains": [
         "applinks:buyhere.tn",
-        "applinks:www.buyhere.tn"
+        "applinks:www.buyhere.tn",
+        "applinks:buyhere.com",
+        "applinks:www.buyhere.com"
       ]
     },
     "android": {
@@ -80,6 +82,56 @@
             {
               "scheme": "https",
               "host": "www.buyhere.tn",
+              "pathPrefix": "/coupons/"
+            },
+            {
+              "scheme": "https",
+              "host": "buyhere.com",
+              "pathPrefix": "/produits/"
+            },
+            {
+              "scheme": "https",
+              "host": "buyhere.com",
+              "pathPrefix": "/boutiques/"
+            },
+            {
+              "scheme": "https",
+              "host": "buyhere.com",
+              "pathPrefix": "/commandes"
+            },
+            {
+              "scheme": "https",
+              "host": "buyhere.com",
+              "pathPrefix": "/promotion/"
+            },
+            {
+              "scheme": "https",
+              "host": "buyhere.com",
+              "pathPrefix": "/coupons/"
+            },
+            {
+              "scheme": "https",
+              "host": "www.buyhere.com",
+              "pathPrefix": "/produits/"
+            },
+            {
+              "scheme": "https",
+              "host": "www.buyhere.com",
+              "pathPrefix": "/boutiques/"
+            },
+            {
+              "scheme": "https",
+              "host": "www.buyhere.com",
+              "pathPrefix": "/commandes"
+            },
+            {
+              "scheme": "https",
+              "host": "www.buyhere.com",
+              "pathPrefix": "/promotion/"
+            },
+            {
+              "scheme": "https",
+              "host": "www.buyhere.com",
               "pathPrefix": "/coupons/"
             }
           ],
